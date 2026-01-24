@@ -1,0 +1,478 @@
+﻿<Window x:Class="ChurchDisplayApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Church Display Control"
+        Height="600"
+        Width="1000"
+        Icon="icon.ico">
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="300" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Playlist Panel -->
+        <Border Grid.Row="0"
+              Grid.Column="0"
+              BorderBrush="DarkBlue"
+              BorderThickness="2"
+              Padding="15"
+              CornerRadius="8"
+              Background="LightBlue"
+              AllowDrop="True"
+              Drop="Playlist_Drop"
+              DragEnter="Playlist_DragEnter">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="🎵 Media Playlist"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="DarkBlue"
+                           Margin="0,0,0,10" />
+                <ListBox x:Name="PlaylistListBox"
+                     Grid.Row="1"
+                     MouseDoubleClick="PlaylistListBox_DoubleClick"
+                     AllowDrop="True"
+                     DragOver="PlaylistListBox_DragOver"
+                     PreviewMouseLeftButtonDown="PlaylistListBox_PreviewMouseLeftButtonDown"
+                     PreviewMouseMove="PlaylistListBox_PreviewMouseMove">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="2">
+                                <TextBlock x:Name="FileTypeIcon" Text="🎵" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding FileName}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Extension}" Value=".mp4">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎬" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".mov">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎬" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".wmv">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎬" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".mkv">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎬" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".mp3">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎵" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".wav">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎵" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".flac">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎵" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".wma">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🎵" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".jpg">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".jpeg">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".png">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".bmp">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Extension}" Value=".gif">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Delete" Click="DeleteMenuItem_Click" />
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+                </ListBox>
+            <Button Grid.Row="2"
+                    Content="🗑️ Delete Selected"
+                    Click="DeleteSelected_Click"
+                    Padding="12,8"
+                    Margin="0,10,0,0"
+                    FontWeight="Bold"
+                    Background="White"
+                    BorderBrush="DarkBlue"
+                    BorderThickness="1"
+                    HorizontalAlignment="Left" />
+        </Grid>
+        </Border>
+
+        <!-- Preview Panel -->
+        <Grid Grid.Row="0"
+              Grid.Column="1"
+              Margin="0,0,0,10">
+            <Border Background="LightGray"
+                    BorderBrush="Black"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0"
+                               Text="Live Preview"
+                               FontWeight="Bold"
+                               Padding="8"
+                               Background="DarkGray"
+                               Foreground="White" />
+                    <Image x:Name="PreviewImage"
+                           Grid.Row="1"
+                           Stretch="UniformToFill"
+                           Margin="2" />
+                    <TextBlock x:Name="PreviewLabel"
+                               Grid.Row="2"
+                               Text="No Content"
+                               TextWrapping="Wrap"
+                               Padding="8"
+                               TextAlignment="Center"
+                               FontSize="12" />
+                    <!-- Progress Bar -->
+                    <Border Grid.Row="3"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="2"
+                            Padding="10"
+                            CornerRadius="4"
+                            Margin="8"
+                            Background="LightBlue">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="4"
+                                    Margin="0,0,8,0"
+                                    Width="50"
+                                    Background="White">
+                                <TextBlock x:Name="CurrentTimeLabel"
+                                           Text="00:00"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           FontSize="10"
+                                           FontFamily="Courier New"
+                                           FontWeight="Bold"
+                                           Foreground="DarkBlue" />
+                            </Border>
+                            <Slider x:Name="ProgressSlider"
+                                    Grid.Column="1"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    Value="0"
+                                    VerticalAlignment="Center"
+                                    PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
+                                    PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
+                            <Border Grid.Column="2"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="4"
+                                    Margin="8,0,0,0"
+                                    Width="50"
+                                    Background="White">
+                                <TextBlock x:Name="DurationLabel"
+                                           Text="00:00"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           FontSize="10"
+                                           FontFamily="Courier New"
+                                           FontWeight="Bold"
+                                           Foreground="DarkBlue" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Media Playback Controls -->
+        <Border Grid.Row="1"
+                Grid.Column="0"
+                BorderBrush="DarkBlue"
+                BorderThickness="2"
+                Padding="15"
+                CornerRadius="8"
+                Margin="0,0,0,10"
+                Background="LightBlue">
+            <StackPanel>
+                <TextBlock Text="Media Controls"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="DarkBlue"
+                           Margin="0,0,0,15" />
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <Button Content="⏮️ Previous"
+                            Click="Previous_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,0"
+                            Width="80"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="⏯️ Play/Pause"
+                            Click="PlayPause_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,0"
+                            Width="90"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="⏹️ Stop"
+                            Click="Stop_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,0"
+                            Width="70"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="⏭️ Next"
+                            Click="Next_Click"
+                            Padding="12,8"
+                            Margin="0,0,16,0"
+                            Width="70"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <TextBlock Text="🔊 Volume:"
+                               VerticalAlignment="Center"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="DarkBlue"
+                               Margin="0,0,8,0" />
+                    <Slider x:Name="VolumeSlider"
+                            Width="120"
+                            Minimum="0"
+                            Maximum="1"
+                            Value="0.5"
+                            VerticalAlignment="Center"
+                            ValueChanged="VolumeSlider_ValueChanged" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Progress Bar -->
+        <Border Grid.Row="2"
+              Grid.Column="0"
+              BorderBrush="DarkBlue"
+              BorderThickness="2"
+              Padding="15"
+              CornerRadius="8"
+              Margin="0,0,0,10"
+              Background="LightBlue">
+            <StackPanel>
+                <TextBlock Text="Playback Progress"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="DarkBlue"
+                           Margin="0,0,0,10" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="4"
+                            Margin="0,0,8,0"
+                            Width="60"
+                            Background="White">
+                        <TextBlock x:Name="CurrentTimeLabel"
+                                   Text="00:00"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   FontSize="12"
+                                   FontFamily="Courier New"
+                                   FontWeight="Bold"
+                                   Foreground="DarkBlue" />
+                    </Border>
+                    <Slider x:Name="ProgressSlider"
+                            Grid.Column="1"
+                            Minimum="0"
+                            Maximum="100"
+                            Value="0"
+                            VerticalAlignment="Center"
+                            PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
+                            PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
+                    <Border Grid.Column="2"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="4"
+                            Margin="8,0,0,0"
+                            Width="60"
+                            Background="White">
+                        <TextBlock x:Name="DurationLabel"
+                                   Text="00:00"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   FontSize="12"
+                                   FontFamily="Courier New"
+                                   FontWeight="Bold"
+                                   Foreground="DarkBlue" />
+                    </Border>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Control Buttons -->
+        <Border Grid.Row="3"
+                    Grid.Column="0"
+                    BorderBrush="DarkBlue"
+                    BorderThickness="2"
+                    Padding="15"
+                    CornerRadius="8"
+                    Margin="0,0,0,10"
+                    Background="LightBlue">
+            <StackPanel>
+                <TextBlock Text="Playlist &amp; Display Controls"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="DarkBlue"
+                           Margin="0,0,0,15" />
+                <WrapPanel Orientation="Horizontal">
+                    <Button Content="📁 Add Files..."
+                            Click="AddFiles_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,8"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="💾 Save Playlist"
+                            Click="SavePlaylist_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,8"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="📂 Load Playlist"
+                            Click="LoadPlaylist_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,8"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="🎬 Go Live"
+                            Click="GoLive_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,8"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="🎵 Create Playlist"
+                            Click="CreatePlaylist_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,8"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="🖼️ Blank Display"
+                            Click="Blank_Click"
+                            Padding="12,8"
+                            Margin="0,0,0,8"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Background Music Controls -->
+        <GroupBox Grid.Row="3"
+                  Grid.Column="1"
+                  Header="Background Music"
+                  Margin="10,0,0,0"
+                  Padding="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                
+                <Button Grid.Row="0"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Content="Select Music..."
+                        Click="SelectBackgroundMusic_Click"
+                        Padding="8,4"
+                        Margin="0,0,0,4" />
+                
+                <StackPanel Grid.Row="1"
+                            Grid.ColumnSpan="2"
+                            Orientation="Horizontal"
+                            Margin="0,0,0,4">
+                    <Button Content="▶ Play"
+                            Click="BackgroundMusicPlay_Click"
+                            Padding="8,4"
+                            Margin="0,0,4,0" />
+                    <Button Content="⏸ Pause"
+                            Click="BackgroundMusicPause_Click"
+                            Padding="8,4"
+                            Margin="0,0,4,0" />
+                    <Button Content="⏹ Stop"
+                            Click="BackgroundMusicStop_Click"
+                            Padding="8,4" />
+                </StackPanel>
+                
+                <TextBlock Grid.Row="2"
+                           Grid.ColumnSpan="2"
+                           Text="Volume:"
+                           Margin="0,0,0,2" />
+                
+                <Slider Grid.Row="3"
+                        Grid.ColumnSpan="2"
+                        Minimum="0"
+                        Maximum="1"
+                        Value="0.3"
+                        x:Name="BackgroundMusicVolumeSlider"
+                        Margin="0,0,0,4" />
+            </Grid>
+        </GroupBox>
+    </Grid>
+</Window>
