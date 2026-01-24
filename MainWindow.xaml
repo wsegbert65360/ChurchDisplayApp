@@ -209,7 +209,7 @@
             </Border>
         </Grid>
 
-        <!-- Media Playback Controls -->
+        <!-- Combined Controls -->
         <Border Grid.Row="1"
                 Grid.Column="0"
                 BorderBrush="DarkBlue"
@@ -219,14 +219,17 @@
                 Margin="0,0,0,10"
                 Background="LightBlue">
             <StackPanel>
-                <TextBlock Text="Media Controls"
+                <TextBlock Text="🎮 Media &amp; Playlist Controls"
                            FontSize="18"
                            FontWeight="Bold"
                            Foreground="DarkBlue"
                            Margin="0,0,0,15" />
+                
+                <!-- Media Playback Controls -->
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Center"
+                            Margin="0,0,0,15">
                     <Button Content="⏮️ Previous"
                             Click="Previous_Click"
                             Padding="12,8"
@@ -277,93 +280,8 @@
                             VerticalAlignment="Center"
                             ValueChanged="VolumeSlider_ValueChanged" />
                 </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <!-- Progress Bar -->
-        <Border Grid.Row="2"
-              Grid.Column="0"
-              BorderBrush="DarkBlue"
-              BorderThickness="2"
-              Padding="15"
-              CornerRadius="8"
-              Margin="0,0,0,10"
-              Background="LightBlue">
-            <StackPanel>
-                <TextBlock Text="Playback Progress"
-                           FontSize="16"
-                           FontWeight="Bold"
-                           Foreground="DarkBlue"
-                           Margin="0,0,0,10" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="4"
-                            Margin="0,0,8,0"
-                            Width="60"
-                            Background="White">
-                        <TextBlock x:Name="CurrentTimeLabel"
-                                   Text="00:00"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   FontSize="12"
-                                   FontFamily="Courier New"
-                                   FontWeight="Bold"
-                                   Foreground="DarkBlue" />
-                    </Border>
-                    <Slider x:Name="ProgressSlider"
-                            Grid.Column="1"
-                            Minimum="0"
-                            Maximum="100"
-                            Value="0"
-                            VerticalAlignment="Center"
-                            PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
-                            PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
-                    <Border Grid.Column="2"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="4"
-                            Margin="8,0,0,0"
-                            Width="60"
-                            Background="White">
-                        <TextBlock x:Name="DurationLabel"
-                                   Text="00:00"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   FontSize="12"
-                                   FontFamily="Courier New"
-                                   FontWeight="Bold"
-                                   Foreground="DarkBlue" />
-                    </Border>
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <!-- Main Control Buttons -->
-        <Border Grid.Row="3"
-                    Grid.Column="0"
-                    BorderBrush="DarkBlue"
-                    BorderThickness="2"
-                    Padding="15"
-                    CornerRadius="8"
-                    Margin="0,0,0,10"
-                    Background="LightBlue">
-            <StackPanel>
-                <TextBlock Text="Playlist &amp; Display Controls"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="DarkBlue"
-                           Margin="0,0,0,15" />
+                
+                <!-- Playlist Controls -->
                 <WrapPanel Orientation="Horizontal">
                     <Button Content="📁 Add Files..."
                             Click="AddFiles_Click"
@@ -418,61 +336,56 @@
         </Border>
 
         <!-- Background Music Controls -->
-        <GroupBox Grid.Row="3"
-                  Grid.Column="1"
-                  Header="Background Music"
-                  Margin="10,0,0,0"
-                  Padding="8">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                
-                <Button Grid.Row="0"
-                        Grid.Column="0"
-                        Grid.ColumnSpan="2"
-                        Content="Select Music..."
-                        Click="SelectBackgroundMusic_Click"
-                        Padding="8,4"
-                        Margin="0,0,0,4" />
-                
-                <StackPanel Grid.Row="1"
-                            Grid.ColumnSpan="2"
-                            Orientation="Horizontal"
-                            Margin="0,0,0,4">
-                    <Button Content="▶ Play"
+        <Border Grid.Row="2"
+                    Grid.Column="0"
+                    BorderBrush="DarkBlue"
+                    BorderThickness="2"
+                    Padding="15"
+                    CornerRadius="8"
+                    Margin="0,0,0,10"
+                    Background="LightBlue">
+            <StackPanel>
+                <TextBlock Text="🎵 Background Music"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="DarkBlue"
+                           Margin="0,0,0,15" />
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <Button Content="🎵 Select Background Music"
+                            Click="BackgroundMusicSelect_Click"
+                            Padding="12,8"
+                            Margin="0,0,8,0"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="▶️ Play"
                             Click="BackgroundMusicPlay_Click"
-                            Padding="8,4"
-                            Margin="0,0,4,0" />
-                    <Button Content="⏸ Pause"
+                            Padding="12,8"
+                            Margin="0,0,8,0"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="⏸️ Pause"
                             Click="BackgroundMusicPause_Click"
-                            Padding="8,4"
-                            Margin="0,0,4,0" />
-                    <Button Content="⏹ Stop"
-                            Click="BackgroundMusicStop_Click"
-                            Padding="8,4" />
+                            Padding="12,8"
+                            Margin="0,0,8,0"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="🔇 Mute"
+                            Click="BackgroundMusicMute_Click"
+                            Padding="12,8"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
                 </StackPanel>
-                
-                <TextBlock Grid.Row="2"
-                           Grid.ColumnSpan="2"
-                           Text="Volume:"
-                           Margin="0,0,0,2" />
-                
-                <Slider Grid.Row="3"
-                        Grid.ColumnSpan="2"
-                        Minimum="0"
-                        Maximum="1"
-                        Value="0.3"
-                        x:Name="BackgroundMusicVolumeSlider"
-                        Margin="0,0,0,4" />
-            </Grid>
-        </GroupBox>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
