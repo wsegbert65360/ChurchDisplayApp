@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -87,6 +88,7 @@ public partial class MainWindow : Window
     private bool _isDraggingProgressBar = false;
     private System.Windows.Threading.DispatcherTimer? _progressUpdateTimer;
     private bool _backgroundMusicAutoPaused = false;
+    private System.Windows.Threading.DispatcherTimer? _pulseTimer;
 
     public MainWindow()
     {
@@ -112,7 +114,11 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(_settings.BackgroundMusicPath) && File.Exists(_settings.BackgroundMusicPath))
         {
             _backgroundMusicPlayer.Source = new Uri(_settings.BackgroundMusicPath);
-            _backgroundMusicPlayer.Play();
+            if (_settings.BackgroundMusicEnabled)
+            {
+                _backgroundMusicPlayer.Play();
+                StartBackgroundMusicPulse();
+            }
         }
         
         // Set up background music volume slider
@@ -137,6 +143,9 @@ public partial class MainWindow : Window
         {
             Owner = this
         };
+        
+        // Subscribe to MediaEnded event to stop pulsing when media finishes
+        _liveWindow.MediaEnded += (s, e) => StopMediaPulse();
 
         // Detect monitors
         var monitors = GetMonitorBounds();
@@ -245,6 +254,7 @@ public partial class MainWindow : Window
     private void Blank_Click(object sender, RoutedEventArgs e)
     {
         _liveWindow?.ShowBlank();
+        StopMediaPulse();
     }
 
     private void CreatePlaylist_Click(object sender, RoutedEventArgs e)
@@ -353,6 +363,7 @@ public partial class MainWindow : Window
 
             _liveWindow.ShowMedia(item.FullPath);
             UpdatePreview(item.FullPath);
+            StartMediaPulse();
         }
         else
         {
@@ -531,11 +542,13 @@ public partial class MainWindow : Window
     private void Play_Click(object sender, RoutedEventArgs e)
     {
         _liveWindow?.Play();
+        StartMediaPulse();
     }
 
     private void Pause_Click(object sender, RoutedEventArgs e)
     {
         _liveWindow?.Pause();
+        StopMediaPulse();
     }
 
     private void PlayPause_Click(object sender, RoutedEventArgs e)
@@ -546,10 +559,12 @@ public partial class MainWindow : Window
             if (_liveWindow.IsPlaying())
             {
                 _liveWindow.Pause();
+                StopMediaPulse();
             }
             else
             {
                 _liveWindow.Play();
+                StartMediaPulse();
             }
         }
     }
@@ -575,6 +590,7 @@ public partial class MainWindow : Window
     private void Stop_Click(object sender, RoutedEventArgs e)
     {
         _liveWindow?.Stop();
+        StopMediaPulse();
     }
 
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -706,10 +722,12 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog() == true)
         {
             _settings.BackgroundMusicPath = dlg.FileName;
+            _settings.BackgroundMusicEnabled = true;
             _settings.Save();
             
             _backgroundMusicPlayer.Source = new Uri(_settings.BackgroundMusicPath);
             _backgroundMusicPlayer.Play();
+            StartBackgroundMusicPulse();
             
             MessageBox.Show("Background music updated successfully!", "Success",
                 MessageBoxButton.OK, MessageBoxImage.Information);
@@ -735,6 +753,7 @@ public partial class MainWindow : Window
             _settings.Save();
             _backgroundMusicPlayer.IsMuted = false;
             _backgroundMusicAutoPaused = false; // Reset flag when manually played
+            StartBackgroundMusicPulse();
         }
         else
         {
@@ -749,6 +768,78 @@ public partial class MainWindow : Window
         {
             _backgroundMusicPlayer.Pause();
             _backgroundMusicAutoPaused = false; // Reset flag when manually paused
+            StopBackgroundMusicPulse();
+        }
+    }
+
+    private void StartBackgroundMusicPulse()
+    {
+        // Create a timer for smooth fading effect
+        _pulseTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(50) // Update every 50ms for smooth fade
+        };
+        
+        double fadeDirection = 1; // 1 = fading in, -1 = fading out
+        double currentOpacity = 0.3; // Start at 30% opacity
+        
+        _pulseTimer.Tick += (s, e) =>
+        {
+            // Update opacity
+            currentOpacity += fadeDirection * 0.02; // Change by 2% each tick
+            
+            // Reverse direction at limits
+            if (currentOpacity >= 1.0)
+            {
+                currentOpacity = 1.0;
+                fadeDirection = -1;
+            }
+            else if (currentOpacity <= 0.3)
+            {
+                currentOpacity = 0.3;
+                fadeDirection = 1;
+            }
+            
+            // Apply the opacity with light blue color
+            var color = Color.FromRgb(173, 216, 230); // Light blue
+            var brush = new SolidColorBrush(color);
+            brush.Opacity = currentOpacity;
+            BackgroundMusicGroupBox.Background = brush;
+        };
+        
+        _pulseTimer.Start();
+    }
+
+    private void StopBackgroundMusicPulse()
+    {
+        if (_pulseTimer != null)
+        {
+            _pulseTimer.Stop();
+            _pulseTimer = null;
+        }
+        // Clear the background completely
+        BackgroundMusicGroupBox.Background = null;
+        BackgroundMusicGroupBox.InvalidateVisual(); // Force UI refresh
+    }
+
+    private void StartMediaPulse()
+    {
+        // Simple solid light blue background when active
+        MediaControlsGroupBox.Background = new SolidColorBrush(Color.FromRgb(135, 206, 250)); // Light sky blue
+    }
+
+    private void StopMediaPulse()
+    {
+        // Clear the background completely
+        MediaControlsGroupBox.Background = null;
+        MediaControlsGroupBox.InvalidateVisual(); // Force UI refresh
+    }
+
+    private void BackgroundMusicMute_Click(object sender, RoutedEventArgs e)
+    {
+        if (_backgroundMusicPlayer.Source != null)
+        {
+            _backgroundMusicPlayer.IsMuted = !_backgroundMusicPlayer.IsMuted;
         }
     }
 
@@ -758,6 +849,7 @@ public partial class MainWindow : Window
         {
             _backgroundMusicPlayer.Stop();
             _backgroundMusicPlayer.Position = TimeSpan.Zero;
+            StopBackgroundMusicPulse();
         }
     }
 }

@@ -25,6 +25,8 @@ public class LiveOutputWindow : Window
     private readonly DispatcherTimer _timer;
     private bool _isPlaying = false;
 
+    public event EventHandler? MediaEnded;
+
     public LiveOutputWindow()
     {
         Title = "Live Output";
@@ -50,11 +52,20 @@ public class LiveOutputWindow : Window
         {
             Stretch = Stretch.UniformToFill,
             StretchDirection = StretchDirection.Both,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
             LoadedBehavior = MediaState.Manual,
             UnloadedBehavior = MediaState.Manual
         };
+        
+        // Add MediaEnded event handler
+        _mediaElement.MediaEnded += (s, e) =>
+        {
+            _isPlaying = false;
+            _timer.Stop();
+            _progressBar.Value = 0;
+            MediaEnded?.Invoke(this, EventArgs.Empty);
+        };
+        _mediaElement.HorizontalAlignment = HorizontalAlignment.Center;
+        _mediaElement.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetRow(_mediaElement, 0);
         mainGrid.Children.Add(_mediaElement);
 
