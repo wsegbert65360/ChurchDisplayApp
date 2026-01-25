@@ -62,6 +62,10 @@ public class LiveOutputWindow : Window
             _isPlaying = false;
             _timer.Stop();
             _progressBar.Value = 0;
+            
+            // Clear the display to black when media finishes
+            ShowBlank();
+            
             MediaEnded?.Invoke(this, EventArgs.Empty);
         };
         

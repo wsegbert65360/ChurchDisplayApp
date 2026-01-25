@@ -703,6 +703,12 @@ public partial class MainWindow : Window
             DefaultExt = ".pls"
         };
 
+        // Set initial directory to last used directory if available
+        if (!string.IsNullOrEmpty(_settings.LastMediaDirectory))
+        {
+            dlg.InitialDirectory = _settings.LastMediaDirectory;
+        }
+
         if (dlg.ShowDialog() == true)
         {
             try
@@ -734,6 +740,12 @@ public partial class MainWindow : Window
         {
             Filter = "Playlist Files|*.pls|Text Files|*.txt|All Files|*.*"
         };
+
+        // Set initial directory to last used directory if available
+        if (!string.IsNullOrEmpty(_settings.LastMediaDirectory))
+        {
+            dlg.InitialDirectory = _settings.LastMediaDirectory;
+        }
 
         if (dlg.ShowDialog() == true)
         {

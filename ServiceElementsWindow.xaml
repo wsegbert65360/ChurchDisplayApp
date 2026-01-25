@@ -115,52 +115,6 @@
                     </Grid>
                 </Border>
                 
-                <!-- Doxology Section -->
-                <Border BorderBrush="DarkBlue" BorderThickness="2" Padding="15" CornerRadius="8" Margin="0,0,0,15" Background="LightBlue">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        
-                        <TextBlock Grid.Row="0"
-                                   Text="Doxology"
-                                   FontSize="18"
-                                   FontWeight="Bold"
-                                   Foreground="DarkBlue"
-                                   Margin="0,0,0,10" />
-                        
-                        <TextBlock Grid.Row="1"
-                                   x:Name="DoxologyFileLabel"
-                                   Text="No file selected"
-                                   FontStyle="Italic"
-                                   Foreground="Gray"
-                                   Margin="0,0,0,10"
-                                   TextWrapping="Wrap" />
-                        
-                        <StackPanel Grid.Row="2" Orientation="Horizontal">
-                            <Button Content="Select File"
-                                    x:Name="DoxologySelectButton"
-                                    Click="DoxologySelect_Click"
-                                    Padding="12,8"
-                                    Margin="0,0,10,0"
-                                    FontWeight="Bold"
-                                    Background="White"
-                                    BorderBrush="DarkBlue"
-                                    BorderThickness="1" />
-                            <Button Content="Clear"
-                                    x:Name="DoxologyClearButton"
-                                    Click="DoxologyClear_Click"
-                                    Padding="12,8"
-                                    FontWeight="Bold"
-                                    Background="White"
-                                    BorderBrush="DarkBlue"
-                                    BorderThickness="1" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
-                
                 <!-- Praise Song Section -->
                 <Border BorderBrush="DarkBlue" BorderThickness="2" Padding="15" CornerRadius="8" Margin="0,0,0,15" Background="LightBlue">
                     <Grid>
@@ -253,6 +207,52 @@
                     </Grid>
                 </Border>
                 
+                <!-- Childrens Moment Song Section -->
+                <Border BorderBrush="DarkBlue" BorderThickness="2" Padding="15" CornerRadius="8" Margin="0,0,0,15" Background="LightBlue">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        
+                        <TextBlock Grid.Row="0"
+                                   Text="Childrens Moment Song"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="DarkBlue"
+                                   Margin="0,0,0,10" />
+                        
+                        <TextBlock Grid.Row="1"
+                                   x:Name="ChildrensMomentSongFileLabel"
+                                   Text="No file selected"
+                                   FontStyle="Italic"
+                                   Foreground="Gray"
+                                   Margin="0,0,0,10"
+                                   TextWrapping="Wrap" />
+                        
+                        <StackPanel Grid.Row="2" Orientation="Horizontal">
+                            <Button Content="Select File"
+                                    x:Name="ChildrensMomentSongSelectButton"
+                                    Click="ChildrensMomentSongSelect_Click"
+                                    Padding="12,8"
+                                    Margin="0,0,10,0"
+                                    FontWeight="Bold"
+                                    Background="White"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1" />
+                            <Button Content="Clear"
+                                    x:Name="ChildrensMomentSongClearButton"
+                                    Click="ChildrensMomentSongClear_Click"
+                                    Padding="12,8"
+                                    FontWeight="Bold"
+                                    Background="White"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                
                 <!-- Communion Song Section -->
                 <Border BorderBrush="DarkBlue" BorderThickness="2" Padding="15" CornerRadius="8" Margin="0,0,0,15" Background="LightBlue">
                     <Grid>
@@ -299,7 +299,7 @@
                     </Grid>
                 </Border>
                 
-                <!-- Childrens Moment Song Section -->
+                <!-- Doxology Section -->
                 <Border BorderBrush="DarkBlue" BorderThickness="2" Padding="15" CornerRadius="8" Margin="0,0,0,15" Background="LightBlue">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -309,14 +309,14 @@
                         </Grid.RowDefinitions>
                         
                         <TextBlock Grid.Row="0"
-                                   Text="Childrens Moment Song"
+                                   Text="Doxology"
                                    FontSize="18"
                                    FontWeight="Bold"
                                    Foreground="DarkBlue"
                                    Margin="0,0,0,10" />
                         
                         <TextBlock Grid.Row="1"
-                                   x:Name="ChildrensMomentSongFileLabel"
+                                   x:Name="DoxologyFileLabel"
                                    Text="No file selected"
                                    FontStyle="Italic"
                                    Foreground="Gray"
@@ -325,8 +325,8 @@
                         
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
-                                    x:Name="ChildrensMomentSongSelectButton"
-                                    Click="ChildrensMomentSongSelect_Click"
+                                    x:Name="DoxologySelectButton"
+                                    Click="DoxologySelect_Click"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -334,8 +334,8 @@
                                     BorderBrush="DarkBlue"
                                     BorderThickness="1" />
                             <Button Content="Clear"
-                                    x:Name="ChildrensMomentSongClearButton"
-                                    Click="ChildrensMomentSongClear_Click"
+                                    x:Name="DoxologyClearButton"
+                                    Click="DoxologyClear_Click"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"

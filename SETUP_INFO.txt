@@ -1,0 +1,68 @@
+Church Display App - Setup Information
+=====================================
+
+📦 PACKAGE CONTENTS:
+✅ ChurchDisplayApp.exe (138 MB) - Main application (self-contained)
+✅ INSTALL.bat - Installation script
+✅ UNINSTALL.bat - Uninstallation script  
+✅ README_INSTALL.txt - Detailed instructions
+
+🚀 QUICK INSTALL:
+1. Extract ChurchDisplayApp_Installer.zip
+2. Right-click INSTALL.bat → "Run as administrator"
+3. Follow prompts
+4. Launch from desktop shortcut
+
+💻 SYSTEM REQUIREMENTS:
+- Windows 10/11 (64-bit)
+- .NET 10.0 Runtime (included in executable)
+- 2GB RAM minimum
+- 200MB disk space
+- Second monitor/Projector recommended
+
+🎯 INSTALLATION SIZE:
+- Application: ~138 MB
+- Total disk space: ~140 MB
+
+📍 DEFAULT INSTALL LOCATION:
+C:\Program Files\ChurchDisplayApp\
+
+🔧 TECHNICAL DETAILS:
+- Self-contained executable (no separate dependencies)
+- Multi-language support included
+- Automatic multi-monitor detection
+- Professional WPF application
+
+⚡ PERFORMANCE:
+- Fast startup (< 3 seconds)
+- Low memory usage
+- Smooth video playback
+- Responsive UI
+
+🎨 FEATURES INCLUDED:
+✅ Background music with visual feedback
+✅ Media playback controls
+✅ Progress bar for all media
+✅ Perfect image scaling
+✅ Playlist management
+✅ Drag-and-drop support
+✅ Display toggle feature
+✅ Multi-monitor support
+
+📞 VERSION INFORMATION:
+Version: 1.0
+Build Date: January 2026
+Platform: Windows x64
+Framework: .NET 10.0
+
+🔐 SECURITY:
+- No internet connection required
+- No user data collection
+- Runs entirely offline
+- Safe for church environments
+
+📝 LICENSE:
+Free for church and non-commercial use.
+See LICENSE.txt for full details.
+
+Enjoy your Church Display App! 🎵🎬⛪

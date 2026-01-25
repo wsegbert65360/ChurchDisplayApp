@@ -12,6 +12,7 @@ public class AppSettings
     // New filename-based properties
     public string? CallToWorshipFile { get; set; }
     public string? DoxologyFile { get; set; }
+    public string? GloriaPatriFile { get; set; }
     public string? SongForBeginningFile { get; set; }
     public string? PraiseSongFile { get; set; }
     public string? PrayerSongFile { get; set; }
