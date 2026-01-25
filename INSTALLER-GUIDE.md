@@ -16,7 +16,7 @@ cd c:\Projects\ChurchDisplayApp
 dotnet build -c Release
 
 # Publish self-contained (includes all .NET runtime)
-dotnet publish -c Release --self-contained --runtime win-x64
+dotnet publish -c Release -r win-x64 --self-contained true
 ```
 
 The executable will be at:
@@ -37,13 +37,13 @@ Share the `.exe` installer file - it includes everything needed!
 ✅ **All Runtime Files** - .NET 10.0 runtime included  
 ✅ **Media Support** - MediaElement codecs included
 ✅ **System.Windows.Forms** - Multi-monitor detection support
-✅ **Desktop Shortcut** - Optional shortcut creation
-✅ **Start Menu** - Program added to Start Menu
+✅ **Desktop Shortcut** - Shortcut created for all users
+✅ **Start Menu** - Program added to Start Menu for all users
 ✅ **Uninstaller** - Clean uninstall support
 
 ## Installer Features
 
-- **No Admin Required** - Installs to user AppData
+- **Admin Required** - Installs to Program Files for all users
 - **Single File** - One `.exe` to distribute
 - **No .NET Check** - Works on any Windows PC
 - **Multi-Monitor** - Automatic second-monitor fullscreen detection

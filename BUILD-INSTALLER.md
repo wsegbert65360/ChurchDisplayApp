@@ -21,7 +21,7 @@ build-release.bat
 dotnet build -c Release
 
 # Publish self-contained executable
-dotnet publish -c Release --self-contained --runtime win-x64 -o bin\Publish\win-x64
+dotnet publish -c Release -r win-x64 --self-contained true
 ```
 
 ## Create Windows Installer
@@ -44,7 +44,7 @@ The final installer (`ChurchDisplayApp-1.0.0-Setup.exe`) is:
 - **Self-contained** - No .NET required on target PC
 - **Portable** - All dependencies included
 - **Standalone** - Works on any Windows 10/11 x64 PC
-- **No admin rights** - Installs in user directory
+- **All users install** - Installs to Program Files (requires admin)
 
 ## What's Included
 

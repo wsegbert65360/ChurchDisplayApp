@@ -115,6 +115,11 @@ project.fragment.lock.json
 # Artifacts
 artifacts/
 
+# Installer artifacts (distribute via GitHub Releases)
+bin/Installer/
+ChurchDisplayApp_Installer*.zip
+ChurchDisplayApp-*-Setup.exe
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
