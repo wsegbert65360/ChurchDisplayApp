@@ -206,6 +206,9 @@ public partial class MainWindow : Window
                 SelectBackgroundMusic_Click(this, new RoutedEventArgs());
             }
         }
+        
+        // Initialize display controls background based on playlist content
+        UpdateDisplayControlsBackground();
     }
 
     private void AddFiles_Click(object sender, RoutedEventArgs e)
@@ -222,7 +225,32 @@ public partial class MainWindow : Window
             {
                 PlaylistListBox.Items.Add(new PlaylistItem(file));
             }
+            // Force background to white for testing
+            DisplayControlsBorder.Background = Brushes.White;
+            DisplayControlsBorder.InvalidateVisual();
+            UpdateDisplayControlsBackground();
         }
+    }
+
+    private void UpdateDisplayControlsBackground()
+    {
+        System.Diagnostics.Debug.WriteLine($"UpdateDisplayControlsBackground called. Playlist count: {PlaylistListBox.Items.Count}");
+        
+        if (PlaylistListBox.Items.Count == 0)
+        {
+            // Empty playlist - add very visible hint color for testing
+            DisplayControlsBorder.Background = new SolidColorBrush(Color.FromArgb(100, 173, 216, 230)); // Much more visible light blue
+            System.Diagnostics.Debug.WriteLine("Empty playlist - setting hint color");
+        }
+        else
+        {
+            // Has items - set back to white
+            DisplayControlsBorder.Background = Brushes.White;
+            System.Diagnostics.Debug.WriteLine($"Playlist has {PlaylistListBox.Items.Count} items - setting background to white");
+        }
+        
+        // Force UI update
+        DisplayControlsBorder.InvalidateVisual();
     }
 
     private bool ValidateFile(string filePath)
@@ -255,6 +283,25 @@ public partial class MainWindow : Window
     {
         _liveWindow?.ShowBlank();
         StopMediaPulse();
+    }
+
+    private void ToggleDisplay_Click(object sender, RoutedEventArgs e)
+    {
+        if (_liveWindow != null)
+        {
+            if (_liveWindow.IsVisible)
+            {
+                // Hide the display window
+                _liveWindow.Hide();
+            }
+            else
+            {
+                // Show the display window
+                _liveWindow.Show();
+                _liveWindow.WindowState = WindowState.Maximized; // Ensure it's maximized
+                _liveWindow.Topmost = true; // Keep it on top
+            }
+        }
     }
 
     private void CreatePlaylist_Click(object sender, RoutedEventArgs e)
@@ -292,6 +339,7 @@ public partial class MainWindow : Window
                     PlaylistListBox.Items.Add(new PlaylistItem(file));
                 }
             }
+            UpdateDisplayControlsBackground();
         }
     }
 
@@ -351,14 +399,16 @@ public partial class MainWindow : Window
                 MessageBox.Show($"File not found: {item.FileName}\n\nThe file may have been moved or deleted.",
                     "File Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 PlaylistListBox.Items.Remove(item);
+                UpdateDisplayControlsBackground();
                 return;
             }
 
             // Auto-pause background music when playing media
-            if (_backgroundMusicPlayer.Source != null && !_backgroundMusicPlayer.IsMuted && _backgroundMusicPlayer.CanPause)
+            if (_settings.BackgroundMusicEnabled && _backgroundMusicPlayer.Source != null && _backgroundMusicPlayer.CanPause)
             {
                 _backgroundMusicPlayer.Pause();
                 _backgroundMusicAutoPaused = true;
+                StopBackgroundMusicPulse(); // Stop pulsing when media starts
             }
 
             _liveWindow.ShowMedia(item.FullPath);
@@ -530,6 +580,7 @@ public partial class MainWindow : Window
             if (result == MessageBoxResult.Yes)
             {
                 PlaylistListBox.Items.Remove(item);
+                UpdateDisplayControlsBackground();
             }
         }
         else
@@ -702,6 +753,7 @@ public partial class MainWindow : Window
                 }
                 MessageBox.Show($"Playlist loaded successfully. {PlaylistListBox.Items.Count} files added.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
+                UpdateDisplayControlsBackground(); // Update background after loading playlist
             }
             catch (Exception ex)
             {

@@ -64,6 +64,16 @@ public class LiveOutputWindow : Window
             _progressBar.Value = 0;
             MediaEnded?.Invoke(this, EventArgs.Empty);
         };
+        
+        // Add MediaOpened event handler to ensure progress bar starts when media is loaded
+        _mediaElement.MediaOpened += (s, e) =>
+        {
+            // Start progress updates when media is opened
+            if (_isPlaying && !_timer.IsEnabled)
+            {
+                _timer.Start();
+            }
+        };
         _mediaElement.HorizontalAlignment = HorizontalAlignment.Center;
         _mediaElement.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetRow(_mediaElement, 0);
@@ -72,7 +82,7 @@ public class LiveOutputWindow : Window
         // Image display for static images
         _imageDisplay = new Image
         {
-            Stretch = Stretch.UniformToFill,
+            Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -240,6 +250,14 @@ public class LiveOutputWindow : Window
         {
             double percent = (_mediaElement.Position.TotalSeconds / _mediaElement.NaturalDuration.TimeSpan.TotalSeconds) * 100;
             _progressBar.Value = percent;
+            
+            // Debug: uncomment to see progress values
+            // System.Diagnostics.Debug.WriteLine($"Progress: {percent:F1}% - Position: {_mediaElement.Position.TotalSeconds:F1}s / Duration: {_mediaElement.NaturalDuration.TimeSpan.TotalSeconds:F1}s");
+        }
+        else
+        {
+            // Reset progress bar when media is not loaded
+            _progressBar.Value = 0;
         }
     }
 

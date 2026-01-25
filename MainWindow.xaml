@@ -262,7 +262,8 @@
         </Border>
 
         <!-- Main Control Buttons -->
-        <Border Grid.Row="2"
+        <Border x:Name="DisplayControlsBorder"
+                    Grid.Row="2"
                     Grid.Column="0"
                     BorderBrush="Gray"
                     BorderThickness="1"
@@ -317,6 +318,14 @@
                             BorderThickness="1" />
                     <Button Content="🖼️ Blank Display"
                             Click="Blank_Click"
+                            Padding="8,4"
+                            Margin="0,0,5,5"
+                            FontWeight="Bold"
+                            Background="White"
+                            BorderBrush="DarkBlue"
+                            BorderThickness="1" />
+                    <Button Content="🖥️ Toggle Display"
+                            Click="ToggleDisplay_Click"
                             Padding="8,4"
                             Margin="0,0,0,5"
                             FontWeight="Bold"
