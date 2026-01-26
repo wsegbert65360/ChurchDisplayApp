@@ -1,5 +1,9 @@
 ﻿using Microsoft.Win32;
+using QRCoder;
 using System.IO;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,6 +13,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Windows.Input;
+using System.Windows.Controls.Primitives;
 
 namespace ChurchDisplayApp;
 
@@ -37,6 +42,10 @@ public partial class MainWindow : Window
     private static AppSettings _settings = AppSettings.Load();
     private readonly MediaElement _backgroundMusicPlayer;
     private readonly DispatcherTimer _livePreviewTimer;
+    private readonly RemoteControlServer _remoteControlServer = new();
+    private const int RemoteControlPortPreferred = 80;
+    private const int RemoteControlPortFallback = 8088;
+    private int _remoteControlPortInUse = 0;
     private Point _dragStartPoint;
     // P/Invoke for monitor detection
     [DllImport("user32.dll")]
@@ -93,6 +102,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        ApplySavedLayout();
+
+        Closing += MainWindow_Closing;
         
         // Initialize background music player
         _backgroundMusicPlayer = new MediaElement
@@ -209,6 +222,255 @@ public partial class MainWindow : Window
         
         // Initialize display controls background based on playlist content
         UpdateDisplayControlsBackground();
+
+        _ = StartRemoteControlAsync();
+    }
+
+    public sealed record RemotePlaylistItem(int Index, string FileName, string FullPath);
+
+    public List<RemotePlaylistItem> GetPlaylistItemsForRemote()
+    {
+        // This may be called from a web server thread; marshal to UI thread.
+        return Dispatcher.Invoke(() =>
+        {
+            var result = new List<RemotePlaylistItem>();
+
+            for (int i = 0; i < PlaylistListBox.Items.Count; i++)
+            {
+                if (PlaylistListBox.Items[i] is PlaylistItem playlistItem)
+                {
+                    result.Add(new RemotePlaylistItem(i, playlistItem.FileName, playlistItem.FullPath));
+                }
+            }
+
+            return result;
+        });
+    }
+
+    public void RemotePlayIndex(int index)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (index < 0 || index >= PlaylistListBox.Items.Count)
+            {
+                return;
+            }
+
+            PlaylistListBox.SelectedIndex = index;
+            LaunchSelectedMedia();
+        });
+    }
+
+    public void RemoteStop()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _liveWindow?.Stop();
+            StopMediaPulse();
+        });
+    }
+
+    public void RemoteBlank()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _liveWindow?.ShowBlank();
+            StopMediaPulse();
+        });
+    }
+
+    private async Task StartRemoteControlAsync()
+    {
+        // Prefer port 80 so you can type only http://PC-IP/ on your phone.
+        // If port 80 fails (requires admin / may be in use), fall back to 8088.
+        try
+        {
+            await _remoteControlServer.StartAsync(this, RemoteControlPortPreferred);
+            _remoteControlPortInUse = RemoteControlPortPreferred;
+            UpdateRemoteQrCode();
+            return;
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            await _remoteControlServer.StartAsync(this, RemoteControlPortFallback);
+            _remoteControlPortInUse = RemoteControlPortFallback;
+            UpdateRemoteQrCode();
+        }
+        catch
+        {
+            // If the port is unavailable or firewall blocks binding, the app should still run.
+        }
+    }
+
+    private void UpdateRemoteQrCode()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            var url = GetRemoteUrl();
+            RemoteUrlText.Text = url;
+
+            try
+            {
+                using var generator = new QRCodeGenerator();
+                using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
+                var qrCode = new PngByteQRCode(data);
+                var pngBytes = qrCode.GetGraphic(10);
+
+                var image = new BitmapImage();
+                using (var ms = new MemoryStream(pngBytes))
+                {
+                    image.BeginInit();
+                    image.CacheOption = BitmapCacheOption.OnLoad;
+                    image.StreamSource = ms;
+                    image.EndInit();
+                    image.Freeze();
+                }
+
+                RemoteQrImage.Source = image;
+            }
+            catch
+            {
+                RemoteQrImage.Source = null;
+            }
+        });
+    }
+
+    private string GetRemoteUrl()
+    {
+        var port = _remoteControlPortInUse != 0 ? _remoteControlPortInUse : RemoteControlPortFallback;
+        var portSuffix = port == 80 ? string.Empty : $":{port}";
+
+        var ip = GetLocalIPv4Address();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return $"http://{ip}{portSuffix}/";
+        }
+
+        return $"http://{Environment.MachineName}{portSuffix}/";
+    }
+
+    private static string? GetLocalIPv4Address()
+    {
+        try
+        {
+            foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != OperationalStatus.Up)
+                {
+                    continue;
+                }
+
+                if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                {
+                    continue;
+                }
+
+                var props = ni.GetIPProperties();
+                foreach (var ua in props.UnicastAddresses)
+                {
+                    if (ua.Address.AddressFamily != AddressFamily.InterNetwork)
+                    {
+                        continue;
+                    }
+
+                    if (IPAddress.IsLoopback(ua.Address))
+                    {
+                        continue;
+                    }
+
+                    // Ignore APIPA
+                    var address = ua.Address.ToString();
+                    if (address.StartsWith("169.254."))
+                    {
+                        continue;
+                    }
+
+                    return address;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        SaveLayout();
+
+        try
+        {
+            _remoteControlServer.StopAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+        }
+    }
+
+    private void LayoutSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        SaveLayout();
+    }
+
+    private void ApplySavedLayout()
+    {
+        try
+        {
+            if (_settings.MainWindowLeftColumnWidth.HasValue)
+            {
+                var w = Math.Max(MainLeftColumn.MinWidth, _settings.MainWindowLeftColumnWidth.Value);
+                MainLeftColumn.Width = new GridLength(w, GridUnitType.Pixel);
+            }
+
+            if (_settings.MainWindowRightColumnWidth.HasValue)
+            {
+                var w = Math.Max(MainRightColumn.MinWidth, _settings.MainWindowRightColumnWidth.Value);
+                MainRightColumn.Width = new GridLength(w, GridUnitType.Pixel);
+            }
+
+            if (_settings.MainWindowTopRowHeight.HasValue)
+            {
+                var h = Math.Max(MainTopRow.MinHeight, _settings.MainWindowTopRowHeight.Value);
+                MainTopRow.Height = new GridLength(h, GridUnitType.Pixel);
+            }
+
+            if (_settings.MainWindowMiddleRowHeight.HasValue)
+            {
+                var h = Math.Max(MainMiddleRow.MinHeight, _settings.MainWindowMiddleRowHeight.Value);
+                MainMiddleRow.Height = new GridLength(h, GridUnitType.Pixel);
+            }
+
+            if (_settings.MainWindowBottomRowHeight.HasValue)
+            {
+                var h = Math.Max(MainBottomRow.MinHeight, _settings.MainWindowBottomRowHeight.Value);
+                MainBottomRow.Height = new GridLength(h, GridUnitType.Pixel);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private void SaveLayout()
+    {
+        try
+        {
+            _settings.MainWindowLeftColumnWidth = MainLeftColumn.ActualWidth;
+            _settings.MainWindowRightColumnWidth = MainRightColumn.ActualWidth;
+            _settings.MainWindowTopRowHeight = MainTopRow.ActualHeight;
+            _settings.MainWindowMiddleRowHeight = MainMiddleRow.ActualHeight;
+            _settings.MainWindowBottomRowHeight = MainBottomRow.ActualHeight;
+            _settings.Save();
+        }
+        catch
+        {
+        }
     }
 
     private void AddFiles_Click(object sender, RoutedEventArgs e)
@@ -225,28 +487,21 @@ public partial class MainWindow : Window
             {
                 PlaylistListBox.Items.Add(new PlaylistItem(file));
             }
-            // Force background to white for testing
-            DisplayControlsBorder.Background = Brushes.White;
-            DisplayControlsBorder.InvalidateVisual();
             UpdateDisplayControlsBackground();
         }
     }
 
     private void UpdateDisplayControlsBackground()
     {
-        System.Diagnostics.Debug.WriteLine($"UpdateDisplayControlsBackground called. Playlist count: {PlaylistListBox.Items.Count}");
-        
         if (PlaylistListBox.Items.Count == 0)
         {
-            // Empty playlist - add very visible hint color for testing
-            DisplayControlsBorder.Background = new SolidColorBrush(Color.FromArgb(100, 173, 216, 230)); // Much more visible light blue
-            System.Diagnostics.Debug.WriteLine("Empty playlist - setting hint color");
+            // Empty playlist - add visual hint
+            DisplayControlsBorder.Background = new SolidColorBrush(Color.FromArgb(100, 173, 216, 230)); // Light blue hint
         }
         else
         {
             // Has items - set back to white
             DisplayControlsBorder.Background = Brushes.White;
-            System.Diagnostics.Debug.WriteLine($"Playlist has {PlaylistListBox.Items.Count} items - setting background to white");
         }
         
         // Force UI update

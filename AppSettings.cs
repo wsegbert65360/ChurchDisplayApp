@@ -8,6 +8,12 @@ public class AppSettings
     public string? BackgroundMusicPath { get; set; }
     public double BackgroundMusicVolume { get; set; } = 0.3;
     public bool BackgroundMusicEnabled { get; set; } = true;
+
+    public double? MainWindowLeftColumnWidth { get; set; }
+    public double? MainWindowRightColumnWidth { get; set; }
+    public double? MainWindowTopRowHeight { get; set; }
+    public double? MainWindowMiddleRowHeight { get; set; }
+    public double? MainWindowBottomRowHeight { get; set; }
     
     // New filename-based properties
     public string? CallToWorshipFile { get; set; }

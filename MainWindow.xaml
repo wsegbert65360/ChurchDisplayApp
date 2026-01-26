@@ -6,16 +6,49 @@
         Width="1000"
         Icon="icon.ico">
     
-    <Grid Margin="10">
+    <Grid x:Name="MainLayoutGrid" Margin="10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="300" />
+            <ColumnDefinition x:Name="MainLeftColumn" Width="*" MinWidth="420" />
+            <ColumnDefinition Width="5" />
+            <ColumnDefinition x:Name="MainRightColumn" Width="300" MinWidth="260" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
+            <RowDefinition x:Name="MainTopRow" Height="*" MinHeight="100" />
+            <RowDefinition Height="5" />
+            <RowDefinition x:Name="MainMiddleRow" Height="*" MinHeight="60" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition x:Name="MainBottomRow" Height="220" />
         </Grid.RowDefinitions>
+
+        <GridSplitter Grid.Row="1"
+                      Grid.Column="0"
+                      Grid.ColumnSpan="3"
+                      Height="5"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      ResizeDirection="Rows"
+                      ResizeBehavior="PreviousAndNext"
+                      DragCompleted="LayoutSplitter_DragCompleted" />
+
+        <GridSplitter Grid.Row="3"
+                      Grid.Column="0"
+                      Grid.ColumnSpan="3"
+                      Height="5"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      ResizeDirection="Rows"
+                      ResizeBehavior="PreviousAndNext"
+                      DragCompleted="LayoutSplitter_DragCompleted" />
+
+        <GridSplitter Grid.Row="0"
+                      Grid.RowSpan="5"
+                      Grid.Column="1"
+                      Width="5"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      ResizeDirection="Columns"
+                      ResizeBehavior="PreviousAndNext"
+                      DragCompleted="LayoutSplitter_DragCompleted" />
 
         <!-- Playlist Panel -->
         <Border Grid.Row="0"
@@ -111,7 +144,7 @@
 
         <!-- Preview Panel -->
         <Grid Grid.Row="0"
-              Grid.Column="1"
+              Grid.Column="2"
               Margin="0,0,0,10">
             <Border Background="LightGray"
                     BorderBrush="Black"
@@ -193,12 +226,13 @@
 
         <!-- Media Playback Controls -->
         <Border x:Name="MediaControlsGroupBox"
-                Grid.Row="1"
+                Grid.Row="2"
                 Grid.Column="0"
                 BorderBrush="Gray"
                 BorderThickness="1"
                 Padding="5"
-                Margin="0,0,0,5">
+                Margin="0,0,0,5"
+                VerticalAlignment="Top">
             <StackPanel>
                 <TextBlock Text="Media Controls"
                            FontSize="14"
@@ -212,7 +246,7 @@
                             Click="Previous_Click"
                             Padding="8,4"
                             Margin="0,0,5,0"
-                            Width="70"
+                            Width="80"
                             FontWeight="Bold"
                             Background="White"
                             BorderBrush="DarkBlue"
@@ -221,7 +255,7 @@
                             Click="PlayPause_Click"
                             Padding="8,4"
                             Margin="0,0,5,0"
-                            Width="80"
+                            Width="100"
                             FontWeight="Bold"
                             Background="White"
                             BorderBrush="DarkBlue"
@@ -230,7 +264,7 @@
                             Click="Stop_Click"
                             Padding="8,4"
                             Margin="0,0,5,0"
-                            Width="60"
+                            Width="70"
                             FontWeight="Bold"
                             Background="White"
                             BorderBrush="DarkBlue"
@@ -239,7 +273,7 @@
                             Click="Next_Click"
                             Padding="8,4"
                             Margin="0,0,10,0"
-                            Width="60"
+                            Width="70"
                             FontWeight="Bold"
                             Background="White"
                             BorderBrush="DarkBlue"
@@ -261,9 +295,53 @@
             </StackPanel>
         </Border>
 
+        <!-- Remote (QR Code) -->
+        <Border Grid.Row="2"
+                Grid.Column="2"
+                BorderBrush="Gray"
+                BorderThickness="1"
+                Padding="5"
+                Margin="10,0,0,5"
+                VerticalAlignment="Top">
+            <StackPanel>
+                <TextBlock Text="📱 Remote"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="DarkBlue"
+                           Margin="0,0,0,5" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            BorderBrush="DarkGray"
+                            BorderThickness="1"
+                            Background="White"
+                            Padding="2"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top">
+                        <Image x:Name="RemoteQrImage"
+                               Width="70"
+                               Height="70"
+                               Stretch="Uniform" />
+                    </Border>
+
+                    <TextBlock Grid.Column="1"
+                               x:Name="RemoteUrlText"
+                               Text="Starting..."
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- Main Control Buttons -->
         <Border x:Name="DisplayControlsBorder"
-                    Grid.Row="2"
+                    Grid.Row="4"
                     Grid.Column="0"
                     BorderBrush="Gray"
                     BorderThickness="1"
@@ -338,8 +416,8 @@
 
         <!-- Background Music Controls -->
         <Border x:Name="BackgroundMusicGroupBox"
-                  Grid.Row="2"
-                  Grid.Column="1"
+                  Grid.Row="4"
+                  Grid.Column="2"
                   BorderBrush="Gray"
                   BorderThickness="1"
                   Padding="5"
