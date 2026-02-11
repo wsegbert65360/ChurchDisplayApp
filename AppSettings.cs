@@ -7,18 +7,30 @@ public class AppSettings
 {
     public string? BackgroundMusicPath { get; set; }
     public double BackgroundMusicVolume { get; set; } = 0.3;
+    public double MainMediaVolume { get; set; } = 0.5;
     public bool BackgroundMusicEnabled { get; set; } = true;
 
+    // Legacy pixel-based layout properties (kept for migration)
+    [Obsolete("Use MainWindowLeftColumnProportion instead")]
     public double? MainWindowLeftColumnWidth { get; set; }
+    [Obsolete("Use MainWindowLeftColumnProportion instead")]
     public double? MainWindowRightColumnWidth { get; set; }
+    [Obsolete("Use MainWindowTopRowProportion instead")]
     public double? MainWindowTopRowHeight { get; set; }
+    [Obsolete("Use MainWindowTopRowProportion instead")]
     public double? MainWindowMiddleRowHeight { get; set; }
+    [Obsolete("Use MainWindowTopRowProportion instead")]
     public double? MainWindowBottomRowHeight { get; set; }
+    
+    // New proportional layout properties (0.0 to 1.0)
+    public double? MainWindowLeftColumnProportion { get; set; }
+    public double? MainWindowTopRowProportion { get; set; }
     
     // New filename-based properties
     public string? CallToWorshipFile { get; set; }
     public string? DoxologyFile { get; set; }
     public string? GloriaPatriFile { get; set; }
+    public string? LordsPrayerFile { get; set; }
     public string? SongForBeginningFile { get; set; }
     public string? PraiseSongFile { get; set; }
     public string? PrayerSongFile { get; set; }
@@ -34,6 +46,7 @@ public class AppSettings
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public string? CallToWorshipPath { get; set; }
     public string? DoxologyPath { get; set; }
+    public string? GloriaPatriPath { get; set; } // Added this line based on the instruction's intent
     public string? SongForBeginningPath { get; set; }
     public string? PraiseSongPath { get; set; }
     public string? PrayerSongPath { get; set; }

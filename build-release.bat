@@ -1,6 +1,10 @@
 @echo off
 REM Build script for ChurchDisplayApp Windows Installer
 
+echo Cleaning previous builds...
+dotnet clean
+if exist "bin\Publish" rmdir /s /q "bin\Publish"
+
 echo Building ChurchDisplayApp Release...
 dotnet build -c Release
 

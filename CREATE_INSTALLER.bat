@@ -26,11 +26,19 @@ if not exist "%INSTALL_DIR%" (
     mkdir "%INSTALL_DIR%"
 )
 
-REM Copy the main executable
-echo Copying Church Display App executable...
-copy "ChurchDisplayApp.exe" "%INSTALL_DIR%\" /Y
+REM Check for published files
+if not exist "bin\Publish\win-x64\ChurchDisplayApp.exe" (
+    echo ERROR: Published files not found!
+    echo Please run build-release.bat first.
+    pause
+    exit /b 1
+)
+
+REM Copy application files
+echo Copying application files...
+xcopy "bin\Publish\win-x64\*.*" "%INSTALL_DIR%\" /E /I /Y
 if %errorLevel% neq 0 (
-    echo ERROR: Failed to copy executable file.
+    echo ERROR: Failed to copy application files.
     pause
     exit /b 1
 )

@@ -8,18 +8,17 @@
     
     <Grid x:Name="MainLayoutGrid" Margin="10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="MainLeftColumn" Width="*" MinWidth="420" />
+            <ColumnDefinition x:Name="MainLeftColumn" Width="2*" MinWidth="420" />
             <ColumnDefinition Width="5" />
-            <ColumnDefinition x:Name="MainRightColumn" Width="300" MinWidth="260" />
+            <ColumnDefinition x:Name="MainRightColumn" Width="1*" MinWidth="260" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition x:Name="MainTopRow" Height="*" MinHeight="100" />
+            <RowDefinition x:Name="MainTopRow" Height="2*" MinHeight="200" />
             <RowDefinition Height="5" />
-            <RowDefinition x:Name="MainMiddleRow" Height="*" MinHeight="60" />
-            <RowDefinition Height="*" />
-            <RowDefinition x:Name="MainBottomRow" Height="220" />
+            <RowDefinition x:Name="MainBottomRow" Height="1*" MinHeight="150" />
         </Grid.RowDefinitions>
 
+        <!-- Horizontal GridSplitter between top and bottom rows -->
         <GridSplitter Grid.Row="1"
                       Grid.Column="0"
                       Grid.ColumnSpan="3"
@@ -30,18 +29,9 @@
                       ResizeBehavior="PreviousAndNext"
                       DragCompleted="LayoutSplitter_DragCompleted" />
 
-        <GridSplitter Grid.Row="3"
-                      Grid.Column="0"
-                      Grid.ColumnSpan="3"
-                      Height="5"
-                      HorizontalAlignment="Stretch"
-                      VerticalAlignment="Stretch"
-                      ResizeDirection="Rows"
-                      ResizeBehavior="PreviousAndNext"
-                      DragCompleted="LayoutSplitter_DragCompleted" />
-
+        <!-- Vertical GridSplitter between left and right columns -->
         <GridSplitter Grid.Row="0"
-                      Grid.RowSpan="5"
+                      Grid.RowSpan="3"
                       Grid.Column="1"
                       Width="5"
                       HorizontalAlignment="Stretch"
@@ -53,6 +43,7 @@
         <!-- Playlist Panel -->
         <Border Grid.Row="0"
               Grid.Column="0"
+              Background="{Binding PlaylistBackground}"
               BorderBrush="Gray"
               BorderThickness="1"
               Padding="5"
@@ -73,8 +64,11 @@
                            Margin="0,0,0,5" />
                 <ListBox x:Name="PlaylistListBox"
                      Grid.Row="1"
+                     ItemsSource="{Binding PlaylistItems}"
+                     SelectedItem="{Binding SelectedItem}"
                      MouseDoubleClick="PlaylistListBox_DoubleClick"
                      AllowDrop="True"
+                     Drop="PlaylistListBox_Drop"
                      DragOver="PlaylistListBox_DragOver"
                      PreviewMouseLeftButtonDown="PlaylistListBox_PreviewMouseLeftButtonDown"
                      PreviewMouseMove="PlaylistListBox_PreviewMouseMove">
@@ -159,26 +153,26 @@
                     <TextBlock Grid.Row="0"
                                Text="Live Preview"
                                FontWeight="Bold"
-                               Padding="8"
+                               Padding="4"
                                Background="DarkGray"
                                Foreground="White" />
                     <Image x:Name="PreviewImage"
                            Grid.Row="1"
-                           Stretch="UniformToFill"
-                           Margin="2" />
+                           Stretch="Uniform"
+                           Margin="0" />
                     <TextBlock x:Name="PreviewLabel"
                                Grid.Row="2"
-                               Text="No Content"
+                               Text="{Binding CurrentMediaTitle}"
                                TextWrapping="Wrap"
-                               Padding="8"
+                               Padding="2"
                                TextAlignment="Center"
-                               FontSize="12" />
+                               FontSize="11" />
                     <!-- Progress Bar -->
                     <Border Grid.Row="3"
                             BorderBrush="Gray"
                             BorderThickness="1"
-                            Padding="5"
-                            Margin="5"
+                            Padding="2"
+                            Margin="2"
                             Background="White">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -188,7 +182,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="CurrentTimeLabel"
                                        Grid.Column="0"
-                                       Text="00:00"
+                                       Text="{Binding CurrentTimeStr}"
                                        VerticalAlignment="Center"
                                        HorizontalAlignment="Center"
                                        TextAlignment="Center"
@@ -202,13 +196,13 @@
                                     Grid.Column="1"
                                     Minimum="0"
                                     Maximum="100"
-                                    Value="0"
+                                    Value="{Binding Progress, Mode=TwoWay}"
                                     VerticalAlignment="Center"
                                     PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
                                     PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
                             <TextBlock x:Name="DurationLabel"
                                        Grid.Column="2"
-                                       Text="00:00"
+                                       Text="{Binding DurationStr}"
                                        VerticalAlignment="Center"
                                        HorizontalAlignment="Center"
                                        TextAlignment="Center"
@@ -224,236 +218,261 @@
             </Border>
         </Grid>
 
-        <!-- Media Playback Controls -->
-        <Border x:Name="MediaControlsGroupBox"
-                Grid.Row="2"
-                Grid.Column="0"
-                BorderBrush="Gray"
-                BorderThickness="1"
-                Padding="5"
-                Margin="0,0,0,5"
-                VerticalAlignment="Top">
-            <StackPanel>
-                <TextBlock Text="Media Controls"
-                           FontSize="14"
-                           FontWeight="Bold"
-                           Foreground="DarkBlue"
-                           Margin="0,0,0,5" />
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
-                    <Button Content="⏮️ Previous"
-                            Click="Previous_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,0"
-                            Width="80"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="⏯️ Play/Pause"
-                            Click="PlayPause_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,0"
-                            Width="100"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="⏹️ Stop"
-                            Click="Stop_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,0"
-                            Width="70"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="⏭️ Next"
-                            Click="Next_Click"
-                            Padding="8,4"
-                            Margin="0,0,10,0"
-                            Width="70"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <TextBlock Text="🔊 Volume:"
-                               VerticalAlignment="Center"
-                               FontSize="12"
-                               FontWeight="Bold"
-                               Foreground="DarkBlue"
-                               Margin="0,0,5,0" />
-                    <Slider x:Name="VolumeSlider"
-                            Width="100"
-                            Minimum="0"
-                            Maximum="1"
-                            Value="0.5"
-                            VerticalAlignment="Center"
-                            ValueChanged="VolumeSlider_ValueChanged" />
-                </StackPanel>
-            </StackPanel>
-        </Border>
 
-        <!-- Remote (QR Code) -->
-        <Border Grid.Row="2"
-                Grid.Column="2"
-                BorderBrush="Gray"
-                BorderThickness="1"
-                Padding="5"
-                Margin="10,0,0,5"
-                VerticalAlignment="Top">
-            <StackPanel>
-                <TextBlock Text="📱 Remote"
-                           FontSize="14"
-                           FontWeight="Bold"
-                           Foreground="DarkBlue"
-                           Margin="0,0,0,5" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+        <!-- Bottom Control Area with proper grid structure -->
+        <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="80" />  <!-- Media Controls + Remote (resizable) -->
+                <RowDefinition Height="5" />  <!-- GridSplitter -->
+                <RowDefinition Height="Auto" />  <!-- Display Controls + Background Music -->
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" MinWidth="420" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="1*" MinWidth="260" />
+            </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0"
-                            BorderBrush="DarkGray"
-                            BorderThickness="1"
-                            Background="White"
-                            Padding="2"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Top">
-                        <Image x:Name="RemoteQrImage"
-                               Width="70"
-                               Height="70"
-                               Stretch="Uniform" />
-                    </Border>
+            <!-- Horizontal GridSplitter between media controls and display controls -->
+            <GridSplitter Grid.Row="1"
+                          Grid.Column="0"
+                          Grid.ColumnSpan="3"
+                          Height="5"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          ResizeDirection="Rows"
+                          ResizeBehavior="PreviousAndNext"
+                          DragCompleted="LayoutSplitter_DragCompleted" />
 
-                    <TextBlock Grid.Column="1"
-                               x:Name="RemoteUrlText"
-                               Text="Starting..."
-                               TextWrapping="Wrap"
-                               FontSize="12"
-                               Margin="8,0,0,0"
-                               VerticalAlignment="Center" />
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <!-- Main Control Buttons -->
-        <Border x:Name="DisplayControlsBorder"
-                    Grid.Row="4"
+            <!-- Media Playback Controls -->
+            <Border x:Name="MediaControlsGroupBox"
+                    Grid.Row="0"
                     Grid.Column="0"
+                    Background="{Binding MediaControlsBackground}"
                     BorderBrush="Gray"
                     BorderThickness="1"
                     Padding="5"
                     Margin="0,0,0,5">
-            <StackPanel>
-                <TextBlock Text="Playlist &amp; Display Controls"
-                           FontSize="14"
-                           FontWeight="Bold"
-                           Foreground="DarkBlue"
-                           Margin="0,0,0,5" />
-                <WrapPanel Orientation="Horizontal">
-                    <Button Content="📁 Add Files..."
-                            Click="AddFiles_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,5"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="💾 Save Playlist"
-                            Click="SavePlaylist_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,5"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="📂 Load Playlist"
-                            Click="LoadPlaylist_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,5"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="🎬 Go Live"
-                            Click="GoLive_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,5"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="🎵 Create Playlist"
-                            Click="CreatePlaylist_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,5"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="🖼️ Blank Display"
-                            Click="Blank_Click"
-                            Padding="8,4"
-                            Margin="0,0,5,5"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                    <Button Content="🖥️ Toggle Display"
-                            Click="ToggleDisplay_Click"
-                            Padding="8,4"
-                            Margin="0,0,0,5"
-                            FontWeight="Bold"
-                            Background="White"
-                            BorderBrush="DarkBlue"
-                            BorderThickness="1" />
-                </WrapPanel>
-            </StackPanel>
-        </Border>
-
-        <!-- Background Music Controls -->
-        <Border x:Name="BackgroundMusicGroupBox"
-                  Grid.Row="4"
-                  Grid.Column="2"
-                  BorderBrush="Gray"
-                  BorderThickness="1"
-                  Padding="5"
-                  Margin="10,0,0,0">
-            <StackPanel>
-                <TextBlock Text="🎵 Background Music"
-                           FontSize="14"
-                           FontWeight="Bold"
-                           Foreground="DarkBlue"
-                           Margin="0,0,0,8" />
-                <Button Content="🎵 Select Music..."
-                        Click="SelectBackgroundMusic_Click"
-                        Padding="8,4"
-                        Margin="0,0,0,4" />
-                <StackPanel Orientation="Horizontal"
-                            Margin="0,0,0,4">
-                    <Button Content="▶️ Play"
-                            Click="BackgroundMusicPlay_Click"
-                            Padding="8,4"
-                            Margin="0,0,4,0" />
-                    <Button Content="⏸️ Pause"
-                            Click="BackgroundMusicPause_Click"
-                            Padding="8,4"
-                            Margin="0,0,4,0" />
-                    <Button Content="⏹️ Stop"
-                            Click="BackgroundMusicStop_Click"
-                            Padding="8,4" />
+                <StackPanel>
+                    <TextBlock Text="Media Controls"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="DarkBlue"
+                               Margin="0,0,0,5" />
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <Button Content="⏮️ Previous"
+                                Command="{Binding PreviousCommand}"
+                                Padding="8,4"
+                                Margin="0,0,5,0"
+                                Width="80"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="⏯️ Play/Pause"
+                                Command="{Binding PlayCommand}"
+                                Padding="8,4"
+                                Margin="0,0,5,0"
+                                Width="100"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="⏹️ Stop"
+                                Command="{Binding StopCommand}"
+                                Padding="8,4"
+                                Margin="0,0,5,0"
+                                Width="70"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="⏭️ Next"
+                                Command="{Binding NextCommand}"
+                                Padding="8,4"
+                                Margin="0,0,10,0"
+                                Width="70"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <TextBlock Text="🔊 Volume:"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="DarkBlue"
+                                   Margin="0,0,5,0" />
+                        <Slider x:Name="VolumeSlider"
+                                Width="100"
+                                Minimum="0"
+                                Maximum="1"
+                                Value="{Binding Volume, Mode=TwoWay}"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
                 </StackPanel>
-                <TextBlock Text="Volume:"
-                           Margin="0,0,0,2" />
-                <Slider x:Name="BackgroundMusicVolumeSlider"
-                        Minimum="0"
-                        Maximum="1"
-                        Value="0.3"
-                        Margin="0,0,0,4" />
-            </StackPanel>
-        </Border>
+            </Border>
+
+            <!-- Remote (QR Code) -->
+            <Border Grid.Row="0"
+                    Grid.Column="2"
+                    BorderBrush="Gray"
+                    BorderThickness="1"
+                    Padding="5"
+                    Margin="0,0,0,5">
+                <StackPanel>
+                    <TextBlock Text="📱 Remote"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="DarkBlue"
+                               Margin="0,0,0,5" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                BorderBrush="DarkGray"
+                                BorderThickness="1"
+                                Background="White"
+                                Padding="2"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top">
+                            <Image x:Name="RemoteQrImage"
+                                   Width="70"
+                                   Height="70"
+                                   Stretch="Uniform" />
+                        </Border>
+
+                        <TextBlock Grid.Column="1"
+                                   x:Name="RemoteUrlText"
+                                   Text="Starting..."
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Main Control Buttons -->
+            <Border x:Name="DisplayControlsBorder"
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    BorderBrush="Gray"
+                    BorderThickness="1"
+                    Padding="5"
+                    Margin="0,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="Playlist &amp; Display Controls"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="DarkBlue"
+                               Margin="0,0,0,5" />
+                    <WrapPanel Orientation="Horizontal">
+                        <Button Content="📁 Add Files..."
+                                Click="AddFiles_Click"
+                                Padding="8,4"
+                                Margin="0,0,5,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="💾 Save Playlist"
+                                Click="SavePlaylist_Click"
+                                Padding="8,4"
+                                Margin="0,0,5,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="📂 Load Playlist"
+                                Click="LoadPlaylist_Click"
+                                Padding="8,4"
+                                Margin="0,0,5,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="🎬 Go Live"
+                                Click="GoLive_Click"
+                                Padding="8,4"
+                                Margin="0,0,5,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="🎵 Create Playlist"
+                                Click="CreatePlaylist_Click"
+                                Padding="8,4"
+                                Margin="0,0,5,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="🖼️ Blank Display"
+                                Command="{Binding BlankCommand}"
+                                Padding="8,4"
+                                Margin="0,0,5,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="🖥️ Toggle Display"
+                                Click="ToggleDisplay_Click"
+                                Padding="8,4"
+                                Margin="0,0,0,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Background Music Controls -->
+            <Border x:Name="BackgroundMusicGroupBox"
+                    Grid.Row="2"
+                    Grid.Column="2"
+                    BorderBrush="Gray"
+                    BorderThickness="1"
+                    Padding="5"
+                    Margin="0,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="🎵 Background Music"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="DarkBlue"
+                               Margin="0,0,0,8" />
+                    <Button Content="🎵 Select Music..."
+                            Click="SelectBackgroundMusic_Click"
+                            Padding="8,4"
+                            Margin="0,0,0,4" />
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,0,0,4">
+                        <Button Content="▶️ Play"
+                                Click="BackgroundMusicPlay_Click"
+                                Padding="8,4"
+                                Margin="0,0,4,0" />
+                        <Button Content="⏸️ Pause"
+                                Click="BackgroundMusicPause_Click"
+                                Padding="8,4"
+                                Margin="0,0,4,0" />
+                        <Button Content="⏹️ Stop"
+                                Click="BackgroundMusicStop_Click"
+                                Padding="8,4" />
+                    </StackPanel>
+                    <TextBlock Text="Volume:"
+                               Margin="0,0,0,2" />
+                    <Slider x:Name="BackgroundMusicVolumeSlider"
+                            Minimum="0"
+                            Maximum="1"
+                            Value="0.3"
+                            Margin="0,0,0,4" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
     </Grid>
 </Window>

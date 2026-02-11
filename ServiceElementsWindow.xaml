@@ -50,7 +50,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="SongForBeginningSelectButton"
-                                    Click="SongForBeginningSelect_Click"
+                                    Click="ElementSelect_Click" Tag="SongForBeginning"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -59,7 +59,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="SongForBeginningClearButton"
-                                    Click="SongForBeginningClear_Click"
+                                    Click="ElementClear_Click" Tag="SongForBeginning"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -96,7 +96,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="CallToWorshipSelectButton"
-                                    Click="CallToWorshipSelect_Click"
+                                    Click="ElementSelect_Click" Tag="CallToWorship"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -105,7 +105,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="CallToWorshipClearButton"
-                                    Click="CallToWorshipClear_Click"
+                                    Click="ElementClear_Click" Tag="CallToWorship"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -142,7 +142,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="PraiseSongSelectButton"
-                                    Click="PraiseSongSelect_Click"
+                                    Click="ElementSelect_Click" Tag="PraiseSong"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -151,7 +151,99 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="PraiseSongClearButton"
-                                    Click="PraiseSongClear_Click"
+                                    Click="ElementClear_Click" Tag="PraiseSong"
+                                    Padding="12,8"
+                                    FontWeight="Bold"
+                                    Background="White"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                
+                <!-- Gloria Patri Section -->
+                <Border BorderBrush="DarkBlue" BorderThickness="2" Padding="15" CornerRadius="8" Margin="0,0,0,15" Background="LightBlue">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        
+                        <TextBlock Grid.Row="0"
+                                   Text="Gloria Patri"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="DarkBlue"
+                                   Margin="0,0,0,10" />
+                        
+                        <TextBlock Grid.Row="1"
+                                   x:Name="GloriaPatriFileLabel"
+                                   Text="No file selected"
+                                   FontStyle="Italic"
+                                   Foreground="Gray"
+                                   Margin="0,0,0,10"
+                                   TextWrapping="Wrap" />
+                        
+                        <StackPanel Grid.Row="2" Orientation="Horizontal">
+                            <Button Content="Select File"
+                                    x:Name="GloriaPatriSelectButton"
+                                    Click="ElementSelect_Click" Tag="GloriaPatri"
+                                    Padding="12,8"
+                                    Margin="0,0,10,0"
+                                    FontWeight="Bold"
+                                    Background="White"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1" />
+                            <Button Content="Clear"
+                                    x:Name="GloriaPatriClearButton"
+                                    Click="ElementClear_Click" Tag="GloriaPatri"
+                                    Padding="12,8"
+                                    FontWeight="Bold"
+                                    Background="White"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                
+                <!-- Lord's Prayer Section -->
+                <Border BorderBrush="DarkBlue" BorderThickness="2" Padding="15" CornerRadius="8" Margin="0,0,0,15" Background="LightBlue">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        
+                        <TextBlock Grid.Row="0"
+                                   Text="Lord's Prayer"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="DarkBlue"
+                                   Margin="0,0,0,10" />
+                        
+                        <TextBlock Grid.Row="1"
+                                   x:Name="LordsPrayerFileLabel"
+                                   Text="No file selected"
+                                   FontStyle="Italic"
+                                   Foreground="Gray"
+                                   Margin="0,0,0,10"
+                                   TextWrapping="Wrap" />
+                        
+                        <StackPanel Grid.Row="2" Orientation="Horizontal">
+                            <Button Content="Select File"
+                                    x:Name="LordsPrayerSelectButton"
+                                    Click="ElementSelect_Click" Tag="LordsPrayer"
+                                    Padding="12,8"
+                                    Margin="0,0,10,0"
+                                    FontWeight="Bold"
+                                    Background="White"
+                                    BorderBrush="DarkBlue"
+                                    BorderThickness="1" />
+                            <Button Content="Clear"
+                                    x:Name="LordsPrayerClearButton"
+                                    Click="ElementClear_Click" Tag="LordsPrayer"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -188,7 +280,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="PrayerSongSelectButton"
-                                    Click="PrayerSongSelect_Click"
+                                    Click="ElementSelect_Click" Tag="PrayerSong"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -197,7 +289,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="PrayerSongClearButton"
-                                    Click="PrayerSongClear_Click"
+                                    Click="ElementClear_Click" Tag="PrayerSong"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -234,7 +326,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="ChildrensMomentSongSelectButton"
-                                    Click="ChildrensMomentSongSelect_Click"
+                                    Click="ElementSelect_Click" Tag="ChildrensMomentSong"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -243,7 +335,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="ChildrensMomentSongClearButton"
-                                    Click="ChildrensMomentSongClear_Click"
+                                    Click="ElementClear_Click" Tag="ChildrensMomentSong"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -280,7 +372,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="CommunionSongSelectButton"
-                                    Click="CommunionSongSelect_Click"
+                                    Click="ElementSelect_Click" Tag="CommunionSong"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -289,7 +381,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="CommunionSongClearButton"
-                                    Click="CommunionSongClear_Click"
+                                    Click="ElementClear_Click" Tag="CommunionSong"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -326,7 +418,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="DoxologySelectButton"
-                                    Click="DoxologySelect_Click"
+                                    Click="ElementSelect_Click" Tag="Doxology"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -335,7 +427,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="DoxologyClearButton"
-                                    Click="DoxologyClear_Click"
+                                    Click="ElementClear_Click" Tag="Doxology"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -372,7 +464,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="InvitationSongSelectButton"
-                                    Click="InvitationSongSelect_Click"
+                                    Click="ElementSelect_Click" Tag="InvitationSong"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -381,7 +473,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="InvitationSongClearButton"
-                                    Click="InvitationSongClear_Click"
+                                    Click="ElementClear_Click" Tag="InvitationSong"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"
@@ -418,7 +510,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal">
                             <Button Content="Select File"
                                     x:Name="EndingSongSelectButton"
-                                    Click="EndingSongSelect_Click"
+                                    Click="ElementSelect_Click" Tag="EndingSong"
                                     Padding="12,8"
                                     Margin="0,0,10,0"
                                     FontWeight="Bold"
@@ -427,7 +519,7 @@
                                     BorderThickness="1" />
                             <Button Content="Clear"
                                     x:Name="EndingSongClearButton"
-                                    Click="EndingSongClear_Click"
+                                    Click="ElementClear_Click" Tag="EndingSong"
                                     Padding="12,8"
                                     FontWeight="Bold"
                                     Background="White"

@@ -1,6 +1,6 @@
-﻿using System.Configuration;
-using System.Data;
+﻿using System.IO;
 using System.Windows;
+using Serilog;
 
 namespace ChurchDisplayApp;
 
@@ -9,5 +9,41 @@ namespace ChurchDisplayApp;
 /// </summary>
 public partial class App : Application
 {
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        var logPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "ChurchDisplayApp",
+            "logs",
+            "log-.txt"
+        );
+
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
+            .CreateLogger();
+
+        Log.Information("Application starting...");
+
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            Log.Fatal((Exception)args.ExceptionObject, "Unhandled AppDomain exception");
+        };
+
+        DispatcherUnhandledException += (s, args) =>
+        {
+            Log.Fatal(args.Exception, "Unhandled Dispatcher exception");
+            args.Handled = false;
+        };
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Log.Information("Application exiting...");
+        Log.CloseAndFlush();
+        base.OnExit(e);
+    }
 }
 

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Church Display Remote</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #121212;
+            --card: #1e1e1e;
+            --primary: #1f6feb;
+            --danger: #b42318;
+            --text: #e1e1e1;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        h1 {
+            margin: 0 0 16px 0;
+            font-size: 22px;
+            text-align: center;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            font-size: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            flex: 1;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #444;
+        }
+
+        button.danger {
+            background: var(--danger);
+        }
+
+        .status-area {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .current-media {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .volume-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #444;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .item {
+            width: 100%;
+            text-align: left;
+            background: #2b2b2b;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .item-icon {
+            font-size: 20px;
+        }
+
+        .item-text {
+            flex: 1;
+            font-size: 15px;
+        }
+
+        .footer {
+            opacity: .6;
+            font-size: 12px;
+            margin-top: 24px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Church Display Remote</h1>
+
+    <div class="card">
+        <div class="status-area">
+            <span id="current-title" class="current-media">No Media Playing</span>
+            <div class="progress-container">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
+            <div id="time-display" style="font-size: 12px; opacity: 0.8;">00:00 / 00:00</div>
+        </div>
+
+        <div class="row">
+            <button class="danger" onclick="post('/api/blank')">Black Screen</button>
+            <button class="secondary" onclick="post('/api/stop')">Stop</button>
+            <button class="secondary" onclick="loadPlaylist()">Refresh</button>
+        </div>
+
+        <div class="volume-container">
+            <span>🔈</span>
+            <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05"
+                onchange="setVolume(this.value)">
+            <span>🔊</span>
+        </div>
+    </div>
+
+    <div id="list" class="list"></div>
+
+    <div class="footer">
+        <div id="status">Ready</div>
+        <div style="margin-top: 8px">Connected to: <span id="server-url"></span></div>
+    </div>
+
+    <script>
+        let isPolling = true;
+
+        async function post(url) {
+            try {
+                await fetch(url, { method: 'POST' });
+                pollStatus(); // Immediate poll after action
+            } catch (e) {
+                setStatus('Error: ' + e);
+            }
+        }
+
+        async function setVolume(val) {
+            try {
+                await fetch('/api/volume/' + val, { method: 'POST' });
+            } catch (e) {
+                console.error('Volume error:', e);
+            }
+        }
+
+        function setStatus(msg) {
+            document.getElementById('status').textContent = msg;
+        }
+
+        async function pollStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                document.getElementById('current-title').textContent = data.title || 'No Media Playing';
+                document.getElementById('progress-bar').style.width = data.progress + '%';
+                document.getElementById('time-display').textContent = data.currentTime + ' / ' + data.duration;
+                document.getElementById('volume-slider').value = data.volume;
+            } catch (e) {
+                console.error('Status poll failed', e);
+            }
+        }
+
+        async function loadPlaylist() {
+            setStatus('Loading playlist...');
+            const listEl = document.getElementById('list');
+            listEl.innerHTML = '';
+
+            try {
+                const res = await fetch('/api/playlist');
+                const items = await res.json();
+
+                if (!items || items.length === 0) {
+                    setStatus('Playlist is empty.');
+                    return;
+                }
+
+                setStatus('Tap an item to play.');
+                document.getElementById('server-url').textContent = location.host;
+
+                for (const it of items) {
+                    const btn = document.createElement('div');
+                    btn.className = 'item';
+                    btn.onclick = () => post('/api/play/' + it.index);
+
+                    const icon = document.createElement('span');
+                    icon.className = 'item-icon';
+                    const ext = it.fileName.split('.').pop()?.toLowerCase();
+                    icon.textContent = ['mp4', 'mov', 'wmv', 'mkv'].includes(ext) ? '🎬' :
+                        ['jpg', 'jpeg', 'png', 'bmp', 'gif'].includes(ext) ? '🖼️' :
+                            ['mp3', 'wav', 'flac', 'wma', 'm4a'].includes(ext) ? '🎵' : '📄';
+
+                    const text = document.createElement('span');
+                    text.className = 'item-text';
+                    text.textContent = it.fileName;
+
+                    btn.appendChild(icon);
+                    btn.appendChild(text);
+                    listEl.appendChild(btn);
+                }
+            } catch (e) {
+                setStatus('Error loading playlist: ' + e);
+            }
+        }
+
+        // Initialize
+        loadPlaylist();
+        setInterval(pollStatus, 2000); // Poll status every 2 seconds
+        pollStatus();
+    </script>
+</body>
+
+</html>
