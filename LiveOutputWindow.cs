@@ -37,7 +37,7 @@ public class LiveOutputWindow : Window
     /// </summary>
     public BitmapSource? GetVideoSnapshot()
     {
-        if (_mediaPlayer == null || !_mediaPlayer.IsPlaying)
+        if (_mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero || !_mediaPlayer.IsPlaying)
             return null;
 
         try
@@ -123,9 +123,23 @@ public class LiveOutputWindow : Window
         mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         // Initialize LibVLC
-        Core.Initialize();
-        _libVLC = new LibVLC("--quiet", "--no-osd", "--no-video-title-show", "--no-snapshot-preview");
-        _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVLC);
+        try
+        {
+            Core.Initialize();
+            _libVLC = new LibVLC("--quiet", "--no-osd", "--no-video-title-show", "--no-snapshot-preview");
+            _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVLC);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Failed to initialize LibVLC. Video playback will be unavailable.");
+            // We still need to initialize the fields to avoid null reference exceptions later
+            // but we can't really "fix" it without the native binaries.
+            // Using a dummy or letting it be null might require more null checks.
+            // For now, let's at least log it. The app won't crash here, but might fail later.
+            // I'll add null checks where these are used.
+            _libVLC = null!;
+            _mediaPlayer = null!;
+        }
 
         // Create VideoView for media playback
         _videoView = new VideoView
@@ -196,16 +210,19 @@ public class LiveOutputWindow : Window
 
         Closing += (s, e) =>
         {
-            _timer.Stop();
-            _mediaPlayer?.Stop();
-            _mediaPlayer?.Dispose();
+            _timer?.Stop();
+            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+            {
+                _mediaPlayer.Stop();
+                _mediaPlayer.Dispose();
+            }
             _libVLC?.Dispose();
         };
     }
 
     private void Timer_Tick(object? sender, EventArgs e)
     {
-        if (_mediaPlayer.Length > 0)
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && _mediaPlayer.Length > 0)
         {
             var progress = (double)_mediaPlayer.Time / _mediaPlayer.Length;
             _progressBar.Value = progress * 100;
@@ -247,6 +264,12 @@ public class LiveOutputWindow : Window
 
     private void PlayVideo(string videoPath)
     {
+        if (_libVLC == null || _mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero)
+        {
+            MessageBox.Show("Video playback is unavailable because LibVLC failed to initialize. Please ensure VLC and its dependencies are correctly installed.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
         _imageDisplay.Visibility = Visibility.Collapsed;
         _filenameLabel.Visibility = Visibility.Collapsed;
         _videoView.Visibility = Visibility.Visible;
@@ -261,7 +284,7 @@ public class LiveOutputWindow : Window
 
     public void Pause()
     {
-        if (_mediaPlayer.CanPause)
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && _mediaPlayer.CanPause)
         {
             _mediaPlayer.Pause();
             _isPlaying = false;
@@ -270,7 +293,7 @@ public class LiveOutputWindow : Window
 
     public void Resume()
     {
-        if (_mediaPlayer.CanPause)
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && _mediaPlayer.CanPause)
         {
             _mediaPlayer.Play();
             _isPlaying = true;
@@ -279,7 +302,10 @@ public class LiveOutputWindow : Window
 
     public void Stop()
     {
-        _mediaPlayer?.Stop();
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            _mediaPlayer.Stop();
+        }
         _isPlaying = false;
         _timer.Stop();
         _progressBar.Visibility = Visibility.Collapsed;
@@ -357,7 +383,7 @@ public class LiveOutputWindow : Window
 
     public void SetVolume(double volume)
     {
-        if (_mediaPlayer != null)
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
         {
             // VLC volume is 0-100
             _mediaPlayer.Volume = (int)(volume * 100);

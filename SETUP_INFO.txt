@@ -2,7 +2,8 @@ Church Display App - Setup Information
 =====================================
 
 📦 PACKAGE CONTENTS:
-✅ ChurchDisplayApp.exe (138 MB) - Main application (self-contained)
+✅ ChurchDisplayApp.exe - Main application
+✅ libvlc.dll & plugins/ folder - VLC media engine
 ✅ INSTALL.bat - Installation script
 ✅ UNINSTALL.bat - Uninstallation script  
 ✅ README_INSTALL.txt - Detailed instructions
@@ -15,7 +16,8 @@ Church Display App - Setup Information
 
 💻 SYSTEM REQUIREMENTS:
 - Windows 10/11 (64-bit)
-- .NET 10.0 Runtime (included in executable)
+- .NET 8.0 Runtime (included)
+- Visual C++ Redistributable (x64) - Required for VLC
 - 2GB RAM minimum
 - 200MB disk space
 - Second monitor/Projector recommended

@@ -9,12 +9,13 @@
 
 ## Files Needed
 - `ChurchDisplayApp.exe` (main application)
+- `libvlc/` folder (VLC media engine)
 - All `.dll` files (required dependencies)
-- `icon.ico` (application icon)
 
 ## System Requirements
-- Windows 10 or Windows 11
-- .NET 10.0 Runtime (included in self-contained build)
+- Windows 10 or Windows 11 (64-bit)
+- Visual C++ 2015-2022 Redistributable (x64) - **Required for video**
+- .NET 8.0 Runtime (included in self-contained build)
 - Graphics card with DirectX support
 - Speakers for audio playback
 
