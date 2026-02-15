@@ -30,11 +30,13 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
             Log.Fatal((Exception)args.ExceptionObject, "Unhandled AppDomain exception");
+            Log.CloseAndFlush();
         };
 
         DispatcherUnhandledException += (s, args) =>
         {
             Log.Fatal(args.Exception, "Unhandled Dispatcher exception");
+            Log.CloseAndFlush();
             args.Handled = false;
         };
     }

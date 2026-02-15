@@ -77,10 +77,10 @@ public class MonitorService
 
         _monitorBounds.Add(new MonitorBounds
         {
-            Left = mi.rcWork.left,
-            Top = mi.rcWork.top,
-            Right = mi.rcWork.right,
-            Bottom = mi.rcWork.bottom,
+            Left = mi.rcMonitor.left,
+            Top = mi.rcMonitor.top,
+            Right = mi.rcMonitor.right,
+            Bottom = mi.rcMonitor.bottom,
             IsPrimary = isPrimary
         });
 

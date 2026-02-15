@@ -50,6 +50,18 @@ namespace ChurchDisplayApp.Services
         public RemoteStatus GetStatus()
         {
             var progress = _mediaControlService.GetProgress();
+            
+            if (progress == null)
+            {
+                return new RemoteStatus(
+                    _viewModel.CurrentMediaTitle,
+                    0,
+                    "00:00",
+                    "00:00",
+                    _viewModel.Volume
+                );
+            }
+
             return new RemoteStatus(
                 _viewModel.CurrentMediaTitle,
                 progress.ProgressPercent,
