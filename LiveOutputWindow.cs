@@ -247,6 +247,13 @@ public class LiveOutputWindow : Window
 
     private void ShowImage(string imagePath)
     {
+        // Ensure any currently playing video/audio (e.g., mp4/mp3) is stopped
+        // before switching to a static image.
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            _mediaPlayer.Stop();
+        }
+
         _videoView.Visibility = Visibility.Collapsed;
         _imageDisplay.Visibility = Visibility.Visible;
         _filenameLabel.Visibility = Visibility.Collapsed;

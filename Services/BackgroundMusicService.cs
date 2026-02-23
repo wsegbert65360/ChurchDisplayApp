@@ -80,6 +80,15 @@ public class BackgroundMusicService
         }
     }
 
+    public void AutoStop()
+    {
+        if (_mediaPlayer.Source != null)
+        {
+            _mediaPlayer.Stop();
+            _isAutoPaused = false;
+        }
+    }
+
     public void AutoResume()
     {
         if (_isAutoPaused && _settings.BackgroundMusicEnabled)

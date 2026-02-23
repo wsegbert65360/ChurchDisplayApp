@@ -46,7 +46,17 @@ public class MainViewModel : BaseViewModel
     public PlaylistItem? SelectedItem
     {
         get => _selectedItem;
-        set => SetProperty(ref _selectedItem, value);
+        set
+        {
+            if (SetProperty(ref _selectedItem, value))
+            {
+                if (value != null && MediaConstants.IsImage(value.FullPath))
+                {
+                    _backgroundMusicService?.AutoStop();
+                    _backgroundMusicService?.StopPulseAnimation();
+                }
+            }
+        }
     }
 
     public double Volume
