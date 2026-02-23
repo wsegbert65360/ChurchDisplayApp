@@ -122,16 +122,15 @@ public class MonitorService
         if (monitors.Count == 1)
             return monitors[0];
 
-        var result = MessageBox.Show(
-            $"Multiple monitors detected ({monitors.Count} total).\n\n" +
-            "Would you like to use the rightmost monitor (likely your projector/display) for the live output?\n\n" +
-            "Click YES for rightmost, NO for leftmost.",
-            "Select Display",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+        var selectionWindow = new MonitorSelectionWindow();
+        if (selectionWindow.ShowDialog() == true)
+        {
+            return selectionWindow.Result == MonitorSelectionWindow.SelectionResult.Right
+                ? monitors.OrderByDescending(m => m.Right).First()  // Rightmost
+                : monitors.OrderBy(m => m.Right).First();           // Leftmost
+        }
 
-        return result == MessageBoxResult.Yes
-            ? monitors.OrderByDescending(m => m.Right).First()  // Rightmost
-            : monitors.OrderBy(m => m.Right).First();           // Leftmost
+        // Fallback or cancelled
+        return monitors.OrderByDescending(m => m.Right).First(); 
     }
 }
