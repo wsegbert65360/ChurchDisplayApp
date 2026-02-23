@@ -46,17 +46,7 @@ public class MainViewModel : BaseViewModel
     public PlaylistItem? SelectedItem
     {
         get => _selectedItem;
-        set
-        {
-            if (SetProperty(ref _selectedItem, value))
-            {
-                if (value != null && MediaConstants.IsImage(value.FullPath))
-                {
-                    _backgroundMusicService?.AutoStop();
-                    _backgroundMusicService?.StopPulseAnimation();
-                }
-            }
-        }
+        set => SetProperty(ref _selectedItem, value);
     }
 
     public double Volume
@@ -142,7 +132,14 @@ public class MainViewModel : BaseViewModel
             }
 
             // Coordination with background music
-            _backgroundMusicService?.AutoPause();
+            if (MediaConstants.IsImage(SelectedItem.FullPath))
+            {
+                _backgroundMusicService?.AutoStop();
+            }
+            else
+            {
+                _backgroundMusicService?.AutoPause();
+            }
             _backgroundMusicService?.StopPulseAnimation();
 
             _mediaControlService.PlayMedia(SelectedItem.FullPath);
