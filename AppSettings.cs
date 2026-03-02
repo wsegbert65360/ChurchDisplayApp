@@ -3,11 +3,22 @@ using System.Text.Json;
 
 namespace ChurchDisplayApp;
 
+/// <summary>
+/// Represents the application settings for the ChurchDisplayApp, including media paths,
+/// volumes, and display layout proportions.
+/// </summary>
 public class AppSettings
 {
+    /// <summary>Gets or sets the file path for background music.</summary>
     public string? BackgroundMusicPath { get; set; }
+
+    /// <summary>Gets or sets the volume level for background music (0.0 to 1.0).</summary>
     public double BackgroundMusicVolume { get; set; } = 0.3;
+
+    /// <summary>Gets or sets the volume level for the main media (0.0 to 1.0).</summary>
     public double MainMediaVolume { get; set; } = 0.5;
+
+    /// <summary>Gets or sets whether background music is enabled.</summary>
     public bool BackgroundMusicEnabled { get; set; } = true;
 
     // Legacy pixel-based layout properties (kept for migration)
@@ -22,11 +33,13 @@ public class AppSettings
     [Obsolete("Use MainWindowTopRowProportion instead")]
     public double? MainWindowBottomRowHeight { get; set; }
     
-    // New proportional layout properties (0.0 to 1.0)
+    /// <summary>Gets or sets the proportional width of the left column (0.0 to 1.0).</summary>
     public double? MainWindowLeftColumnProportion { get; set; }
+
+    /// <summary>Gets or sets the proportional height of the top row (0.0 to 1.0).</summary>
     public double? MainWindowTopRowProportion { get; set; }
     
-    // New filename-based properties
+    // Song file names
     public string? CallToWorshipFile { get; set; }
     public string? DoxologyFile { get; set; }
     public string? GloriaPatriFile { get; set; }
@@ -39,14 +52,14 @@ public class AppSettings
     public string? InvitationSongFile { get; set; }
     public string? EndingSongFile { get; set; }
     
-    // Remember the last used directory for file searches
+    /// <summary>Gets or sets the last directory used to search for media files.</summary>
     public string? LastMediaDirectory { get; set; }
     
     // Legacy path-based properties for migration
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public string? CallToWorshipPath { get; set; }
     public string? DoxologyPath { get; set; }
-    public string? GloriaPatriPath { get; set; } // Added this line based on the instruction's intent
+    public string? GloriaPatriPath { get; set; }
     public string? SongForBeginningPath { get; set; }
     public string? PraiseSongPath { get; set; }
     public string? PrayerSongPath { get; set; }
@@ -57,10 +70,13 @@ public class AppSettings
 
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ChurchDisplayApp",
-        "settings.json"
+        AppConstants.Storage.AppDataFolderName,
+        AppConstants.Storage.SettingsFileName
     );
 
+    /// <summary>
+    /// Loads the settings from the JSON file, or returns a default instance if the file does not exist.
+    /// </summary>
     public static AppSettings Load()
     {
         try
@@ -74,14 +90,51 @@ public class AppSettings
                 // Migration: Check if old path-based properties exist and migrate to filename-based
                 MigrateFromPathBased(settings);
                 
+                // Validate and apply safe defaults
+                settings.Validate();
+                
                 return settings;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Trace.WriteLine($"Error loading settings: {ex.Message}");
             // If loading fails, return default settings
         }
         return new AppSettings();
+    }
+
+    public void Validate()
+    {
+        // Volume validation (0.0 to 1.0)
+        BackgroundMusicVolume = Math.Clamp(BackgroundMusicVolume, 0.0, 1.0);
+        MainMediaVolume = Math.Clamp(MainMediaVolume, 0.0, 1.0);
+
+        // Proportion validation (0.0 to 1.0)
+        if (MainWindowLeftColumnProportion.HasValue)
+            MainWindowLeftColumnProportion = Math.Clamp(MainWindowLeftColumnProportion.Value, 0.0, 1.0);
+        else
+            MainWindowLeftColumnProportion = 0.7; // Default
+
+        if (MainWindowTopRowProportion.HasValue)
+            MainWindowTopRowProportion = Math.Clamp(MainWindowTopRowProportion.Value, 0.0, 1.0);
+        else
+            MainWindowTopRowProportion = 0.7; // Default
+
+        // Ensure strings are not null (where applicable)
+        BackgroundMusicPath ??= string.Empty;
+        CallToWorshipFile ??= string.Empty;
+        DoxologyFile ??= string.Empty;
+        GloriaPatriFile ??= string.Empty;
+        LordsPrayerFile ??= string.Empty;
+        SongForBeginningFile ??= string.Empty;
+        PraiseSongFile ??= string.Empty;
+        PrayerSongFile ??= string.Empty;
+        CommunionSongFile ??= string.Empty;
+        ChildrensMomentSongFile ??= string.Empty;
+        InvitationSongFile ??= string.Empty;
+        EndingSongFile ??= string.Empty;
+        LastMediaDirectory ??= string.Empty;
     }
 
     private static void MigrateFromPathBased(AppSettings settings)
@@ -224,13 +277,14 @@ public class AppSettings
     {
         try
         {
+            Validate(); // Final validation before save
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
             var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(SettingsPath, json);
         }
-        catch
+        catch (Exception ex)
         {
-            // Silent fail for settings save
+            System.Diagnostics.Trace.WriteLine($"Error saving settings: {ex.Message}");
         }
     }
 }

@@ -4,16 +4,29 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using System.IO;
 using ChurchDisplayApp.Services;
+using ChurchDisplayApp.Interfaces;
 
 namespace ChurchDisplayApp;
 
+/// <summary>
+/// A self-contained HTTP server that provides a web-based remote control interface
+/// for the ChurchDisplayApp.
+/// </summary>
 public sealed class RemoteControlServer
 {
     private IHost? _host;
 
+    /// <summary>Gets a value indicating whether the remote control server is currently running.</summary>
     public bool IsRunning => _host != null;
 
-    public async Task StartAsync(System.Windows.Threading.Dispatcher dispatcher, RemoteControlCoordinator coordinator, int port, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Starts the remote control server on the specified port.
+    /// </summary>
+    /// <param name="dispatcher">The UI dispatcher for executing commands on the main thread.</param>
+    /// <param name="controller">The controller that handles display and media actions.</param>
+    /// <param name="port">The port number to listen on.</param>
+    /// <param name="cancellationToken">An optional token to cancel the startup process.</param>
+    public async Task StartAsync(System.Windows.Threading.Dispatcher dispatcher, IDisplayController controller, int port, CancellationToken cancellationToken = default)
     {
         if (_host != null)
         {
@@ -45,37 +58,37 @@ public sealed class RemoteControlServer
 
         app.MapGet("/api/playlist", () =>
         {
-            var items = dispatcher.Invoke(() => coordinator.GetPlaylistItems());
+            var items = dispatcher.Invoke(() => controller.GetPlaylistItems());
             return Results.Json(items);
         });
 
         app.MapPost("/api/play/{index:int}", (int index) =>
         {
-            dispatcher.BeginInvoke(() => coordinator.PlayIndex(index));
+            dispatcher.BeginInvoke(() => controller.PlayIndex(index));
             return Results.Ok(new { ok = true });
         });
 
         app.MapGet("/api/status", () =>
         {
-            var status = dispatcher.Invoke(() => coordinator.GetStatus());
+            var status = dispatcher.Invoke(() => controller.GetStatus());
             return Results.Json(status);
         });
 
         app.MapPost("/api/stop", () =>
         {
-            dispatcher.BeginInvoke(() => coordinator.Stop());
+            dispatcher.BeginInvoke(() => controller.Stop());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/blank", () =>
         {
-            dispatcher.BeginInvoke(() => coordinator.Blank());
+            dispatcher.BeginInvoke(() => controller.Blank());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/volume/{level:double}", (double level) =>
         {
-            dispatcher.BeginInvoke(() => coordinator.SetVolume(level));
+            dispatcher.BeginInvoke(() => controller.SetVolume(level));
             return Results.Ok(new { ok = true });
         });
 
@@ -84,6 +97,10 @@ public sealed class RemoteControlServer
         await app.StartAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Stops the remote control server.
+    /// </summary>
+    /// <param name="cancellationToken">An optional token to cancel the shutdown process.</param>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         if (_host == null)

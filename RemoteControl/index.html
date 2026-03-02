@@ -3,84 +3,94 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
     <title>Church Display Remote</title>
     <style>
         :root {
-            color-scheme: light dark;
-            --bg: #121212;
-            --card: #1e1e1e;
-            --primary: #1f6feb;
-            --danger: #b42318;
-            --text: #e1e1e1;
+            /* Dark mode by default */
+            --bg: #0f172a;
+            --card: #1e293b;
+            --primary: #38bdf8;
+            --primary-hover: #0ea5e9;
+            --danger: #ef4444;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --border: #334155;
+            --tap-target: 48px;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             margin: 0;
             padding: 16px;
             background: var(--bg);
             color: var(--text);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 24px;
         }
 
         h1 {
-            margin: 0 0 16px 0;
-            font-size: 22px;
-            text-align: center;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            color: var(--primary);
         }
 
         .card {
             background: var(--card);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
         }
 
-        .row {
+        .status-header {
             display: flex;
-            gap: 8px;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 12px;
         }
 
-        button {
-            font-size: 16px;
-            padding: 12px;
-            border-radius: 8px;
-            border: none;
-            background: var(--primary);
-            color: white;
-            flex: 1;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        button.secondary {
-            background: #444;
-        }
-
-        button.danger {
-            background: var(--danger);
-        }
-
-        .status-area {
-            text-align: center;
-            margin-bottom: 16px;
+        .current-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
         }
 
         .current-media {
-            font-weight: bold;
-            font-size: 18px;
-            margin-bottom: 4px;
             display: block;
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 16px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .progress-container {
             width: 100%;
-            height: 8px;
-            background: #333;
-            border-radius: 4px;
-            margin: 8px 0;
+            height: 10px;
+            background: #0f172a;
+            border-radius: 5px;
+            margin-bottom: 8px;
             overflow: hidden;
         }
 
@@ -88,24 +98,77 @@
             height: 100%;
             background: var(--primary);
             width: 0%;
-            transition: width 0.3s;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .volume-container {
+        .time-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            font-family: monospace;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            min-height: var(--tap-target);
+            font-size: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background: var(--primary);
+            color: #0f172a;
+            font-weight: 700;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-top: 16px;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        button:active {
+            transform: scale(0.96);
+        }
+
+        button.secondary {
+            background: #334155;
+            color: var(--text);
+        }
+
+        button.danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .volume-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
         }
 
         .volume-slider {
             flex: 1;
-            height: 6px;
+            height: 32px;
             -webkit-appearance: none;
             appearance: none;
-            background: #444;
-            border-radius: 3px;
+            background: transparent;
             outline: none;
+        }
+
+        .volume-slider::-webkit-slider-runnable-track {
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
         }
 
         .volume-slider::-webkit-slider-thumb {
@@ -116,98 +179,164 @@
             background: var(--primary);
             border-radius: 50%;
             cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
         }
 
-        .list {
-            display: grid;
+        .section-title {
+            font-size: 14px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            margin: 24px 0 12px 4px;
+        }
+
+        .playlist {
+            display: flex;
+            flex-direction: column;
             gap: 8px;
         }
 
         .item {
             width: 100%;
             text-align: left;
-            background: #2b2b2b;
+            background: var(--card);
+            border: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #333;
+            padding: 14px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 60px;
+        }
+
+        .item:active {
+            background: #334155;
+            transform: scale(0.98);
         }
 
         .item-icon {
-            font-size: 20px;
+            font-size: 24px;
+            margin-right: 16px;
+            width: 32px;
+            text-align: center;
         }
 
         .item-text {
             flex: 1;
             font-size: 15px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .footer {
-            opacity: .6;
-            font-size: 12px;
-            margin-top: 24px;
+            margin-top: 40px;
+            padding-bottom: 20px;
             text-align: center;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        #status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            margin-right: 6px;
+            box-shadow: 0 0 8px #22c55e;
+        }
+
+        #status-dot.disconnected {
+            background: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
         }
     </style>
 </head>
 
 <body>
-    <h1>Church Display Remote</h1>
+    <div class="container">
+        <header>
+            <h1>Grace Control</h1>
+            <div style="font-size: 12px; margin-top: 4px; color: var(--text-dim);">Church Display Remote</div>
+        </header>
 
-    <div class="card">
-        <div class="status-area">
-            <span id="current-title" class="current-media">No Media Playing</span>
+        <div class="card">
+            <div class="status-header">
+                <span class="current-label">Currently Live</span>
+                <span id="live-indicator"
+                    style="font-size: 10px; color: var(--danger); font-weight: 900; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 4px; opacity: 0;">LIVE</span>
+            </div>
+
+            <span id="current-title" class="current-media">Standby</span>
+
             <div class="progress-container">
                 <div id="progress-bar" class="progress-bar"></div>
             </div>
-            <div id="time-display" style="font-size: 12px; opacity: 0.8;">00:00 / 00:00</div>
+
+            <div class="time-row">
+                <span id="time-current">00:00</span>
+                <span id="time-duration">00:00</span>
+            </div>
+
+            <div class="controls-grid">
+                <button class="secondary" onclick="post('/api/stop')">⏹ Stop</button>
+                <button class="danger" onclick="post('/api/blank')">🔳 Blank</button>
+            </div>
+
+            <div class="volume-section">
+                <span>🔈</span>
+                <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05"
+                    oninput="setVolume(this.value)">
+                <span>🔊</span>
+            </div>
         </div>
 
-        <div class="row">
-            <button class="danger" onclick="post('/api/blank')">Black Screen</button>
-            <button class="secondary" onclick="post('/api/stop')">Stop</button>
-            <button class="secondary" onclick="loadPlaylist()">Refresh</button>
+        <div class="section-title">Playlist Flow</div>
+        <div id="playlist" class="playlist">
+            <!-- Items injected by JS -->
         </div>
 
-        <div class="volume-container">
-            <span>🔈</span>
-            <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05"
-                onchange="setVolume(this.value)">
-            <span>🔊</span>
+        <div class="footer">
+            <div style="margin-bottom: 8px">
+                <span id="status-dot"></span>
+                <span id="status-text">Connected</span>
+            </div>
+            <div>Server: <span id="server-url"></span></div>
         </div>
-    </div>
-
-    <div id="list" class="list"></div>
-
-    <div class="footer">
-        <div id="status">Ready</div>
-        <div style="margin-top: 8px">Connected to: <span id="server-url"></span></div>
     </div>
 
     <script>
-        let isPolling = true;
+        let lastStatus = null;
 
         async function post(url) {
             try {
-                await fetch(url, { method: 'POST' });
-                pollStatus(); // Immediate poll after action
+                const res = await fetch(url, { method: 'POST' });
+                if (res.ok) {
+                    // Update UI immediately for snappier feel
+                    pollStatus();
+                }
             } catch (e) {
-                setStatus('Error: ' + e);
+                updateStatus(false, 'Connection Error');
             }
         }
 
         async function setVolume(val) {
             try {
+                // Throttling or debouncing could be added here if needed
                 await fetch('/api/volume/' + val, { method: 'POST' });
-            } catch (e) {
-                console.error('Volume error:', e);
-            }
+            } catch (e) { }
         }
 
-        function setStatus(msg) {
-            document.getElementById('status').textContent = msg;
+        function updateStatus(connected, msg) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            dot.className = connected ? '' : 'disconnected';
+            text.textContent = msg;
         }
 
         async function pollStatus() {
@@ -215,32 +344,40 @@
                 const res = await fetch('/api/status');
                 const data = await res.json();
 
-                document.getElementById('current-title').textContent = data.title || 'No Media Playing';
+                updateStatus(true, 'Connected');
+                document.getElementById('server-url').textContent = location.host;
+
+                const title = data.title || 'Standby';
+                document.getElementById('current-title').textContent = title;
                 document.getElementById('progress-bar').style.width = data.progress + '%';
-                document.getElementById('time-display').textContent = data.currentTime + ' / ' + data.duration;
-                document.getElementById('volume-slider').value = data.volume;
+                document.getElementById('time-current').textContent = data.currentTime;
+                document.getElementById('time-duration').textContent = data.duration;
+
+                const liveInd = document.getElementById('live-indicator');
+                liveInd.style.opacity = (title !== 'Standby' && title !== 'None') ? '1' : '0';
+
+                // Sync volume if not being touched
+                if (document.activeElement !== document.getElementById('volume-slider')) {
+                    document.getElementById('volume-slider').value = data.volume;
+                }
             } catch (e) {
-                console.error('Status poll failed', e);
+                updateStatus(false, 'Reconnecting...');
             }
         }
 
         async function loadPlaylist() {
-            setStatus('Loading playlist...');
-            const listEl = document.getElementById('list');
-            listEl.innerHTML = '';
+            const listEl = document.getElementById('playlist');
 
             try {
                 const res = await fetch('/api/playlist');
                 const items = await res.json();
 
                 if (!items || items.length === 0) {
-                    setStatus('Playlist is empty.');
+                    listEl.innerHTML = '<div style="text-align:center; padding: 20px; color:var(--text-dim);">Playlist is empty</div>';
                     return;
                 }
 
-                setStatus('Tap an item to play.');
-                document.getElementById('server-url').textContent = location.host;
-
+                listEl.innerHTML = '';
                 for (const it of items) {
                     const btn = document.createElement('div');
                     btn.className = 'item';
@@ -249,8 +386,8 @@
                     const icon = document.createElement('span');
                     icon.className = 'item-icon';
                     const ext = it.fileName.split('.').pop()?.toLowerCase();
-                    icon.textContent = ['mp4', 'mov', 'wmv', 'mkv'].includes(ext) ? '🎬' :
-                        ['jpg', 'jpeg', 'png', 'bmp', 'gif'].includes(ext) ? '🖼️' :
+                    icon.textContent = ['mp4', 'mov', 'wmv', 'mkv', 'avi'].includes(ext) ? '🎬' :
+                        ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'].includes(ext) ? '🖼️' :
                             ['mp3', 'wav', 'flac', 'wma', 'm4a'].includes(ext) ? '🎵' : '📄';
 
                     const text = document.createElement('span');
@@ -262,14 +399,19 @@
                     listEl.appendChild(btn);
                 }
             } catch (e) {
-                setStatus('Error loading playlist: ' + e);
+                console.error('Failed to load playlist', e);
             }
         }
 
         // Initialize
-        loadPlaylist();
-        setInterval(pollStatus, 2000); // Poll status every 2 seconds
         pollStatus();
+        loadPlaylist();
+
+        // Poll status every 1s for progress bar smoothness
+        setInterval(pollStatus, 1000);
+
+        // Refresh playlist every 10s to stay in sync with desktop changes
+        setInterval(loadPlaylist, 10000);
     </script>
 </body>
 

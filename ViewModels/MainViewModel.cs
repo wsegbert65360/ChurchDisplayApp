@@ -5,6 +5,9 @@ using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp.ViewModels;
 
+/// <summary>
+/// The main ViewModel for the application, managing the playlist, media playback, and background music.
+/// </summary>
 public class MainViewModel : BaseViewModel
 {
     private readonly PlaylistManager _playlistManager;
@@ -36,6 +39,8 @@ public class MainViewModel : BaseViewModel
         BlankCommand = new RelayCommand(_ => Blank());
         NextCommand = new RelayCommand(_ => Next());
         PreviousCommand = new RelayCommand(_ => Previous());
+        ToggleFullscreenCommand = new RelayCommand(_ => ToggleFullscreen());
+        ExitFullscreenCommand = new RelayCommand(_ => ExitFullscreen());
         
         // Listen to playlist changes to update background hint
         _playlistManager.Items.CollectionChanged += (s, e) => OnPropertyChanged(nameof(PlaylistBackground));
@@ -120,6 +125,8 @@ public class MainViewModel : BaseViewModel
     public ICommand BlankCommand { get; }
     public ICommand NextCommand { get; }
     public ICommand PreviousCommand { get; }
+    public ICommand ToggleFullscreenCommand { get; }
+    public ICommand ExitFullscreenCommand { get; }
 
     private void PlaySelected()
     {
@@ -192,6 +199,16 @@ public class MainViewModel : BaseViewModel
             SelectedItem = PlaylistItems[prevIndex];
             PlaySelected();
         }
+    }
+
+    private void ToggleFullscreen()
+    {
+        _mediaControlService.ToggleFullscreen();
+    }
+
+    private void ExitFullscreen()
+    {
+        _mediaControlService.SetFullscreen(false);
     }
 
     public void UpdateProgress()

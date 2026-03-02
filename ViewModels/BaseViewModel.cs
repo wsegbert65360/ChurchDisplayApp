@@ -3,6 +3,9 @@ using System.Runtime.CompilerServices;
 
 namespace ChurchDisplayApp.ViewModels;
 
+/// <summary>
+/// A base class for ViewModels that implements <see cref="INotifyPropertyChanged"/>.
+/// </summary>
 public abstract class BaseViewModel : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;

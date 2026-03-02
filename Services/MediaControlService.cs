@@ -140,4 +140,20 @@ public class MediaControlService
     {
         return _liveWindow.IsPlaying;
     }
+
+    /// <summary>
+    /// Toggles the live window fullscreen state.
+    /// </summary>
+    public void ToggleFullscreen()
+    {
+        _liveWindow.ToggleFullscreen();
+    }
+
+    /// <summary>
+    /// Minimizes or restores the live window from fullscreen.
+    /// </summary>
+    public void SetFullscreen(bool fullscreen)
+    {
+        _liveWindow.SetFullscreen(fullscreen);
+    }
 }

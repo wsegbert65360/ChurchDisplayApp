@@ -10,13 +10,23 @@ using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp;
 
+/// <summary>
+/// Represents information about the playback progress of a media file.
+/// </summary>
 public class ProgressInfo
 {
+    /// <summary>Gets or sets the progress as a percentage (0.0 to 100.0).</summary>
     public double ProgressPercent { get; set; }
+    /// <summary>Gets or sets the current playback time.</summary>
     public TimeSpan CurrentTime { get; set; }
+    /// <summary>Gets or sets the total duration of the media.</summary>
     public TimeSpan Duration { get; set; }
 }
 
+/// <summary>
+/// The primary display window that projects media (video, images, text) to the target monitor.
+/// Uses LibVLC for high-performance media playback.
+/// </summary>
 public class LiveOutputWindow : Window
 {
     private readonly TextBlock _filenameLabel;
@@ -30,6 +40,7 @@ public class LiveOutputWindow : Window
     private bool _isPlaying = false;
     private string? _currentMediaPath;
 
+    /// <summary>Occurs when a media file finishes playing.</summary>
     public event EventHandler? MediaEnded;
 
     /// <summary>
@@ -229,6 +240,10 @@ public class LiveOutputWindow : Window
         }
     }
 
+    /// <summary>
+    /// Displays the specified media file. Detects if it is an image or video based on file extension.
+    /// </summary>
+    /// <param name="filePath">The absolute path to the media file.</param>
     public void ShowMedia(string filePath)
     {
         _isPlaying = false;
@@ -307,6 +322,9 @@ public class LiveOutputWindow : Window
         }
     }
 
+    /// <summary>
+    /// Stops the currently playing media and clears the display.
+    /// </summary>
     public void Stop()
     {
         if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
@@ -323,6 +341,9 @@ public class LiveOutputWindow : Window
         _filenameLabel.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// Blanks the display by hiding all content elements.
+    /// </summary>
     public void Blank()
     {
         _videoView.Visibility = Visibility.Collapsed;
@@ -397,5 +418,22 @@ public class LiveOutputWindow : Window
         }
     }
 
+    /// <summary>Gets a value indicating whether media is currently playing.</summary>
     public bool IsPlaying => _isPlaying;
+
+    /// <summary>
+    /// Toggles the window between maximized and normal state.
+    /// </summary>
+    public void ToggleFullscreen()
+    {
+        WindowState = (WindowState == WindowState.Maximized) ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    /// <summary>
+    /// Sets the window to maximized or normal state.
+    /// </summary>
+    public void SetFullscreen(bool fullscreen)
+    {
+        WindowState = fullscreen ? WindowState.Maximized : WindowState.Normal;
+    }
 }

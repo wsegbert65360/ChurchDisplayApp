@@ -18,18 +18,19 @@ using Serilog;
 using ChurchDisplayApp.Services;
 using ChurchDisplayApp.ViewModels;
 using ChurchDisplayApp.Models;
+using ChurchDisplayApp.Interfaces;
 
 namespace ChurchDisplayApp;
 
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IDisplayController
 {
     private static AppSettings _settings = AppSettings.Load();
     private readonly MediaElement _backgroundMusicPlayer;
     private readonly DispatcherTimer _livePreviewTimer;
     private readonly RemoteControlServer _remoteControlServer = new();
-    private const int RemoteControlPortPreferred = 80;
-    private const int RemoteControlPortFallback = 8088;
+    private const int RemoteControlPortPreferred = AppConstants.Network.RemoteControlPortPreferred;
+    private const int RemoteControlPortFallback = AppConstants.Network.RemoteControlPortFallback;
     private int _remoteControlPortInUse = 0;
     private readonly PlaylistManager _playlistManager = new();
     public PlaylistManager PlaylistManager => _playlistManager;
@@ -93,7 +94,7 @@ public partial class MainWindow : Window
         // Set up live preview timer
         _livePreviewTimer = new DispatcherTimer 
         { 
-            Interval = TimeSpan.FromMilliseconds(100) 
+            Interval = TimeSpan.FromMilliseconds(AppConstants.UI.LivePreviewIntervalMs) 
         };
         _livePreviewTimer.Tick += UpdateLivePreview;
         _livePreviewTimer.Start();
@@ -118,11 +119,7 @@ public partial class MainWindow : Window
         DataContext = ViewModel;
 
         // Initialize RemoteControlCoordinator
-        _remoteControlCoordinator = new RemoteControlCoordinator(
-            _playlistManager, 
-            _mediaControlService, 
-            ViewModel
-        );
+        _remoteControlCoordinator = new RemoteControlCoordinator(this);
 
         // Detect monitors using the service
         var monitors = _monitorService.GetMonitors();
@@ -153,7 +150,7 @@ public partial class MainWindow : Window
         // Setup progress update timer
         _progressUpdateTimer = new System.Windows.Threading.DispatcherTimer 
         { 
-            Interval = TimeSpan.FromMilliseconds(200) 
+            Interval = TimeSpan.FromMilliseconds(AppConstants.UI.ProgressUpdateIntervalMs) 
         };
         _progressUpdateTimer.Tick += (s, args) => ViewModel.UpdateProgress();
         _progressUpdateTimer.Start();
@@ -325,8 +322,8 @@ public partial class MainWindow : Window
         {
             if (_remoteControlServer != null)
             {
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                _remoteControlServer.StopAsync(cts.Token).Wait(TimeSpan.FromSeconds(2));
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
+                _remoteControlServer.StopAsync(cts.Token).Wait(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
             }
         }
         catch
@@ -690,7 +687,7 @@ public partial class MainWindow : Window
                 _liveWindow.Seek(position);
                 
                 // Wait for seek to settle before resuming automatic updates
-                await Task.Delay(300);
+                await Task.Delay(AppConstants.UI.LiveWindowSeekDelayMs);
 
                 // Re-check state after delay
                 if (ViewModel != null && _liveWindow != null)
@@ -830,5 +827,71 @@ public partial class MainWindow : Window
     {
         _backgroundMusicService?.Stop();
         _backgroundMusicService?.StopPulseAnimation();
+    }
+
+    #region IDisplayController Implementation
+
+    public void Next() => ViewModel.NextCommand.Execute(null);
+    public void Previous() => ViewModel.PreviousCommand.Execute(null);
+    public void Stop() => ViewModel.StopCommand.Execute(null);
+    public void Blank() => ViewModel.BlankCommand.Execute(null);
+    public void SetVolume(double volume) => ViewModel.Volume = volume;
+    public void PlayIndex(int index)
+    {
+        if (index >= 0 && index < _playlistManager.Items.Count)
+        {
+            ViewModel.SelectedItem = _playlistManager.Items[index];
+            ViewModel.PlayCommand.Execute(null);
+        }
+    }
+
+    public RemoteStatus GetStatus()
+    {
+        var progress = _mediaControlService.GetProgress();
+        if (progress == null)
+        {
+            return new RemoteStatus(
+                ViewModel.CurrentMediaTitle,
+                0,
+                "00:00",
+                "00:00",
+                ViewModel.Volume
+            );
+        }
+
+        return new RemoteStatus(
+            ViewModel.CurrentMediaTitle,
+            progress.ProgressPercent,
+            ViewModel.FormatTime(progress.CurrentTime),
+            ViewModel.FormatTime(progress.Duration),
+            ViewModel.Volume
+        );
+    }
+
+    public List<RemotePlaylistItem> GetPlaylistItems()
+    {
+        var result = new List<RemotePlaylistItem>();
+        for (int i = 0; i < _playlistManager.Items.Count; i++)
+        {
+            var playlistItem = _playlistManager.Items[i];
+            result.Add(new RemotePlaylistItem(i, playlistItem.FileName, playlistItem.FullPath));
+        }
+        return result;
+    }
+
+    #endregion
+
+    private void ShowShortcuts_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(
+            "Keyboard Shortcuts:\n\n" +
+            "Space / Right Arrow - Next Media\n" +
+            "Left Arrow - Previous Media\n" +
+            "B - Blank Display\n" +
+            "F11 - Toggle Fullscreen\n" +
+            "Escape - Exit Fullscreen",
+            "Keyboard Shortcuts",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 }

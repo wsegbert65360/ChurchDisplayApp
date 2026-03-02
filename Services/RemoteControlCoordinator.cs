@@ -1,74 +1,34 @@
 using System;
 using System.Collections.Generic;
 using ChurchDisplayApp.ViewModels;
+using ChurchDisplayApp.Interfaces;
 
 namespace ChurchDisplayApp.Services
 {
     public sealed record RemotePlaylistItem(int Index, string FileName, string FullPath);
     public record RemoteStatus(string Title, double Progress, string CurrentTime, string Duration, double Volume);
 
-    public class RemoteControlCoordinator
+    public class RemoteControlCoordinator : IDisplayController
     {
-        private readonly PlaylistManager _playlistManager;
-        private readonly MediaControlService _mediaControlService;
-        private readonly MainViewModel _viewModel;
+        private readonly IDisplayController _controller;
 
-        public RemoteControlCoordinator(
-            PlaylistManager playlistManager, 
-            MediaControlService mediaControlService, 
-            MainViewModel viewModel)
+        public RemoteControlCoordinator(IDisplayController controller)
         {
-            _playlistManager = playlistManager;
-            _mediaControlService = mediaControlService;
-            _viewModel = viewModel;
+            _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         }
 
-        public List<RemotePlaylistItem> GetPlaylistItems()
-        {
-            var result = new List<RemotePlaylistItem>();
-            for (int i = 0; i < _playlistManager.Items.Count; i++)
-            {
-                var playlistItem = _playlistManager.Items[i];
-                result.Add(new RemotePlaylistItem(i, playlistItem.FileName, playlistItem.FullPath));
-            }
-            return result;
-        }
+        public List<RemotePlaylistItem> GetPlaylistItems() => _controller.GetPlaylistItems();
+        public void PlayIndex(int index) => _controller.PlayIndex(index);
+        public void Stop() => _controller.Stop();
+        public void Blank() => _controller.Blank();
+        public void SetVolume(double volume) => _controller.SetVolume(volume);
+        public RemoteStatus GetStatus() => _controller.GetStatus();
 
-        public void PlayIndex(int index)
-        {
-            if (index >= 0 && index < _playlistManager.Items.Count)
-            {
-                _viewModel.SelectedItem = _playlistManager.Items[index];
-                _viewModel.PlayCommand.Execute(null);
-            }
-        }
+        // Convenience methods for internal use if needed
+        public void Next() => _controller.Next();
+        public void Previous() => _controller.Previous();
+    }
 
-        public void Stop() => _viewModel.StopCommand.Execute(null);
-        public void Blank() => _viewModel.BlankCommand.Execute(null);
-        public void SetVolume(double volume) => _viewModel.Volume = volume;
 
-        public RemoteStatus GetStatus()
-        {
-            var progress = _mediaControlService.GetProgress();
-            
-            if (progress == null)
-            {
-                return new RemoteStatus(
-                    _viewModel.CurrentMediaTitle,
-                    0,
-                    "00:00",
-                    "00:00",
-                    _viewModel.Volume
-                );
-            }
-
-            return new RemoteStatus(
-                _viewModel.CurrentMediaTitle,
-                progress.ProgressPercent,
-                _viewModel.FormatTime(progress.CurrentTime),
-                _viewModel.FormatTime(progress.Duration),
-                _viewModel.Volume
-            );
-        }
     }
 }

@@ -2,6 +2,9 @@ using System.Windows.Input;
 
 namespace ChurchDisplayApp.ViewModels;
 
+/// <summary>
+/// A basic implementation of <see cref="ICommand"/> for delegating execution logic to ViewModels.
+/// </summary>
 public class RelayCommand : ICommand
 {
     private readonly Action<object?> _execute;

@@ -3,6 +3,9 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using ChurchDisplayApp.Models;
+using ChurchDisplayApp.Services;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ChurchDisplayApp;
 
@@ -11,6 +14,7 @@ public partial class ServiceElementsWindow : Window
     private static AppSettings _settings = AppSettings.Load();
     private readonly Dictionary<string, string?> _elementPaths = new();
     private readonly MainWindow _mainWindow;
+    private readonly ServicePlanService _servicePlanService = new();
 
     public ServiceElementsWindow(MainWindow mainWindow)
     {
@@ -181,10 +185,54 @@ public partial class ServiceElementsWindow : Window
             DialogResult = true;
             Close();
         }
-        else
+        }
+    }
+
+    private void SavePlan_Click(object sender, RoutedEventArgs e)
+    {
+        try
         {
-            MessageBox.Show("No service elements selected. Please select files for at least one service element.", "No Elements Selected",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            var plan = _elementPaths.Where(kvp => !string.IsNullOrEmpty(kvp.Value))
+                                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
+            
+            if (plan.Count == 0)
+            {
+                MessageBox.Show("No elements to save.", "Empty Plan", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _servicePlanService.SavePlan(plan);
+            MessageBox.Show("Service plan saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to save plan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void LoadPlan_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var plan = _servicePlanService.LoadPlan();
+            if (plan.Count == 0)
+            {
+                MessageBox.Show("No saved plan found.", "No Plan", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            foreach (var kvp in plan)
+            {
+                if (File.Exists(kvp.Value))
+                {
+                    SetElement(kvp.Key, kvp.Value);
+                }
+            }
+            MessageBox.Show("Service plan loaded successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to load plan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }

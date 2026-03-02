@@ -5,6 +5,15 @@
         Height="600"
         Width="1000"
         Icon="icon.ico">
+
+    <Window.InputBindings>
+        <KeyBinding Key="Space" Command="{Binding NextCommand}" />
+        <KeyBinding Key="Right" Command="{Binding NextCommand}" />
+        <KeyBinding Key="Left" Command="{Binding PreviousCommand}" />
+        <KeyBinding Key="B" Command="{Binding BlankCommand}" />
+        <KeyBinding Key="F11" Command="{Binding ToggleFullscreenCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding ExitFullscreenCommand}" />
+    </Window.InputBindings>
     
     <Grid x:Name="MainLayoutGrid" Margin="10">
         <Grid.ColumnDefinitions>
@@ -421,6 +430,14 @@
                                 BorderThickness="1" />
                         <Button Content="🖥️ Toggle Display"
                                 Click="ToggleDisplay_Click"
+                                Padding="8,4"
+                                Margin="0,0,5,5"
+                                FontWeight="Bold"
+                                Background="White"
+                                BorderBrush="DarkBlue"
+                                BorderThickness="1" />
+                        <Button Content="❓ Shortcuts"
+                                Click="ShowShortcuts_Click"
                                 Padding="8,4"
                                 Margin="0,0,0,5"
                                 FontWeight="Bold"
