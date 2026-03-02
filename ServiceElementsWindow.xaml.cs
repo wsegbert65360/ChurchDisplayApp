@@ -185,7 +185,6 @@ public partial class ServiceElementsWindow : Window
             DialogResult = true;
             Close();
         }
-        }
     }
 
     private void SavePlan_Click(object sender, RoutedEventArgs e)

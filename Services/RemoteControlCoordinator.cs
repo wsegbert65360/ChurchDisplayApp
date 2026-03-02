@@ -28,7 +28,4 @@ namespace ChurchDisplayApp.Services
         public void Next() => _controller.Next();
         public void Previous() => _controller.Previous();
     }
-
-
-    }
 }
