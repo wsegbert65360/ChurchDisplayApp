@@ -39,6 +39,7 @@ public class LiveOutputWindow : Window
     private readonly DispatcherTimer _timer;
     private bool _isPlaying = false;
     private string? _currentMediaPath;
+    private int _targetVolume = 100; // Stored volume to apply when VLC starts playing
 
     /// <summary>Occurs when a media file finishes playing.</summary>
     public event EventHandler? MediaEnded;
@@ -59,7 +60,6 @@ public class LiveOutputWindow : Window
             // Take snapshot using VLC's API (this is synchronous)
             if (_mediaPlayer.TakeSnapshot(0, tempPath, 0, 0))
             {
-                // Wait a brief moment for VLC to write the file
                 // Wait a brief moment or check for file with short timeout
                 int retries = 5;
                 while (retries > 0 && !File.Exists(tempPath))
@@ -137,17 +137,20 @@ public class LiveOutputWindow : Window
         try
         {
             Core.Initialize();
-            _libVLC = new LibVLC("--quiet", "--no-osd", "--no-video-title-show", "--no-snapshot-preview");
+            var vlcOptions = new string[] 
+            { 
+                "--quiet", 
+                "--no-osd", 
+                "--no-video-title-show", 
+                "--no-snapshot-preview",
+                "--aout=directsound"
+            };
+            _libVLC = new LibVLC(vlcOptions);
             _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVLC);
         }
         catch (Exception ex)
         {
             Serilog.Log.Error(ex, "Failed to initialize LibVLC. Video playback will be unavailable.");
-            // We still need to initialize the fields to avoid null reference exceptions later
-            // but we can't really "fix" it without the native binaries.
-            // Using a dummy or letting it be null might require more null checks.
-            // For now, let's at least log it. The app won't crash here, but might fail later.
-            // I'll add null checks where these are used.
             _libVLC = null!;
             _mediaPlayer = null!;
         }
@@ -216,6 +219,22 @@ public class LiveOutputWindow : Window
                 _progressBar.Visibility = Visibility.Collapsed;
                 _timer.Stop();
                 MediaEnded?.Invoke(this, EventArgs.Empty);
+            });
+        };
+
+        // When VLC starts playing and audio output is ready,
+        // re-apply the stored volume (safe — only one VLC instance, BGM is NAudio)
+        _mediaPlayer.Playing += (s, e) =>
+        {
+            // Set immediately
+            _mediaPlayer.Volume = _targetVolume;
+            
+            // Also set after a short delay to ensure DirectSound is fully initialized
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(150);
+                if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                    _mediaPlayer.Volume = _targetVolume;
             });
         };
 
@@ -400,7 +419,14 @@ public class LiveOutputWindow : Window
     {
         if (_currentMediaPath != null)
         {
-            ShowMedia(_currentMediaPath);
+            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && !_mediaPlayer.IsPlaying)
+            {
+                Resume();
+            }
+            else
+            {
+                ShowMedia(_currentMediaPath);
+            }
         }
     }
 
@@ -411,10 +437,10 @@ public class LiveOutputWindow : Window
 
     public void SetVolume(double volume)
     {
+        _targetVolume = (int)(Math.Clamp(volume, 0.0, 1.0) * 100);
         if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
         {
-            // VLC volume is 0-100
-            _mediaPlayer.Volume = (int)(volume * 100);
+            _mediaPlayer.Volume = _targetVolume;
         }
     }
 

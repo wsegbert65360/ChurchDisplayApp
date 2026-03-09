@@ -1,7 +1,4 @@
 using System.IO;
-using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Threading;
 
 namespace ChurchDisplayApp.Services;
 
@@ -51,7 +48,13 @@ public class MediaControlService
             _mainMediaAutoPausedBgm = true;
         }
 
+        // Set volume BEFORE starting playback so _targetVolume is correct
+        // when VLC's Playing event fires
+        var mainVolume = Math.Clamp(_settings.MainMediaVolume, 0.0, 1.0);
+        _liveWindow.SetVolume(mainVolume);
+
         _liveWindow.ShowMedia(filePath);
+        
         MediaStateChanged?.Invoke(this, EventArgs.Empty);
     }
 

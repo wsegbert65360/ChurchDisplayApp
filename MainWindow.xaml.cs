@@ -8,9 +8,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Windows.Input;
 using System.Windows.Controls.Primitives;
@@ -26,7 +24,6 @@ namespace ChurchDisplayApp;
 public partial class MainWindow : Window, IDisplayController
 {
     private static AppSettings _settings = AppSettings.Load();
-    private readonly MediaElement _backgroundMusicPlayer;
     private readonly DispatcherTimer _livePreviewTimer;
     private readonly RemoteControlServer _remoteControlServer = new();
     private const int RemoteControlPortPreferred = AppConstants.Network.RemoteControlPortPreferred;
@@ -34,52 +31,36 @@ public partial class MainWindow : Window, IDisplayController
     private int _remoteControlPortInUse = 0;
     private readonly PlaylistManager _playlistManager = new();
     public PlaylistManager PlaylistManager => _playlistManager;
-    private readonly LayoutManager _layoutManager;
     private MediaControlService _mediaControlService = null!;
     private LiveOutputWindow? _liveWindow;
     public MainViewModel ViewModel { get; private set; } = null!;
     private readonly MonitorService _monitorService = new();
     private System.Windows.Threading.DispatcherTimer? _progressUpdateTimer;
     private BackgroundMusicService? _backgroundMusicService;
+    private AmenResolveService? _amenResolveService;
     private PlaylistDragDropManager? _playlistDragDropManager;
     private RemoteControlCoordinator? _remoteControlCoordinator;
+    private DispatcherTimer? _mediaPulseTimer;
+    private double _mediaPulseOpacity = 0.3;
+    private int _mediaPulseDirection = 1;
 
     public MainWindow()
     {
         InitializeComponent();
-
-        _layoutManager = new LayoutManager(MainLayoutGrid, _settings);
-        _layoutManager.ApplyLayout();
 
         // Bind playlist
         PlaylistListBox.ItemsSource = _playlistManager.Items;
 
         Closing += MainWindow_Closing;
         
-        // Initialize background music player
-        _backgroundMusicPlayer = new MediaElement
-        {
-            LoadedBehavior = MediaState.Manual,
-            UnloadedBehavior = MediaState.Manual,
-            Volume = _settings.BackgroundMusicVolume,
-            IsMuted = !_settings.BackgroundMusicEnabled
-        };
-        
         // Initialize BackgroundMusicService
-        _backgroundMusicService = new BackgroundMusicService(_backgroundMusicPlayer, _settings);
+        _backgroundMusicService = new BackgroundMusicService(_settings);
         _playlistDragDropManager = new PlaylistDragDropManager(PlaylistListBox, _playlistManager, () => { });
-        
-        // Set up background music looping
-        _backgroundMusicPlayer.MediaEnded += (s, e) =>
-        {
-            _backgroundMusicPlayer.Position = TimeSpan.Zero;
-            _backgroundMusicPlayer.Play();
-        };
         
         // Load background music if configured
         if (!string.IsNullOrEmpty(_settings.BackgroundMusicPath) && File.Exists(_settings.BackgroundMusicPath))
         {
-            _backgroundMusicPlayer.Source = new Uri(_settings.BackgroundMusicPath);
+            _backgroundMusicService.Load(_settings.BackgroundMusicPath);
             if (_settings.BackgroundMusicEnabled)
             {
                 _backgroundMusicService.Play();
@@ -89,6 +70,7 @@ public partial class MainWindow : Window, IDisplayController
         
         // Set up background music volume slider
         BackgroundMusicVolumeSlider.Value = _settings.BackgroundMusicVolume;
+        BackgroundMusicVolumeText.Text = $"{(int)(_settings.BackgroundMusicVolume * 100)}%";
         BackgroundMusicVolumeSlider.ValueChanged += BackgroundMusicVolume_ValueChanged;
         
         // Set up live preview timer
@@ -115,6 +97,10 @@ public partial class MainWindow : Window, IDisplayController
 
         // Initialize media control service and ViewModel
         _mediaControlService = new MediaControlService(_liveWindow, _settings, _backgroundMusicService);
+        _mediaControlService.MediaStateChanged += (s, e) => {
+            if (_mediaControlService.IsPlaying()) StartMediaPulseAnimation();
+            else StopMediaPulseAnimation();
+        };
         ViewModel = new MainViewModel(_playlistManager, _mediaControlService, _settings, _backgroundMusicService);
         DataContext = ViewModel;
 
@@ -166,13 +152,20 @@ public partial class MainWindow : Window, IDisplayController
                 
             if (result == MessageBoxResult.Yes)
             {
-                SelectBackgroundMusic_Click(this, new RoutedEventArgs());
+                SelectStandardMusic_Click(this, new RoutedEventArgs());
             }
         }
         
         // Initialize display controls background based on playlist content
         
         _ = StartRemoteControlAsync();
+
+        // Initialize AmenResolveService
+        var soundFontPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Sounds", "SalC5Light2.sf2");
+        if (System.IO.File.Exists(soundFontPath))
+        {
+            _amenResolveService = new AmenResolveService(soundFontPath);
+        }
     }
 
 
@@ -302,16 +295,12 @@ public partial class MainWindow : Window, IDisplayController
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        _layoutManager.SaveLayout();
+        // _layoutManager?.SaveLayout(); // No longer saving dynamic layout positions
 
         // Stop background music with timeout
         try
         {
-            if (_backgroundMusicPlayer != null)
-            {
-                _backgroundMusicPlayer.Stop();
-                _backgroundMusicPlayer.Close();
-            }
+            _backgroundMusicService?.Dispose();
         }
         catch
         {
@@ -331,10 +320,7 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private void LayoutSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
-    {
-        _layoutManager.OnSplitterDragCompleted(sender, e);
-    }
+
 
 
     private void AddFiles_Click(object sender, RoutedEventArgs e)
@@ -503,10 +489,7 @@ public partial class MainWindow : Window, IDisplayController
         LaunchSelectedMedia();
     }
 
-    private void GoLive_Click(object sender, RoutedEventArgs e)
-    {
-        LaunchSelectedMedia();
-    }
+
 
     private void LaunchSelectedMedia()
     {
@@ -686,7 +669,18 @@ public partial class MainWindow : Window, IDisplayController
                 double position = (ProgressSlider.Value / 100.0);
                 _liveWindow.Seek(position);
                 
-                // Wait for seek to settle before resuming automatic updates
+                // Immediately update the time string in the VM if we're paused
+                // since the timer update is now skipped when paused
+                if (ViewModel != null && !ViewModel.IsPlaying)
+                {
+                    var info = _mediaControlService.GetProgress();
+                    if (info != null)
+                    {
+                        ViewModel.CurrentTimeStr = ViewModel.FormatTime(info.CurrentTime);
+                    }
+                }
+
+                // Wait for seek to settle 
                 await Task.Delay(AppConstants.UI.LiveWindowSeekDelayMs);
 
                 // Re-check state after delay
@@ -775,7 +769,7 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private void SelectBackgroundMusic_Click(object sender, RoutedEventArgs e)
+    private void SelectStandardMusic_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog
         {
@@ -786,14 +780,32 @@ public partial class MainWindow : Window, IDisplayController
         if (dlg.ShowDialog() == true)
         {
             _settings.BackgroundMusicPath = dlg.FileName;
-            _settings.BackgroundMusicEnabled = true;
             _settings.Save();
             
-            _backgroundMusicPlayer.Source = new Uri(_settings.BackgroundMusicPath);
-            _backgroundMusicService?.Play();
-            _backgroundMusicService?.StartPulseAnimation(BackgroundMusicGroupBox);
-            
+            _backgroundMusicService?.Load(_settings.BackgroundMusicPath);
+            ViewModel.UpdateBgmNames();
             MessageBox.Show("Background music updated successfully!", "Success",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void SelectChildSermonMusic_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Filter = MediaConstants.GetAudioFilter(),
+            Title = "Select Child Sermon Background Music"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            _settings.BackgroundMusicChildSermonPath = dlg.FileName;
+            _settings.Save();
+            
+            // We don't load immediately to avoid overwriting the current media 
+            // of the other mode. It will be loaded on Play.
+            ViewModel.UpdateBgmNames();
+            MessageBox.Show("Child sermon music updated successfully!", "Success",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
@@ -801,12 +813,52 @@ public partial class MainWindow : Window, IDisplayController
     private void BackgroundMusicVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         _backgroundMusicService?.SetVolume(e.NewValue);
+        if (BackgroundMusicVolumeText != null)
+        {
+            BackgroundMusicVolumeText.Text = $"{(int)(e.NewValue * 100)}%";
+        }
     }
 
-    private void BackgroundMusicPlay_Click(object sender, RoutedEventArgs e)
+    private void BackgroundMusicPlayStandard_Click(object sender, RoutedEventArgs e)
     {
+        if (!string.IsNullOrEmpty(_settings.BackgroundMusicPath))
+        {
+            // Only load if it's a new file or not yet loaded
+            if (_backgroundMusicService?.LoadedPath != _settings.BackgroundMusicPath)
+            {
+                _backgroundMusicService?.Load(_settings.BackgroundMusicPath);
+            }
+        }
+        
+        // Stop any active media playback
+        ViewModel.StopCommand.Execute(null);
+
+        // Use the slider's current value for volume
+        _backgroundMusicService?.SetVolume(BackgroundMusicVolumeSlider.Value);
         _backgroundMusicService?.Play();
-        _backgroundMusicService?.StartPulseAnimation(BackgroundMusicGroupBox);
+        if (BackgroundMusicGroupBox != null)
+            _backgroundMusicService?.StartPulseAnimation(BackgroundMusicGroupBox);
+    }
+
+    private void BackgroundMusicPlayChildrensSermon_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(_settings.BackgroundMusicChildSermonPath))
+        {
+            // Only load if it's a new file or not yet loaded
+            if (_backgroundMusicService?.LoadedPath != _settings.BackgroundMusicChildSermonPath)
+            {
+                _backgroundMusicService?.Load(_settings.BackgroundMusicChildSermonPath);
+            }
+        }
+
+        // Stop any active media playback
+        ViewModel.StopCommand.Execute(null);
+
+        // Use the slider's current value for volume
+        _backgroundMusicService?.SetVolume(BackgroundMusicVolumeSlider.Value);
+        _backgroundMusicService?.Play();
+        if (BackgroundMusicGroupBox != null)
+            _backgroundMusicService?.StartPulseAnimation(BackgroundMusicGroupBox);
     }
 
     private void BackgroundMusicPause_Click(object sender, RoutedEventArgs e)
@@ -815,18 +867,21 @@ public partial class MainWindow : Window, IDisplayController
         _backgroundMusicService?.StopPulseAnimation();
     }
 
-
-
-
     private void BackgroundMusicMute_Click(object sender, RoutedEventArgs e)
     {
         _backgroundMusicService?.ToggleMute();
     }
 
-    private void BackgroundMusicStop_Click(object sender, RoutedEventArgs e)
+    private async void BackgroundMusicStop_Click(object sender, RoutedEventArgs e)
     {
         _backgroundMusicService?.Stop();
         _backgroundMusicService?.StopPulseAnimation();
+        if (_amenResolveService != null)
+        {
+            // Brief delay to let VLC stop complete before starting Amen resolve
+            await Task.Delay(150);
+            _ = _amenResolveService.ExecuteResolveAsync((float)_settings.BackgroundMusicVolume);
+        }
     }
 
     #region IDisplayController Implementation
@@ -893,5 +948,28 @@ public partial class MainWindow : Window, IDisplayController
             "Keyboard Shortcuts",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
+    }
+    private void StartMediaPulseAnimation()
+    {
+        if (_mediaPulseTimer != null) return;
+        _mediaPulseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _mediaPulseTimer.Tick += (s, e) =>
+        {
+            _mediaPulseOpacity += _mediaPulseDirection * 0.02;
+            if (_mediaPulseOpacity >= 1.0) { _mediaPulseOpacity = 1.0; _mediaPulseDirection = -1; }
+            else if (_mediaPulseOpacity <= 0.3) { _mediaPulseOpacity = 0.3; _mediaPulseDirection = 1; }
+            var brush = new SolidColorBrush(Color.FromRgb(173, 216, 230));
+            brush.Opacity = _mediaPulseOpacity;
+            MediaControlsContainer.Background = brush;
+        };
+        _mediaPulseTimer.Start();
+    }
+
+    private void StopMediaPulseAnimation()
+    {
+        _mediaPulseTimer?.Stop();
+        _mediaPulseTimer = null;
+        if (MediaControlsContainer != null)
+            MediaControlsContainer.Background = Brushes.White;
     }
 }

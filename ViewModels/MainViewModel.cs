@@ -22,6 +22,9 @@ public class MainViewModel : BaseViewModel
     private bool _isPlaying = false;
     private bool _isScrubbing = false;
     private PlaylistItem? _selectedItem;
+    private double _playlistFontSize = 13;
+    private string _introBgmName = "None Selected";
+    private string _kidsBgmName = "None Selected";
 
     public MainViewModel(PlaylistManager playlistManager, MediaControlService mediaControlService, AppSettings settings, BackgroundMusicService? backgroundMusicService = null)
     {
@@ -31,6 +34,9 @@ public class MainViewModel : BaseViewModel
         _backgroundMusicService = backgroundMusicService;
         
         _volume = _settings.MainMediaVolume;
+        _playlistFontSize = _settings.PlaylistFontSize;
+        // Explicitly apply saved volume — field assignment above doesn't trigger the setter
+        _mediaControlService.SetVolume(_volume);
 
         // Commands
         PlayCommand = new RelayCommand(_ => PlaySelected());
@@ -44,6 +50,8 @@ public class MainViewModel : BaseViewModel
         
         // Listen to playlist changes to update background hint
         _playlistManager.Items.CollectionChanged += (s, e) => OnPropertyChanged(nameof(PlaylistBackground));
+
+        UpdateBgmNames();
     }
 
     public ObservableCollection<PlaylistItem> PlaylistItems => _playlistManager.Items;
@@ -64,14 +72,30 @@ public class MainViewModel : BaseViewModel
                 _mediaControlService.SetVolume(value);
                 _settings.MainMediaVolume = value;
                 _settings.Save();
+                OnPropertyChanged(nameof(VolumePercentage));
             }
         }
     }
+
+    public string VolumePercentage => $"{(int)(_volume * 100)}%";
 
     public double Progress
     {
         get => _progress;
         set => SetProperty(ref _progress, value);
+    }
+
+    public double PlaylistFontSize
+    {
+        get => _playlistFontSize;
+        set
+        {
+            if (SetProperty(ref _playlistFontSize, value))
+            {
+                _settings.PlaylistFontSize = value;
+                _settings.Save();
+            }
+        }
     }
 
     public bool IsScrubbing
@@ -118,6 +142,18 @@ public class MainViewModel : BaseViewModel
         set => SetProperty(ref _durationStr, value);
     }
 
+    public string IntroBGMName
+    {
+        get => _introBgmName;
+        set => SetProperty(ref _introBgmName, value);
+    }
+
+    public string KidsBGMName
+    {
+        get => _kidsBgmName;
+        set => SetProperty(ref _kidsBgmName, value);
+    }
+
     // Commands
     public ICommand PlayCommand { get; }
     public ICommand StopCommand { get; }
@@ -128,28 +164,31 @@ public class MainViewModel : BaseViewModel
     public ICommand ToggleFullscreenCommand { get; }
     public ICommand ExitFullscreenCommand { get; }
 
+    private string? _currentlyLoadedPath;
+
     private void PlaySelected()
     {
         if (SelectedItem != null)
         {
+            // If already loaded and just paused, simply resume
+            if (SelectedItem.FullPath == _currentlyLoadedPath && !IsPlaying)
+            {
+                _mediaControlService.Play();
+                IsPlaying = true;
+                return;
+            }
+
             if (!System.IO.File.Exists(SelectedItem.FullPath))
             {
                 _playlistManager.RemoveItem(SelectedItem);
                 return;
             }
 
-            // Coordination with background music
-            if (MediaConstants.IsImage(SelectedItem.FullPath))
-            {
-                _backgroundMusicService?.AutoStop();
-            }
-            else
-            {
-                _backgroundMusicService?.AutoPause();
-            }
+            _backgroundMusicService?.Stop();
             _backgroundMusicService?.StopPulseAnimation();
 
             _mediaControlService.PlayMedia(SelectedItem.FullPath);
+            _currentlyLoadedPath = SelectedItem.FullPath;
             CurrentMediaTitle = SelectedItem.FileName;
             IsPlaying = true;
         }
@@ -158,8 +197,8 @@ public class MainViewModel : BaseViewModel
     private void Stop()
     {
         _mediaControlService.Stop();
-        _backgroundMusicService?.AutoResume();
         IsPlaying = false;
+        _currentlyLoadedPath = null;
         CurrentMediaTitle = "None";
     }
 
@@ -172,7 +211,6 @@ public class MainViewModel : BaseViewModel
     private void Blank()
     {
         _mediaControlService.Blank();
-        _backgroundMusicService?.AutoResume();
         CurrentMediaTitle = "None";
         IsPlaying = false;
     }
@@ -217,8 +255,13 @@ public class MainViewModel : BaseViewModel
         {
             if (IsScrubbing) return;
 
-            if (IsPlaying)
+            // If something is loaded, try to get progress
+            if (_currentlyLoadedPath != null)
             {
+                // If not playing, don't poll VLC constantly as it can be jittery or stale
+                // We'll rely on the position set by the user during seek while paused
+                if (!IsPlaying) return;
+
                 var info = _mediaControlService.GetProgress();
                 if (info != null && info.Duration.TotalSeconds > 0)
                 {
@@ -229,6 +272,7 @@ public class MainViewModel : BaseViewModel
             }
             else
             {
+                // Truly nothing loaded, reset
                 CurrentTimeStr = "00:00";
                 DurationStr = "00:00";
                 Progress = 0;
@@ -243,5 +287,16 @@ public class MainViewModel : BaseViewModel
     public string FormatTime(TimeSpan time)
     {
         return $"{(int)time.TotalMinutes:D2}:{time.Seconds:D2}";
+    }
+
+    public void UpdateBgmNames()
+    {
+        IntroBGMName = !string.IsNullOrEmpty(_settings.BackgroundMusicPath) 
+            ? System.IO.Path.GetFileName(_settings.BackgroundMusicPath) 
+            : "None Selected";
+            
+        KidsBGMName = !string.IsNullOrEmpty(_settings.BackgroundMusicChildSermonPath) 
+            ? System.IO.Path.GetFileName(_settings.BackgroundMusicChildSermonPath) 
+            : "None Selected";
     }
 }
