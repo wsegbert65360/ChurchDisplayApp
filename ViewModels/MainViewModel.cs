@@ -16,7 +16,7 @@ public class MainViewModel : BaseViewModel
     private readonly BackgroundMusicService? _backgroundMusicService;
     private double _volume = 0.5;
     private double _progress = 0;
-    private string _currentMediaTitle = "No Media Playing";
+    private string _currentMediaTitle = "Idle";
     private string _currentTimeStr = "00:00";
     private string _durationStr = "00:00";
     private bool _isPlaying = false;
@@ -199,7 +199,7 @@ public class MainViewModel : BaseViewModel
         _mediaControlService.Stop();
         IsPlaying = false;
         _currentlyLoadedPath = null;
-        CurrentMediaTitle = "None";
+        CurrentMediaTitle = "Idle";
     }
 
     private void Pause()
@@ -211,7 +211,7 @@ public class MainViewModel : BaseViewModel
     private void Blank()
     {
         _mediaControlService.Blank();
-        CurrentMediaTitle = "None";
+        CurrentMediaTitle = "Idle";
         IsPlaying = false;
     }
 

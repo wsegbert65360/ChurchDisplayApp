@@ -2,162 +2,339 @@ using Microsoft.Win32;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using ChurchDisplayApp.Models;
 using ChurchDisplayApp.Services;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace ChurchDisplayApp;
 
 public partial class ServiceElementsWindow : Window
 {
-    private static AppSettings _settings = AppSettings.Load();
-    private readonly Dictionary<string, string?> _elementPaths = new();
-    private readonly MainWindow _mainWindow;
+    // ── Dependencies ──────────────────────────────────────────────────────────
+    private readonly AppSettings _settings = AppSettings.Current;
+    private readonly PlaylistManager _playlistManager;
     private readonly ServicePlanService _servicePlanService = new();
 
-    public ServiceElementsWindow(MainWindow mainWindow)
+    // Tracks the per-slot UI row containers keyed by slot Id, so we can
+    // refresh a single row without rebuilding the whole list.
+    private readonly Dictionary<string, Grid> _slotRows = new();
+
+    // ── Constructor ───────────────────────────────────────────────────────────
+    public ServiceElementsWindow(PlaylistManager playlistManager)
     {
         InitializeComponent();
-        _mainWindow = mainWindow;
-        LoadSavedElements();
+        _playlistManager = playlistManager
+            ?? throw new ArgumentNullException(nameof(playlistManager));
+
+        ValidateStickyFiles();  // Check stored paths before building UI
+        BuildSlotList();
     }
 
-    private string? GetFullPath(string? fileName)
+    // ── Sticky file validation ─────────────────────────────────────────────────
+    /// <summary>
+    /// For every slot: if IsSticky=false, clear the path.
+    /// If IsSticky=true but the file no longer exists, show red (handled in BuildSlotRow)
+    /// and clear the path so it won't be used.
+    /// </summary>
+    private void ValidateStickyFiles()
     {
-        if (string.IsNullOrEmpty(fileName))
-            return null;
-            
-        // First try the saved media directory if we have one
-        if (!string.IsNullOrEmpty(_settings.LastMediaDirectory))
+        bool changed = false;
+
+        foreach (var slot in _settings.ServiceSlots)
         {
-            var fullPath = Path.Combine(_settings.LastMediaDirectory, fileName);
-            if (File.Exists(fullPath))
-                return fullPath;
+            if (!slot.IsSticky)
+            {
+                // Non-sticky slots always start fresh
+                if (!string.IsNullOrEmpty(slot.FilePath))
+                {
+                    slot.FilePath = null;
+                    changed = true;
+                }
+            }
+            else if (!string.IsNullOrEmpty(slot.FilePath) && !File.Exists(slot.FilePath))
+            {
+                // Sticky but file is gone — clear it (UI will show red briefly then rebuild)
+                slot.FilePath = null;
+                changed = true;
+                Serilog.Log.Warning("Sticky file for slot '{Slot}' not found — cleared.", slot.DisplayName);
+            }
         }
-            
-        // Try to find the file in common media directories
-        var searchPaths = new[]
+
+        if (changed)
+            _settings.Save();
+    }
+
+    // ── Slot list UI ───────────────────────────────────────────────────────────
+    /// <summary>
+    /// Rebuilds the entire slot list in the ItemsControl.
+    /// Call this after adding/removing/reordering slots.
+    /// </summary>
+    private void BuildSlotList()
+    {
+        _slotRows.Clear();
+        var panel = new StackPanel();
+
+        foreach (var slot in _settings.ServiceSlots)
         {
-            Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-            Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
-            Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
-            Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Music"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Pictures"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Church Media"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Worship Media"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Church"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")
+            var row = BuildSlotRow(slot);
+            _slotRows[slot.Id] = row;
+            panel.Children.Add(row);
+
+            // Separator line
+            panel.Children.Add(new Separator { Margin = new Thickness(0, 2, 0, 2) });
+        }
+
+        // Use Content since we're bypassing ItemTemplate
+        SlotListControl.Content = panel;
+    }
+
+    /// <summary>
+    /// Builds a single slot row Grid.
+    /// Layout: [Name label] [File label] [Select] [Clear] [Add to playlist] [Remember checkbox]
+    /// </summary>
+    private Grid BuildSlotRow(ServiceSlot slot)
+    {
+        var row = new Grid { Margin = new Thickness(0, 3, 0, 3), Tag = slot.Id };
+
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(55) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+
+        // Col 0: Slot display name
+        var nameLabel = new TextBlock
+        {
+            Text = slot.DisplayName,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = slot.DisplayName,
+            Margin = new Thickness(4, 0, 8, 0),
+            FontWeight = FontWeights.SemiBold
+        };
+        Grid.SetColumn(nameLabel, 0);
+
+        // Col 1: File label — shows filename, "No file selected", or missing indicator
+        var fileLabel = BuildFileLabel(slot);
+        Grid.SetColumn(fileLabel, 1);
+
+        // Col 2: Select button
+        var selectBtn = new Button
+        {
+            Content = "Select…",
+            Padding = new Thickness(8, 4, 8, 4),
+            MinWidth = 0,
+            Margin = new Thickness(2, 0, 2, 0),
+            Tag = slot.Id
+        };
+        selectBtn.Click += SelectFile_Click;
+        Grid.SetColumn(selectBtn, 2);
+
+        // Col 3: Clear button
+        var clearBtn = new Button
+        {
+            Content = "Clear",
+            Padding = new Thickness(8, 4, 8, 4),
+            MinWidth = 0,
+            Margin = new Thickness(2, 0, 2, 0),
+            Tag = slot.Id
+        };
+        clearBtn.Click += ClearSlot_Click;
+        Grid.SetColumn(clearBtn, 3);
+
+        // Col 4: Add (Use) button
+        var useBtn = new Button
+        {
+            Content = "Add",
+            Padding = new Thickness(8, 4, 8, 4),
+            MinWidth = 0,
+            Margin = new Thickness(2, 0, 2, 0),
+            Tag = slot.Id,
+            IsEnabled = !string.IsNullOrEmpty(slot.FilePath) && File.Exists(slot.FilePath),
+            ToolTip = "Add this file to the playlist"
+        };
+        useBtn.Click += UseSlot_Click;
+        Grid.SetColumn(useBtn, 4);
+
+        // Col 5: Remember checkbox
+        var rememberCheck = new CheckBox
+        {
+            IsChecked = slot.IsSticky,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Remember this file between services",
+            Tag = slot.Id
+        };
+        rememberCheck.Checked   += RememberCheck_Changed;
+        rememberCheck.Unchecked += RememberCheck_Changed;
+        Grid.SetColumn(rememberCheck, 5);
+
+        row.Children.Add(nameLabel);
+        row.Children.Add(fileLabel);
+        row.Children.Add(selectBtn);
+        row.Children.Add(clearBtn);
+        row.Children.Add(useBtn);
+        row.Children.Add(rememberCheck);
+
+        return row;
+    }
+
+    /// <summary>
+    /// Creates the file label TextBlock with appropriate style for the slot's current state.
+    /// </summary>
+    private TextBlock BuildFileLabel(ServiceSlot slot)
+    {
+        var label = new TextBlock
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(4, 0, 4, 0),
+            Tag = slot.Id + "_label"
         };
 
-        foreach (var searchPath in searchPaths)
-        {
-            var fullPath = Path.Combine(searchPath, fileName);
-            if (File.Exists(fullPath))
-                return fullPath;
-        }
-
-        return null;
+        ApplyFileLabelState(label, slot);
+        return label;
     }
 
-    private void SetElement(string elementKey, string? path)
+    /// <summary>
+    /// Updates the visual state of a file label based on whether a file is assigned and exists.
+    /// </summary>
+    private static void ApplyFileLabelState(TextBlock label, ServiceSlot slot)
     {
-        var element = ServiceElementDefinition.AllElements.FirstOrDefault(e => e.Key == elementKey);
-        if (element == null) return;
-
-        var label = FindName(elementKey + "FileLabel") as TextBlock;
-        if (label == null) return;
-
-        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        if (string.IsNullOrEmpty(slot.FilePath))
         {
-            _elementPaths[elementKey] = null;
-            label.Text = "No file selected";
-            label.Foreground = System.Windows.Media.Brushes.Gray;
-            label.FontStyle = FontStyles.Italic;
+            label.Text       = "No file selected";
+            label.Foreground = Brushes.Gray;
+            label.FontStyle  = FontStyles.Italic;
+            label.ToolTip    = null;
+        }
+        else if (!File.Exists(slot.FilePath))
+        {
+            label.Text       = "⚠ File not found — cleared";
+            label.Foreground = Brushes.Red;
+            label.FontStyle  = FontStyles.Italic;
+            label.ToolTip    = slot.FilePath;
         }
         else
         {
-            _elementPaths[elementKey] = path;
-            var fileName = Path.GetFileName(path);
-            label.Text = fileName;
-            label.Foreground = System.Windows.Media.Brushes.Black;
-            label.FontStyle = FontStyles.Normal;
-            
-            // Update settings via reflection
-            var prop = _settings.GetType().GetProperty(element.SettingsProperty);
-            prop?.SetValue(_settings, fileName);
-            _settings.Save();
+            label.Text       = Path.GetFileName(slot.FilePath);
+            label.Foreground = Brushes.DarkGreen;
+            label.FontStyle  = FontStyles.Normal;
+            label.ToolTip    = slot.FilePath;
         }
     }
 
-    private void LoadSavedElements()
+    /// <summary>
+    /// Refreshes just the file label and Add button in an existing row without rebuilding everything.
+    /// </summary>
+    private void RefreshSlotRow(ServiceSlot slot)
     {
-        foreach (var element in ServiceElementDefinition.AllElements)
+        if (!_slotRows.TryGetValue(slot.Id, out var row)) return;
+
+        foreach (var child in row.Children)
         {
-            var prop = _settings.GetType().GetProperty(element.SettingsProperty);
-            var fileName = prop?.GetValue(_settings) as string;
-            SetElement(element.Key, GetFullPath(fileName));
+            if (child is TextBlock tb && tb.Tag is string tag && tag == slot.Id + "_label")
+                ApplyFileLabelState(tb, slot);
+
+            if (child is Button btn && btn.Tag is string btnTag && btnTag == slot.Id && btn.Content?.ToString() == "Add")
+                btn.IsEnabled = !string.IsNullOrEmpty(slot.FilePath) && File.Exists(slot.FilePath);
         }
     }
 
-    private void SelectFile(string elementKey)
+    // ── Slot row event handlers ────────────────────────────────────────────────
+    private void SelectFile_Click(object sender, RoutedEventArgs e)
     {
-        var element = ServiceElementDefinition.AllElements.FirstOrDefault(e => e.Key == elementKey);
-        if (element == null) return;
+        if (sender is not Button btn || btn.Tag is not string id) return;
+        var slot = GetSlot(id);
+        if (slot == null) return;
 
         var dlg = new OpenFileDialog
         {
             Filter = "Media Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.mp4;*.mov;*.wmv;*.mkv;*.mp3;*.wav;*.flac;*.wma|All Files|*.*",
-            Title = $"Select {element.DisplayName}"
+            Title  = $"Select: {slot.DisplayName}"
         };
+
+        // Open in this slot's last-used folder, falling back to global last directory
+        var startDir = slot.LastUsedFolder ?? _settings.LastMediaDirectory;
+        if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
+            dlg.InitialDirectory = startDir;
 
         if (dlg.ShowDialog() == true)
         {
-            SetElement(elementKey, dlg.FileName);
-            _settings.LastMediaDirectory = Path.GetDirectoryName(dlg.FileName);
+            slot.FilePath       = dlg.FileName;
+            slot.LastUsedFolder = Path.GetDirectoryName(dlg.FileName);
+            _settings.LastMediaDirectory = slot.LastUsedFolder; // Also update global fallback
             _settings.Save();
+
+            RefreshSlotRow(slot);
         }
     }
 
-    private void UseElement(string elementKey)
+    private void ClearSlot_Click(object sender, RoutedEventArgs e)
     {
-        var element = ServiceElementDefinition.AllElements.FirstOrDefault(e => e.Key == elementKey);
-        if (element == null) return;
+        if (sender is not Button btn || btn.Tag is not string id) return;
+        var slot = GetSlot(id);
+        if (slot == null) return;
 
-        if (_elementPaths.TryGetValue(elementKey, out var path) && !string.IsNullOrEmpty(path) && File.Exists(path))
+        slot.FilePath = null;
+        _settings.Save();
+        RefreshSlotRow(slot);
+    }
+
+    private void UseSlot_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string id) return;
+        var slot = GetSlot(id);
+        if (slot == null) return;
+
+        if (string.IsNullOrEmpty(slot.FilePath) || !File.Exists(slot.FilePath))
         {
-            _mainWindow.PlaylistManager.AddFiles(new[] { path });
-            MessageBox.Show($"{element.DisplayName} added to playlist.", "Added to Playlist",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"No valid file assigned to '{slot.DisplayName}'.",
+                "No File", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
-        else
+
+        _playlistManager.AddFiles(new[] { slot.FilePath });
+        MessageBox.Show($"'{slot.DisplayName}' added to playlist.",
+            "Added", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void RememberCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox cb || cb.Tag is not string id) return;
+        var slot = GetSlot(id);
+        if (slot == null) return;
+
+        slot.IsSticky = cb.IsChecked == true;
+        _settings.Save();
+    }
+
+    // ── Bottom bar button handlers ─────────────────────────────────────────────
+    private void MakeService_Click(object sender, RoutedEventArgs e)
+    {
+        var validSlots = _settings.ServiceSlots
+            .Where(s => !string.IsNullOrEmpty(s.FilePath) && File.Exists(s.FilePath))
+            .ToList();
+
+        if (validSlots.Count == 0)
         {
-            MessageBox.Show($"No {element.DisplayName} file selected. Please select a file first.", "No File Selected",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("No slots have valid files assigned. Please select files first.",
+                "Nothing to Add", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
         }
+
+        foreach (var slot in validSlots)
+            _playlistManager.AddFiles(new[] { slot.FilePath! });
+
+        MessageBox.Show($"Service created! Added {validSlots.Count} items to the playlist.",
+            "Service Created", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        DialogResult = true;
+        Close();
     }
 
-    // Generic event handlers using Tag to pass element key
-    private void ElementSelect_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.Tag is string key)
-            SelectFile(key);
-    }
 
-    private void ElementClear_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.Tag is string key)
-            SetElement(key, null);
-    }
-
-    private void ElementUse_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.Tag is string key)
-            UseElement(key);
-    }
 
     private void Close_Click(object sender, RoutedEventArgs e)
     {
@@ -165,73 +342,22 @@ public partial class ServiceElementsWindow : Window
         Close();
     }
 
-    private void MakeService_Click(object sender, RoutedEventArgs e)
+    // ── Settings panel ─────────────────────────────────────────────────────────
+    private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        var addedCount = 0;
-        
-        foreach (var element in ServiceElementDefinition.AllElements)
+        var settingsWindow = new ServiceElementsSettingsWindow(_settings)
         {
-            if (_elementPaths.TryGetValue(element.Key, out var path) && !string.IsNullOrEmpty(path) && File.Exists(path))
-            {
-                _mainWindow.PlaylistManager.AddFiles(new[] { path });
-                addedCount++;
-            }
-        }
-        
-        if (addedCount > 0)
+            Owner = this
+        };
+
+        if (settingsWindow.ShowDialog() == true)
         {
-            MessageBox.Show($"Service created! Added {addedCount} elements to the playlist.", "Service Created",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            DialogResult = true;
-            Close();
+            _settings.Save();
+            BuildSlotList(); // Rebuild in case slots were added/removed/renamed
         }
     }
 
-    private void SavePlan_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var plan = _elementPaths.Where(kvp => !string.IsNullOrEmpty(kvp.Value))
-                                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
-            
-            if (plan.Count == 0)
-            {
-                MessageBox.Show("No elements to save.", "Empty Plan", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            _servicePlanService.SavePlan(plan);
-            MessageBox.Show("Service plan saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Failed to save plan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void LoadPlan_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var plan = _servicePlanService.LoadPlan();
-            if (plan.Count == 0)
-            {
-                MessageBox.Show("No saved plan found.", "No Plan", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            foreach (var kvp in plan)
-            {
-                if (File.Exists(kvp.Value))
-                {
-                    SetElement(kvp.Key, kvp.Value);
-                }
-            }
-            MessageBox.Show("Service plan loaded successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Failed to load plan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    private ServiceSlot? GetSlot(string id) =>
+        _settings.ServiceSlots.FirstOrDefault(s => s.Id == id);
 }

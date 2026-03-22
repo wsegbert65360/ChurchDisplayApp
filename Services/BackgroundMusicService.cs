@@ -19,6 +19,7 @@ public class BackgroundMusicService : IDisposable
     private DispatcherTimer? _pulseTimer;
     private Border? _pulseTarget;
     private bool _isAutoPaused;
+    private readonly SolidColorBrush _pulseBrush = new SolidColorBrush(Color.FromRgb(173, 216, 230));
 
     private WaveOutEvent? _waveOut;
     private AudioFileReader? _audioReader;
@@ -27,14 +28,14 @@ public class BackgroundMusicService : IDisposable
     private bool _shouldLoop = true;
 
     public bool IsPlaying => _waveOut?.PlaybackState == PlaybackState.Playing;
-    public bool IsMuted { get; private set; }
+
     public bool IsAutoPaused => _isAutoPaused;
+    public bool CanPlay => _waveOut != null || LoadedPath != null;
 
     public BackgroundMusicService(AppSettings settings)
     {
         _settings = settings;
         _volume = (float)Math.Clamp(settings.BackgroundMusicVolume, 0.0, 1.0);
-        IsMuted = !_settings.BackgroundMusicEnabled;
     }
 
     public void Load(string path)
@@ -50,7 +51,7 @@ public class BackgroundMusicService : IDisposable
         try
         {
             _audioReader = new AudioFileReader(path);
-            _audioReader.Volume = IsMuted ? 0f : _volume;
+            _audioReader.Volume = _volume;
 
             _waveOut = new WaveOutEvent();
             _waveOut.Init(_audioReader);
@@ -86,7 +87,6 @@ public class BackgroundMusicService : IDisposable
         // Ensure state is enabled first so initialization picks up the correct volume
         _settings.BackgroundMusicEnabled = true;
         _settings.Save();
-        IsMuted = false;
         _isAutoPaused = false;
         _shouldLoop = true;
 
@@ -113,8 +113,7 @@ public class BackgroundMusicService : IDisposable
         }
         else
         {
-            MessageBox.Show("No background music selected. Please select music first.", "No Music",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            Serilog.Log.Warning("BackgroundMusicService.Play() called but no music is loaded.");
         }
     }
 
@@ -140,14 +139,7 @@ public class BackgroundMusicService : IDisposable
         _settings.Save();
     }
 
-    public void ToggleMute()
-    {
-        IsMuted = !IsMuted;
-        if (_audioReader != null)
-        {
-            _audioReader.Volume = IsMuted ? 0f : _volume;
-        }
-    }
+
 
     public void SetVolume(double volume)
     {
@@ -155,7 +147,7 @@ public class BackgroundMusicService : IDisposable
         _volume = (float)level;
 
         // NAudio volume is purely software — no system mixer interaction
-        if (_audioReader != null && !IsMuted)
+        if (_audioReader != null)
         {
             _audioReader.Volume = _volume;
         }
@@ -225,12 +217,10 @@ public class BackgroundMusicService : IDisposable
             }
 
             // Apply the opacity with light blue color
-            var color = Color.FromRgb(173, 216, 230); // Light blue
-            var brush = new SolidColorBrush(color);
-            brush.Opacity = currentOpacity;
+            _pulseBrush.Opacity = currentOpacity;
             
             if (_pulseTarget != null)
-                _pulseTarget.Background = brush;
+                _pulseTarget.Background = _pulseBrush;
         };
 
         _pulseTimer.Start();
@@ -272,6 +262,7 @@ public class BackgroundMusicService : IDisposable
     public void Dispose()
     {
         _shouldLoop = false;
+        StopPulseAnimation();
         CleanupPlayback();
     }
 }

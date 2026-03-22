@@ -149,10 +149,10 @@
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="Bd" Property="Background" Value="#5C4B72" /> <!-- Matching Mockup Purple -->
-                                        <Setter Property="Foreground" Value="White" />
+                                        <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
                                         <Setter Property="FontWeight" Value="SemiBold" />
-                                        <Setter TargetName="Bd" Property="BorderBrush" Value="#8E7AB5" />
+                                        <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ActionBrush}" />
                                     </Trigger>
                                     <Trigger Property="IsMouseOver" Value="True">
                                         <Setter TargetName="Bd" Property="Background" Value="#EDF2F7" />

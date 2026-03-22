@@ -1,22 +1,23 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Church Display Remote</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            /* Dark mode by default */
-            --bg: #0f172a;
-            --card: #1e293b;
-            --primary: #38bdf8;
-            --primary-hover: #0ea5e9;
-            --danger: #ef4444;
-            --text: #f8fafc;
-            --text-dim: #94a3b8;
-            --border: #334155;
-            --tap-target: 48px;
+            --primary: #3b82f6;
+            --primary-light: #eff6ff;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-dim: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
 
         * {
@@ -24,109 +25,56 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            margin: 0;
-            padding: 16px;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
+        body,
+        html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            position: fixed;
+            /* Prevent elastic scrolling on some mobile devices */
         }
 
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         header {
+            padding: 16px;
             text-align: center;
-            margin-bottom: 24px;
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
         }
 
-        h1 {
+        header h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 800;
-            letter-spacing: -0.025em;
             color: var(--primary);
         }
 
-        .card {
+        .tabs {
+            display: flex;
             background: var(--card);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            border: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
         }
 
-        .status-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .current-label {
-            font-size: 12px;
-            text-transform: uppercase;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            color: var(--text-dim);
-        }
-
-        .current-media {
-            display: block;
-            font-weight: 600;
-            font-size: 18px;
-            margin-bottom: 16px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .progress-container {
-            width: 100%;
-            height: 10px;
-            background: #0f172a;
-            border-radius: 5px;
-            margin-bottom: 8px;
-            overflow: hidden;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: var(--primary);
-            width: 0%;
-            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .time-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-            font-family: monospace;
-            color: var(--text-dim);
-            margin-bottom: 20px;
-        }
-
-        .controls-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        button {
-            min-height: var(--tap-target);
-            font-size: 15px;
+        .tab {
+            flex: 1;
             padding: 12px;
-            border-radius: 10px;
-            border: none;
-            background: var(--primary);
-            color: #0f172a;
-            font-weight: 700;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dim);
             cursor: pointer;
+            border-bottom: 2px solid transparent;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -134,284 +82,561 @@
             transition: all 0.2s;
         }
 
-        button:active {
-            transform: scale(0.96);
+        .tab i {
+            width: 16px;
+            height: 16px;
         }
 
-        button.secondary {
-            background: #334155;
-            color: var(--text);
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
         }
 
-        button.danger {
-            background: var(--danger);
-            color: white;
+        .content {
+            flex: 1;
+            overflow-y: scroll;
+            /* Force scrollbar/scrollability focus */
+            min-height: 0;
+            padding: 16px;
+            padding-bottom: 200px;
+            /* Extra padding for floating controls */
+            -webkit-overflow-scrolling: touch;
         }
 
-        .volume-section {
+        .tab-pane {
+            display: none;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        .card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
             display: flex;
             align-items: center;
             gap: 16px;
-            padding-top: 20px;
-            border-top: 1px solid var(--border);
-        }
-
-        .volume-slider {
-            flex: 1;
-            height: 32px;
-            -webkit-appearance: none;
-            appearance: none;
-            background: transparent;
-            outline: none;
-        }
-
-        .volume-slider::-webkit-slider-runnable-track {
-            height: 6px;
-            background: #334155;
-            border-radius: 3px;
-        }
-
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            background: var(--primary);
-            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             cursor: pointer;
-            margin-top: -7px;
-            box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+            transition: transform 0.1s, background 0.2s;
         }
 
-        .section-title {
-            font-size: 14px;
-            text-transform: uppercase;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            color: var(--text-dim);
-            margin: 24px 0 12px 4px;
+        .card:active {
+            transform: scale(0.98);
+            background: var(--bg);
         }
 
-        .playlist {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
+        .card.playing {
+            background: var(--primary-light);
+            border-color: var(--primary);
         }
 
-        .item {
-            width: 100%;
-            text-align: left;
-            background: var(--card);
-            border: 1px solid var(--border);
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--bg);
+            border-radius: 8px;
             display: flex;
             align-items: center;
-            padding: 14px;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            min-height: 60px;
+            justify-content: center;
+            color: var(--text-dim);
         }
 
-        .item:active {
-            background: #334155;
-            transform: scale(0.98);
+        .card.playing .card-icon {
+            background: white;
+            color: var(--primary);
         }
 
-        .item-icon {
-            font-size: 24px;
-            margin-right: 16px;
-            width: 32px;
-            text-align: center;
-        }
-
-        .item-text {
+        .card-info {
             flex: 1;
-            font-size: 15px;
-            font-weight: 500;
+            overflow: hidden;
+        }
+
+        .card-title {
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 2px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .footer {
-            margin-top: 40px;
-            padding-bottom: 20px;
-            text-align: center;
+        .card-subtitle {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        /* Fixed Player */
+        .player {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            padding: 16px 16px calc(16px + var(--safe-bottom));
+            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
+            z-index: 100;
+        }
+
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .player-art {
+            width: 44px;
+            height: 44px;
+            background: var(--bg);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .player-text {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .player-title {
+            font-weight: 700;
+            font-size: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .player-subtitle {
             font-size: 12px;
             color: var(--text-dim);
         }
 
-        #status-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #22c55e;
-            border-radius: 50%;
-            margin-right: 6px;
-            box-shadow: 0 0 8px #22c55e;
+        .player-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 12px;
         }
 
-        #status-dot.disconnected {
-            background: var(--danger);
-            box-shadow: 0 0 8px var(--danger);
+        .btn-control {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s;
+        }
+
+        .btn-control:active {
+            transform: scale(0.9);
+        }
+
+        .btn-play {
+            width: 52px;
+            height: 52px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-play i {
+            width: 24px;
+            height: 24px;
+        }
+
+        .progress-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .time {
+            font-size: 11px;
+            color: var(--text-dim);
+            font-weight: 600;
+            width: 40px;
+        }
+
+        .slider-container {
+            flex: 1;
+            position: relative;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .slider-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        /* Custom BGM Styles */
+        .bgm-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .bgm-btn {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .bgm-btn.active {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .bgm-btn i {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 4px;
+        }
+
+        .bgm-title {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .bgm-status {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .volume-popover {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid var(--border);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .volume-popover.show {
+            display: flex;
+        }
+
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 120px;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 24px;
+            font-size: 13px;
+            font-weight: 500;
+            z-index: 1000;
+            display: none;
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <header>
-            <h1>Grace Control</h1>
-            <div style="font-size: 12px; margin-top: 4px; color: var(--text-dim);">Church Display Remote</div>
-        </header>
+    <header>
+        <h1>Church Display Remote</h1>
+    </header>
 
-        <div class="card">
-            <div class="status-header">
-                <span class="current-label">Currently Live</span>
-                <span id="live-indicator"
-                    style="font-size: 10px; color: var(--danger); font-weight: 900; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 4px; opacity: 0;">LIVE</span>
-            </div>
-
-            <span id="current-title" class="current-media">Standby</span>
-
-            <div class="progress-container">
-                <div id="progress-bar" class="progress-bar"></div>
-            </div>
-
-            <div class="time-row">
-                <span id="time-current">00:00</span>
-                <span id="time-duration">00:00</span>
-            </div>
-
-            <div class="controls-grid">
-                <button class="secondary" onclick="post('/api/stop')">⏹ Stop</button>
-                <button class="danger" onclick="post('/api/blank')">🔳 Blank</button>
-            </div>
-
-            <div class="volume-section">
-                <span>🔈</span>
-                <input type="range" id="volume-slider" class="volume-slider" min="0" max="1" step="0.05"
-                    oninput="setVolume(this.value)">
-                <span>🔊</span>
-            </div>
+    <div class="tabs">
+        <div class="tab active" data-tab="playlist">
+            <i data-lucide="list-music"></i>
+            Playlist
         </div>
-
-        <div class="section-title">Playlist Flow</div>
-        <div id="playlist" class="playlist">
-            <!-- Items injected by JS -->
-        </div>
-
-        <div class="footer">
-            <div style="margin-bottom: 8px">
-                <span id="status-dot"></span>
-                <span id="status-text">Connected</span>
-            </div>
-            <div>Server: <span id="server-url"></span></div>
+        <div class="tab" data-tab="bgm">
+            <i data-lucide="star"></i>
+            Background music
         </div>
     </div>
 
+    <div class="content">
+        <!-- Playlist Tab -->
+        <div class="tab-pane active" id="pane-playlist">
+            <div id="playlist-container" class="card-list">
+                <!-- Items injected by JS -->
+            </div>
+        </div>
+
+        <!-- BGM Tab -->
+        <div class="tab-pane" id="pane-bgm">
+            <div class="card-list">
+                <div class="card bgm-card" id="bgm-standard" onclick="post('/api/bgm/play/standard')">
+                    <div class="card-icon"><i data-lucide="music"></i></div>
+                    <div class="card-info">
+                        <div class="card-title">Standard BGM</div>
+                        <div class="card-subtitle" id="bgm-standard-name">Intro & Transitions</div>
+                    </div>
+                    <div class="bgm-indicator" style="display:none"><i data-lucide="play-circle"
+                            style="color:var(--primary)"></i></div>
+                </div>
+                <div class="card bgm-card" id="bgm-kids" onclick="post('/api/bgm/play/kids')">
+                    <div class="card-icon"><i data-lucide="baby"></i></div>
+                    <div class="card-info">
+                        <div class="card-title">Kids Sermon</div>
+                        <div class="card-subtitle" id="bgm-kids-name">Children's Background</div>
+                    </div>
+                    <div class="bgm-indicator" style="display:none"><i data-lucide="play-circle"
+                            style="color:var(--primary)"></i></div>
+                </div>
+
+                <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="bgm-btn" onclick="post('/api/bgm/pause')">
+                        <i data-lucide="pause"></i>
+                        <span class="bgm-title">Pause</span>
+                    </div>
+                    <div class="bgm-btn" onclick="post('/api/bgm/stop')" style="border-color: #fca5a5; color: #ef4444;">
+                        <i data-lucide="square"></i>
+                        <span class="bgm-title">Stop (Amen)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fixed Bottom Player -->
+    <div class="player">
+        <div class="player-info">
+            <div class="player-art">
+                <i id="player-icon" data-lucide="music"></i>
+            </div>
+            <div class="player-text">
+                <div id="player-title" class="player-title">Church Display Standby</div>
+                <div id="player-subtitle" class="player-subtitle">Ready for service</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="btn-control" style="padding: 4px;" onclick="post('/api/volume/down')">
+                    <i data-lucide="minus-circle" style="width: 20px; height: 20px;"></i>
+                </button>
+                <div style="font-size: 14px; font-weight: 700; color: var(--text); min-width: 38px; text-align: center;"
+                    id="volume-display">
+                    --%
+                </div>
+                <button class="btn-control" style="padding: 4px;" onclick="post('/api/volume/up')">
+                    <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="player-controls">
+            <button class="btn-control" onclick="post('/api/play')">
+                <i data-lucide="play"></i>
+            </button>
+            <button class="btn-control" onclick="post('/api/pause')">
+                <i data-lucide="pause"></i>
+            </button>
+            <button class="btn-control" onclick="post('/api/stop')">
+                <i data-lucide="square"></i>
+            </button>
+        </div>
+
+        <div class="progress-section">
+            <span class="time" id="time-current">0:00</span>
+            <div class="slider-container">
+                <div id="progress-bar" class="slider-fill"></div>
+            </div>
+            <span class="time" id="time-duration">0:00</span>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
     <script>
-        let lastStatus = null;
+        let currentStatus = null;
+
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Tab Switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.tab;
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+                tab.classList.add('active');
+                document.getElementById('pane-' + target).classList.add('active');
+            });
+        });
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 2000);
+        }
 
         async function post(url) {
             try {
                 const res = await fetch(url, { method: 'POST' });
                 if (res.ok) {
-                    // Update UI immediately for snappier feel
                     pollStatus();
                 }
             } catch (e) {
-                updateStatus(false, 'Connection Error');
+                showToast('Action failed');
             }
-        }
-
-        async function setVolume(val) {
-            try {
-                // Throttling or debouncing could be added here if needed
-                await fetch('/api/volume/' + val, { method: 'POST' });
-            } catch (e) { }
-        }
-
-        function updateStatus(connected, msg) {
-            const dot = document.getElementById('status-dot');
-            const text = document.getElementById('status-text');
-            dot.className = connected ? '' : 'disconnected';
-            text.textContent = msg;
         }
 
         async function pollStatus() {
             try {
                 const res = await fetch('/api/status');
                 const data = await res.json();
+                if (!data) return;
+                currentStatus = data;
 
-                updateStatus(true, 'Connected');
-                document.getElementById('server-url').textContent = location.host;
-
-                const title = data.title || 'Standby';
-                document.getElementById('current-title').textContent = title;
-                document.getElementById('progress-bar').style.width = data.progress + '%';
-                document.getElementById('time-current').textContent = data.currentTime;
-                document.getElementById('time-duration').textContent = data.duration;
-
-                const liveInd = document.getElementById('live-indicator');
-                liveInd.style.opacity = (title !== 'Standby' && title !== 'None') ? '1' : '0';
-
-                // Sync volume if not being touched
-                if (document.activeElement !== document.getElementById('volume-slider')) {
-                    document.getElementById('volume-slider').value = data.volume;
+                // 1. Update volume first (Priority)
+                const volDisplay = document.getElementById('volume-display');
+                if (volDisplay) {
+                    const volPercent = Math.round((data.volume || 0) * 100);
+                    volDisplay.textContent = volPercent + '%';
                 }
+
+                // 2. Update Player
+                const playerTitle = document.getElementById('player-title');
+                if (playerTitle) playerTitle.textContent = data.title === 'Idle' ? 'Church Display Standby' : data.title;
+
+                const playerSubtitle = document.getElementById('player-subtitle');
+                if (playerSubtitle) playerSubtitle.textContent = data.title === 'Idle' ? 'Ready for service' : 'Current active media';
+
+                const progressBar = document.getElementById('progress-bar');
+                if (progressBar) progressBar.style.width = (data.progressPercent || 0) + '%';
+
+                const timeCurrent = document.getElementById('time-current');
+                if (timeCurrent) timeCurrent.textContent = data.currentTime || '0:00';
+
+                const timeDuration = document.getElementById('time-duration');
+                if (timeDuration) timeDuration.textContent = data.duration || '0:00';
+
+                // 3. Update BGM status in BGM tab
+                const bgmStandard = document.getElementById('bgm-standard');
+                const bgmKids = document.getElementById('bgm-kids');
+                if (bgmStandard && bgmKids && data.bgmTitle) {
+                    const bgmTitleLow = data.bgmTitle.toLowerCase();
+                    const isKids = bgmTitleLow.includes('child') || bgmTitleLow.includes('kids');
+                    const isStandard = !isKids && data.bgmTitle !== 'None';
+
+                    bgmStandard.classList.toggle('playing', data.isBgmPlaying && isStandard);
+                    bgmKids.classList.toggle('playing', data.isBgmPlaying && isKids);
+                }
+
+                // 4. Active media highlighter in playlist
+                document.querySelectorAll('.card.playlist-item').forEach(card => {
+                    const titleEl = card.querySelector('.card-title');
+                    if (titleEl) {
+                        card.classList.toggle('playing', titleEl.textContent === data.title);
+                    }
+                });
+
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
             } catch (e) {
-                updateStatus(false, 'Reconnecting...');
+                console.error('Poll failed', e);
             }
         }
 
         async function loadPlaylist() {
-            const listEl = document.getElementById('playlist');
-
+            const container = document.getElementById('playlist-container');
             try {
                 const res = await fetch('/api/playlist');
                 const items = await res.json();
 
                 if (!items || items.length === 0) {
-                    listEl.innerHTML = '<div style="text-align:center; padding: 20px; color:var(--text-dim);">Playlist is empty</div>';
+                    container.innerHTML = '<div style="text-align:center; padding: 40px; color:var(--text-dim);">Playlist is empty</div>';
                     return;
                 }
 
-                listEl.innerHTML = '';
-                for (const it of items) {
-                    const btn = document.createElement('div');
-                    btn.className = 'item';
-                    btn.onclick = () => post('/api/play/' + it.index);
+                container.innerHTML = '';
+                items.forEach(it => {
+                    const card = document.createElement('div');
+                    card.className = 'card playlist-item';
+                    card.onclick = () => post('/api/play/' + it.index);
 
-                    const icon = document.createElement('span');
-                    icon.className = 'item-icon';
                     const ext = it.fileName.split('.').pop()?.toLowerCase();
-                    icon.textContent = ['mp4', 'mov', 'wmv', 'mkv', 'avi'].includes(ext) ? '🎬' :
-                        ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'].includes(ext) ? '🖼️' :
-                            ['mp3', 'wav', 'flac', 'wma', 'm4a'].includes(ext) ? '🎵' : '📄';
+                    const iconName = ['mp4', 'mov', 'wmv'].includes(ext) ? 'video' :
+                        ['jpg', 'png', 'jpeg'].includes(ext) ? 'image' : 'music';
 
-                    const text = document.createElement('span');
-                    text.className = 'item-text';
-                    text.textContent = it.fileName;
-
-                    btn.appendChild(icon);
-                    btn.appendChild(text);
-                    listEl.appendChild(btn);
-                }
+                    card.innerHTML = `
+                        <div class="card-icon"><i data-lucide="${iconName}"></i></div>
+                        <div class="card-info">
+                            <div class="card-title">${it.fileName}</div>
+                            <div class="card-subtitle">Media Content</div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+                lucide.createIcons();
             } catch (e) {
-                console.error('Failed to load playlist', e);
+                container.innerHTML = '<div style="text-align:center; padding: 40px; color:var(--text-dim);">Connection failed</div>';
             }
         }
 
         // Initialize
-        pollStatus();
         loadPlaylist();
-
-        // Poll status every 1s for progress bar smoothness
+        pollStatus();
         setInterval(pollStatus, 1000);
+        setInterval(loadPlaylist, 30000); // Less frequent for less UI jumpiness
 
-        // Refresh playlist every 10s to stay in sync with desktop changes
-        setInterval(loadPlaylist, 10000);
     </script>
 </body>
 

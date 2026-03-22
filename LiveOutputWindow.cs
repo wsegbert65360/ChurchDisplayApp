@@ -10,18 +10,7 @@ using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp;
 
-/// <summary>
-/// Represents information about the playback progress of a media file.
-/// </summary>
-public class ProgressInfo
-{
-    /// <summary>Gets or sets the progress as a percentage (0.0 to 100.0).</summary>
-    public double ProgressPercent { get; set; }
-    /// <summary>Gets or sets the current playback time.</summary>
-    public TimeSpan CurrentTime { get; set; }
-    /// <summary>Gets or sets the total duration of the media.</summary>
-    public TimeSpan Duration { get; set; }
-}
+
 
 /// <summary>
 /// The primary display window that projects media (video, images, text) to the target monitor.
@@ -113,8 +102,10 @@ public class LiveOutputWindow : Window
         return null;
     }
 
-    public LiveOutputWindow()
+    public LiveOutputWindow(LibVLC libVLC)
     {
+        _libVLC = libVLC ?? throw new ArgumentNullException(nameof(libVLC));
+        
         Title = "Live Output";
         Width = 800;
         Height = 450;
@@ -133,25 +124,14 @@ public class LiveOutputWindow : Window
         mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        // Initialize LibVLC
+        // Initialize MediaPlayer
         try
         {
-            Core.Initialize();
-            var vlcOptions = new string[] 
-            { 
-                "--quiet", 
-                "--no-osd", 
-                "--no-video-title-show", 
-                "--no-snapshot-preview",
-                "--aout=directsound"
-            };
-            _libVLC = new LibVLC(vlcOptions);
             _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVLC);
         }
         catch (Exception ex)
         {
-            Serilog.Log.Error(ex, "Failed to initialize LibVLC. Video playback will be unavailable.");
-            _libVLC = null!;
+            Serilog.Log.Error(ex, "Failed to initialize MediaPlayer.");
             _mediaPlayer = null!;
         }
 
@@ -246,7 +226,7 @@ public class LiveOutputWindow : Window
                 _mediaPlayer.Stop();
                 _mediaPlayer.Dispose();
             }
-            _libVLC?.Dispose();
+            // _libVLC.Dispose() is now handled by MainWindow
         };
     }
 
@@ -298,6 +278,7 @@ public class LiveOutputWindow : Window
         bitmap.UriSource = new Uri(imagePath);
         bitmap.CacheOption = BitmapCacheOption.OnLoad;
         bitmap.EndInit();
+        bitmap.Freeze(); // Make it cross-thread accessible
 
         _imageDisplay.Source = bitmap;
         _isPlaying = false;
@@ -334,10 +315,12 @@ public class LiveOutputWindow : Window
 
     public void Resume()
     {
-        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && _mediaPlayer.CanPause)
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
         {
+            RestoreVisibility();
             _mediaPlayer.Play();
             _isPlaying = true;
+            _timer.Start();
         }
     }
 
@@ -361,10 +344,18 @@ public class LiveOutputWindow : Window
     }
 
     /// <summary>
-    /// Blanks the display by hiding all content elements.
+    /// Blanks the display by hiding all content elements and pausing media if playing.
     /// </summary>
     public void Blank()
     {
+        if (_mediaPlayer != null && _mediaPlayer.IsPlaying)
+        {
+            _mediaPlayer.Pause();
+        }
+        
+        _isPlaying = false;
+        _timer.Stop();
+
         _videoView.Visibility = Visibility.Collapsed;
         _imageDisplay.Visibility = Visibility.Collapsed;
         _filenameLabel.Visibility = Visibility.Collapsed;
@@ -419,7 +410,7 @@ public class LiveOutputWindow : Window
     {
         if (_currentMediaPath != null)
         {
-            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && !_mediaPlayer.IsPlaying)
+            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
             {
                 Resume();
             }
@@ -427,6 +418,24 @@ public class LiveOutputWindow : Window
             {
                 ShowMedia(_currentMediaPath);
             }
+        }
+    }
+
+    private void RestoreVisibility()
+    {
+        if (_currentMediaPath == null) return;
+
+        if (MediaConstants.IsImage(_currentMediaPath))
+        {
+            _imageDisplay.Visibility = Visibility.Visible;
+            _videoView.Visibility = Visibility.Collapsed;
+            _progressBar.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            _imageDisplay.Visibility = Visibility.Collapsed;
+            _videoView.Visibility = Visibility.Visible;
+            _progressBar.Visibility = Visibility.Visible;
         }
     }
 

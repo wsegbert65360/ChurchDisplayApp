@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using System.IO;
 using ChurchDisplayApp.Services;
 using ChurchDisplayApp.Interfaces;
+using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp;
 
@@ -68,6 +69,18 @@ public sealed class RemoteControlServer
             return Results.Ok(new { ok = true });
         });
 
+        app.MapPost("/api/play", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.Play());
+            return Results.Ok(new { ok = true });
+        });
+
+        app.MapPost("/api/pause", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.Pause());
+            return Results.Ok(new { ok = true });
+        });
+
         app.MapGet("/api/status", () =>
         {
             var status = dispatcher.Invoke(() => controller.GetStatus());
@@ -86,9 +99,46 @@ public sealed class RemoteControlServer
             return Results.Ok(new { ok = true });
         });
 
+        app.MapPost("/api/volume/up", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.VolumeUp());
+            return Results.Ok(new { ok = true });
+        });
+
+        app.MapPost("/api/volume/down", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.VolumeDown());
+            return Results.Ok(new { ok = true });
+        });
+
         app.MapPost("/api/volume/{level:double}", (double level) =>
         {
             dispatcher.BeginInvoke(() => controller.SetVolume(level));
+            return Results.Ok(new { ok = true });
+        });
+
+        // BGM Endpoints
+        app.MapPost("/api/bgm/play/standard", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.PlayStandardBgm());
+            return Results.Ok(new { ok = true });
+        });
+
+        app.MapPost("/api/bgm/play/kids", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.PlayKidsBgm());
+            return Results.Ok(new { ok = true });
+        });
+
+        app.MapPost("/api/bgm/pause", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.PauseBgm());
+            return Results.Ok(new { ok = true });
+        });
+
+        app.MapPost("/api/bgm/stop", () =>
+        {
+            dispatcher.BeginInvoke(() => controller.StopBgm());
             return Results.Ok(new { ok = true });
         });
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using QRCoder;
 using System.IO;
 using System.Net;
@@ -17,32 +17,33 @@ using ChurchDisplayApp.Services;
 using ChurchDisplayApp.ViewModels;
 using ChurchDisplayApp.Models;
 using ChurchDisplayApp.Interfaces;
+using LibVLCSharp.Shared;
 
 namespace ChurchDisplayApp;
 
 
 public partial class MainWindow : Window, IDisplayController
 {
-    private static AppSettings _settings = AppSettings.Load();
+    private AppSettings _settings = AppSettings.Current;
     private readonly DispatcherTimer _livePreviewTimer;
     private readonly RemoteControlServer _remoteControlServer = new();
     private const int RemoteControlPortPreferred = AppConstants.Network.RemoteControlPortPreferred;
     private const int RemoteControlPortFallback = AppConstants.Network.RemoteControlPortFallback;
-    private int _remoteControlPortInUse = 0;
+    private readonly LibVLC _libVLC;
     private readonly PlaylistManager _playlistManager = new();
     public PlaylistManager PlaylistManager => _playlistManager;
     private MediaControlService _mediaControlService = null!;
-    private LiveOutputWindow? _liveWindow;
+    private readonly LiveOutputWindow _liveWindow;
     public MainViewModel ViewModel { get; private set; } = null!;
     private readonly MonitorService _monitorService = new();
     private System.Windows.Threading.DispatcherTimer? _progressUpdateTimer;
     private BackgroundMusicService? _backgroundMusicService;
     private AmenResolveService? _amenResolveService;
     private PlaylistDragDropManager? _playlistDragDropManager;
-    private RemoteControlCoordinator? _remoteControlCoordinator;
     private DispatcherTimer? _mediaPulseTimer;
     private double _mediaPulseOpacity = 0.3;
     private int _mediaPulseDirection = 1;
+    private readonly SolidColorBrush _mediaPulseBrush = new SolidColorBrush(Color.FromRgb(173, 216, 230));
 
     public MainWindow()
     {
@@ -52,9 +53,21 @@ public partial class MainWindow : Window, IDisplayController
         PlaylistListBox.ItemsSource = _playlistManager.Items;
 
         Closing += MainWindow_Closing;
+        SizeChanged += MainWindow_SizeChanged;
         
-        // Initialize BackgroundMusicService
+        // Initialize services
+        LibVLCSharp.Shared.Core.Initialize();
+        var vlcOptions = new[] 
+        { 
+            "--quiet", 
+            "--no-osd", 
+            "--no-video-title-show", 
+            "--no-snapshot-preview",
+            "--aout=directsound"
+        };
+        _libVLC = new LibVLC(vlcOptions);
         _backgroundMusicService = new BackgroundMusicService(_settings);
+        _liveWindow = new LiveOutputWindow(_libVLC);
         _playlistDragDropManager = new PlaylistDragDropManager(PlaylistListBox, _playlistManager, () => { });
         
         // Load background music if configured
@@ -85,12 +98,13 @@ public partial class MainWindow : Window, IDisplayController
     protected override void OnContentRendered(EventArgs e)
     {
         base.OnContentRendered(e);
+        
+        // Restore saved sidebar width from settings
+        ApplySavedSidebarWidth();
+        
+        _liveWindow.Owner = this;
 
         // Create and show the live output window after MainWindow is shown
-        _liveWindow = new LiveOutputWindow
-        {
-            Owner = this
-        };
         
         // Subscribe to MediaEnded event to stop media state
         _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
@@ -103,9 +117,6 @@ public partial class MainWindow : Window, IDisplayController
         };
         ViewModel = new MainViewModel(_playlistManager, _mediaControlService, _settings, _backgroundMusicService);
         DataContext = ViewModel;
-
-        // Initialize RemoteControlCoordinator
-        _remoteControlCoordinator = new RemoteControlCoordinator(this);
 
         // Detect monitors using the service
         var monitors = _monitorService.GetMonitors();
@@ -171,15 +182,12 @@ public partial class MainWindow : Window, IDisplayController
 
     private async Task StartRemoteControlAsync()
     {
-        if (_remoteControlCoordinator == null) return;
-
         // Prefer port 80 so you can type only http://PC-IP/ on your phone.
         // If port 80 fails (requires admin / may be in use), fall back to 8088.
         try
         {
-            await _remoteControlServer.StartAsync(Dispatcher, _remoteControlCoordinator, RemoteControlPortPreferred);
-            _remoteControlPortInUse = RemoteControlPortPreferred;
-            UpdateRemoteQrCode();
+            await _remoteControlServer.StartAsync(Dispatcher, this, RemoteControlPortPreferred);
+            UpdateRemoteQrCode(RemoteControlPortPreferred);
             return;
         }
         catch (Exception ex)
@@ -189,9 +197,8 @@ public partial class MainWindow : Window, IDisplayController
 
         try
         {
-            await _remoteControlServer.StartAsync(Dispatcher, _remoteControlCoordinator, RemoteControlPortFallback);
-            _remoteControlPortInUse = RemoteControlPortFallback;
-            UpdateRemoteQrCode();
+            await _remoteControlServer.StartAsync(Dispatcher, this, RemoteControlPortFallback);
+            UpdateRemoteQrCode(RemoteControlPortFallback);
         }
         catch (Exception ex)
         {
@@ -199,11 +206,11 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private void UpdateRemoteQrCode()
+    private void UpdateRemoteQrCode(int portInUse)
     {
         Dispatcher.BeginInvoke(() =>
         {
-            var url = GetRemoteUrl();
+            var url = GetRemoteUrl(portInUse);
             RemoteUrlText.Text = url;
 
             try
@@ -232,10 +239,9 @@ public partial class MainWindow : Window, IDisplayController
         });
     }
 
-    private string GetRemoteUrl()
+    private string GetRemoteUrl(int portInUse)
     {
-        var port = _remoteControlPortInUse != 0 ? _remoteControlPortInUse : RemoteControlPortFallback;
-        var portSuffix = port == 80 ? string.Empty : $":{port}";
+        var portSuffix = portInUse == 80 ? string.Empty : $":{portInUse}";
 
         var ip = GetLocalIPv4Address();
         if (!string.IsNullOrWhiteSpace(ip))
@@ -245,6 +251,7 @@ public partial class MainWindow : Window, IDisplayController
 
         return $"http://{Environment.MachineName}{portSuffix}/";
     }
+
 
     private static string? GetLocalIPv4Address()
     {
@@ -293,30 +300,139 @@ public partial class MainWindow : Window, IDisplayController
         return null;
     }
 
+
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        // _layoutManager?.SaveLayout(); // No longer saving dynamic layout positions
-
-        // Stop background music with timeout
+        // Save sidebar width as a proportion of total window width
         try
         {
-            _backgroundMusicService?.Dispose();
-        }
-        catch
-        {
-        }
-
-        // Stop remote server with timeout
-        try
-        {
-            if (_remoteControlServer != null)
+            if (ActualWidth > 0)
             {
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
-                _remoteControlServer.StopAsync(cts.Token).Wait(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
+                var sidebarWidth = RootGrid.ColumnDefinitions[0].ActualWidth;
+                _settings.MainWindowLeftColumnProportion = sidebarWidth / ActualWidth;
+                _settings.Save();
             }
         }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not save sidebar width");
+        }
+
+        Log.Information("Main window closing (Fast Shutdown initiated)...");
+
+        // 1. Give the user instant feedback by hiding windows
+        Hide();
+        if (_liveWindow != null)
+        {
+            try { _liveWindow.Hide(); } catch { }
+        }
+
+        // 2. Stop timers immediately on UI thread
+        _livePreviewTimer?.Stop();
+        _progressUpdateTimer?.Stop();
+
+        // 3. Perform the actual cleanup in a background task to avoid deadlocking the UI thread
+        Task.Run(async () =>
+        {
+            try
+            {
+                Log.Information("Background cleanup started...");
+
+                // Stop background music
+                if (_backgroundMusicService != null)
+                {
+                    _backgroundMusicService.Stop();
+                    _backgroundMusicService.Dispose();
+                }
+
+                // Stop remote control server (no .Wait() to avoid deadlock)
+                if (_remoteControlServer != null && _remoteControlServer.IsRunning)
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await _remoteControlServer.StopAsync(cts.Token);
+                }
+
+                // Stop and Close display window
+                if (_liveWindow != null)
+                {
+                    // Dispatcher.Invoke is safer for closing the window if it's still needed, 
+                    // but we already called Hide() so we can just let it be disposed by VLC.
+                }
+
+                // Dispose VLC
+                _libVLC?.Dispose();
+                
+                Log.Information("Background cleanup finished.");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Error during background cleanup");
+            }
+            finally
+            {
+                // Final safety: ensure process exit
+                Log.Information("Final process exit.");
+                Environment.Exit(0);
+            }
+        });
+
+        // We allow the window to "close" logically (hide), 
+        // while the background task handles the heavy lifting and final Exit.
+    }
+
+    /// <summary>
+    /// Sets the sidebar column width from the saved proportion in AppSettings.
+    /// Must be called after the window has rendered (ActualWidth is valid).
+    /// </summary>
+    private void ApplySavedSidebarWidth()
+    {
+        try
+        {
+            var proportion = _settings.MainWindowLeftColumnProportion ?? 0.25;
+            proportion = Math.Clamp(proportion, 0.05, 0.80);
+
+            // Convert proportion to pixel width based on current window width
+            var pixelWidth = ActualWidth * proportion;
+
+            // Enforce column min/max in pixels
+            var sidebarCol = RootGrid.ColumnDefinitions[0];
+            pixelWidth = Math.Max(pixelWidth, sidebarCol.MinWidth);
+            pixelWidth = Math.Min(pixelWidth, ActualWidth - 8 - 360); // leave room for splitter + main min
+
+            sidebarCol.Width = new GridLength(pixelWidth, GridUnitType.Pixel);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not restore sidebar width — using default");
+        }
+    }
+
+    private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Keep sidebar proportional when window is resized
+        // Only adjust if the change came from window resize, not splitter drag.
+        // We detect this by comparing if column 0 width / old window width ≈ saved proportion.
+        try
+        {
+            if (e.PreviousSize.Width <= 0 || ActualWidth <= 0) return;
+
+            var sidebarCol = RootGrid.ColumnDefinitions[0];
+            var currentProportion = sidebarCol.ActualWidth / e.PreviousSize.Width;
+            var savedProportion   = _settings.MainWindowLeftColumnProportion ?? 0.25;
+
+            // If current proportion is within 2% of saved, it's a window resize — scale it
+            if (Math.Abs(currentProportion - savedProportion) < 0.02)
+            {
+                var newPixelWidth = ActualWidth * savedProportion;
+                newPixelWidth = Math.Max(newPixelWidth, sidebarCol.MinWidth);
+                newPixelWidth = Math.Min(newPixelWidth, ActualWidth - 8 - 360);
+                sidebarCol.Width = new GridLength(newPixelWidth, GridUnitType.Pixel);
+            }
+            // else: user is dragging the splitter — don't interfere
+        }
         catch
         {
+            // Non-critical — silently ignore resize calculation errors
         }
     }
 
@@ -345,36 +461,7 @@ public partial class MainWindow : Window, IDisplayController
     }
 
 
-    private bool ValidateFile(string filePath)
-    {
-        try
-        {
-            if (!File.Exists(filePath))
-            {
-                MessageBox.Show($"File not found: {System.IO.Path.GetFileName(filePath)}", "File Error",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
 
-            // Try to open the file briefly to ensure it's readable
-            using (var stream = File.OpenRead(filePath))
-            {
-                // Just opening to test accessibility
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Cannot access file: {System.IO.Path.GetFileName(filePath)}\n{ex.Message}", "File Error",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
-        }
-    }
-
-    private void Blank_Click(object sender, RoutedEventArgs e)
-    {
-        _liveWindow?.ShowBlank();
-    }
 
     private void ToggleDisplay_Click(object sender, RoutedEventArgs e)
     {
@@ -436,31 +523,36 @@ public partial class MainWindow : Window, IDisplayController
 
     private void RecreateLiveOutputWindow()
     {
-        _liveWindow = new LiveOutputWindow
+        // The _liveWindow is now readonly and initialized in the constructor.
+        // If it was closed, we can't recreate it this way.
+        // For now, we'll just ensure it's visible and positioned.
+        // A more robust solution might involve handling the window's closure differently
+        // or making _liveWindow not readonly.
+        
+        // If the window was closed, its handle might be invalid.
+        // The current design assumes _liveWindow is always available after initial setup.
+        // For now, we'll just ensure it's visible and positioned.
+        if (_liveWindow != null)
         {
-            Owner = this
-        };
-        
-        _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
-        
-        // Update existing services with new window instead of recreating everything
-        _mediaControlService?.UpdateLiveWindow(_liveWindow);
-        
-        // Position on secondary monitor if available
-        PositionDisplayWindow();
-        
-        _liveWindow.Show();
-        _liveWindow.ShowBlank();
+            _liveWindow.MediaEnded -= (s, e) => ViewModel.StopCommand.Execute(null); // Unsubscribe old
+            _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null); // Resubscribe
+            
+            // Update existing services with new window instead of recreating everything
+            _mediaControlService?.UpdateLiveWindow(_liveWindow);
+            
+            // Position on secondary monitor if available
+            PositionDisplayWindow();
+            
+            _liveWindow.Show();
+            _liveWindow.ShowBlank();
+        }
     }
 
     private void CreatePlaylist_Click(object sender, RoutedEventArgs e)
     {
-        var serviceElementsWindow = new ServiceElementsWindow(this)
-        {
-            Owner = this
-        };
-
-        serviceElementsWindow.ShowDialog(); // The window will handle adding items directly to the playlist
+        var elementsWindow = new ServiceElementsWindow(_playlistManager);
+        elementsWindow.Owner = this;
+        elementsWindow.ShowDialog(); // The window will handle adding items directly to the playlist
     }
 
     // Drag and Drop Event Handlers for Playlist
@@ -718,17 +810,21 @@ public partial class MainWindow : Window, IDisplayController
             DefaultExt = ".pls"
         };
 
-        // Set initial directory to last used directory if available
-        if (!string.IsNullOrEmpty(_settings.LastMediaDirectory))
-        {
-            dlg.InitialDirectory = _settings.LastMediaDirectory;
-        }
+        // CHANGED: prefer LastPlaylistSaveDirectory, fall back to LastMediaDirectory
+        var startDir = _settings.LastPlaylistSaveDirectory ?? _settings.LastMediaDirectory;
+        if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
+            dlg.InitialDirectory = startDir;
 
         if (dlg.ShowDialog() == true)
         {
             try
             {
                 _playlistManager.SavePlaylist(dlg.FileName);
+
+                // CHANGED: remember the folder for next time
+                _settings.LastPlaylistSaveDirectory = Path.GetDirectoryName(dlg.FileName);
+                _settings.Save();
+
                 MessageBox.Show("Playlist saved successfully.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -821,44 +917,39 @@ public partial class MainWindow : Window, IDisplayController
 
     private void BackgroundMusicPlayStandard_Click(object sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(_settings.BackgroundMusicPath))
-        {
-            // Only load if it's a new file or not yet loaded
-            if (_backgroundMusicService?.LoadedPath != _settings.BackgroundMusicPath)
-            {
-                _backgroundMusicService?.Load(_settings.BackgroundMusicPath);
-            }
-        }
-        
-        // Stop any active media playback
-        ViewModel.StopCommand.Execute(null);
-
-        // Use the slider's current value for volume
-        _backgroundMusicService?.SetVolume(BackgroundMusicVolumeSlider.Value);
-        _backgroundMusicService?.Play();
-        if (BackgroundMusicGroupBox != null)
-            _backgroundMusicService?.StartPulseAnimation(BackgroundMusicGroupBox);
+        PlayBackgroundMusic(_settings.BackgroundMusicPath, "Standard BGM", BackgroundMusicGroupBox);
     }
 
     private void BackgroundMusicPlayChildrensSermon_Click(object sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(_settings.BackgroundMusicChildSermonPath))
+        PlayBackgroundMusic(_settings.BackgroundMusicChildSermonPath, "Children's Sermon BGM", BackgroundMusicGroupBox);
+    }
+
+    private void PlayBackgroundMusic(string? path, string context, Border pulseTarget)
+    {
+        if (string.IsNullOrEmpty(path))
         {
-            // Only load if it's a new file or not yet loaded
-            if (_backgroundMusicService?.LoadedPath != _settings.BackgroundMusicChildSermonPath)
-            {
-                _backgroundMusicService?.Load(_settings.BackgroundMusicChildSermonPath);
-            }
+            MessageBox.Show($"No {context} file selected. Please select one in Settings.", "No Music",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
 
-        // Stop any active media playback
+        if (_backgroundMusicService == null) return;
+
+        if (!_backgroundMusicService.CanPlay && !File.Exists(path))
+        {
+            MessageBox.Show($"The selected {context} file could not be found.", "File Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        // Stop any active media playback to avoid overlapping audio
         ViewModel.StopCommand.Execute(null);
 
-        // Use the slider's current value for volume
-        _backgroundMusicService?.SetVolume(BackgroundMusicVolumeSlider.Value);
-        _backgroundMusicService?.Play();
-        if (BackgroundMusicGroupBox != null)
-            _backgroundMusicService?.StartPulseAnimation(BackgroundMusicGroupBox);
+        _backgroundMusicService.StopPulseAnimation();
+        _backgroundMusicService.Load(path);
+        _backgroundMusicService.Play();
+        _backgroundMusicService.StartPulseAnimation(pulseTarget);
     }
 
     private void BackgroundMusicPause_Click(object sender, RoutedEventArgs e)
@@ -867,10 +958,7 @@ public partial class MainWindow : Window, IDisplayController
         _backgroundMusicService?.StopPulseAnimation();
     }
 
-    private void BackgroundMusicMute_Click(object sender, RoutedEventArgs e)
-    {
-        _backgroundMusicService?.ToggleMute();
-    }
+
 
     private async void BackgroundMusicStop_Click(object sender, RoutedEventArgs e)
     {
@@ -888,9 +976,13 @@ public partial class MainWindow : Window, IDisplayController
 
     public void Next() => ViewModel.NextCommand.Execute(null);
     public void Previous() => ViewModel.PreviousCommand.Execute(null);
+    public void Play() => ViewModel.PlayCommand.Execute(null);
+    public void Pause() => ViewModel.PauseCommand.Execute(null);
     public void Stop() => ViewModel.StopCommand.Execute(null);
     public void Blank() => ViewModel.BlankCommand.Execute(null);
     public void SetVolume(double volume) => ViewModel.Volume = volume;
+    public void VolumeUp() => ViewModel.Volume = Math.Clamp(ViewModel.Volume + 0.02, 0.0, 1.0);
+    public void VolumeDown() => ViewModel.Volume = Math.Clamp(ViewModel.Volume - 0.02, 0.0, 1.0);
     public void PlayIndex(int index)
     {
         if (index >= 0 && index < _playlistManager.Items.Count)
@@ -903,14 +995,27 @@ public partial class MainWindow : Window, IDisplayController
     public RemoteStatus GetStatus()
     {
         var progress = _mediaControlService.GetProgress();
+        var bgmTitle = _backgroundMusicService != null && _backgroundMusicService.IsPlaying && _backgroundMusicService.LoadedPath != null
+            ? System.IO.Path.GetFileName(_backgroundMusicService.LoadedPath)
+            : "None";
+        var isBgmPlaying = _backgroundMusicService?.IsPlaying ?? false;
+
         if (progress == null)
         {
+            var title = ViewModel.CurrentMediaTitle;
+            if (title == "Idle" && isBgmPlaying)
+            {
+                title = $"BGM: {bgmTitle}";
+            }
+
             return new RemoteStatus(
-                ViewModel.CurrentMediaTitle,
+                title,
                 0,
                 "00:00",
                 "00:00",
-                ViewModel.Volume
+                ViewModel.Volume,
+                bgmTitle,
+                isBgmPlaying
             );
         }
 
@@ -919,10 +1024,16 @@ public partial class MainWindow : Window, IDisplayController
             progress.ProgressPercent,
             ViewModel.FormatTime(progress.CurrentTime),
             ViewModel.FormatTime(progress.Duration),
-            ViewModel.Volume
+            ViewModel.Volume,
+            bgmTitle,
+            isBgmPlaying
         );
     }
 
+    public void PlayStandardBgm() => PlayBackgroundMusic(_settings.BackgroundMusicPath, "Background Music", BackgroundMusicGroupBox);
+    public void PlayKidsBgm() => PlayBackgroundMusic(_settings.BackgroundMusicChildSermonPath, "Children's Sermon Music", BackgroundMusicGroupBox);
+    public void PauseBgm() => _backgroundMusicService?.Pause();
+    public void StopBgm() => BackgroundMusicStop_Click(this, new System.Windows.RoutedEventArgs());
     public List<RemotePlaylistItem> GetPlaylistItems()
     {
         var result = new List<RemotePlaylistItem>();
@@ -958,9 +1069,8 @@ public partial class MainWindow : Window, IDisplayController
             _mediaPulseOpacity += _mediaPulseDirection * 0.02;
             if (_mediaPulseOpacity >= 1.0) { _mediaPulseOpacity = 1.0; _mediaPulseDirection = -1; }
             else if (_mediaPulseOpacity <= 0.3) { _mediaPulseOpacity = 0.3; _mediaPulseDirection = 1; }
-            var brush = new SolidColorBrush(Color.FromRgb(173, 216, 230));
-            brush.Opacity = _mediaPulseOpacity;
-            MediaControlsContainer.Background = brush;
+            _mediaPulseBrush.Opacity = _mediaPulseOpacity;
+            MediaControlsContainer.Background = _mediaPulseBrush;
         };
         _mediaPulseTimer.Start();
     }

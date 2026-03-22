@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using ChurchDisplayApp.Models;
@@ -10,6 +12,18 @@ namespace ChurchDisplayApp;
 /// </summary>
 public class AppSettings
 {
+    /// <summary>
+    /// The list of user-configured service element slots.
+    /// Replaces the old hardcoded per-song properties.
+    /// </summary>
+    public List<ServiceSlot> ServiceSlots { get; set; } = new();
+
+    /// <summary>
+    /// The last directory the user saved a playlist to.
+    /// Used as the initial directory in the Save Playlist dialog.
+    /// </summary>
+    public string? LastPlaylistSaveDirectory { get; set; }
+
     /// <summary>Gets or sets the file path for background music (Standard).</summary>
     public string? BackgroundMusicPath { get; set; }
 
@@ -71,15 +85,56 @@ public class AppSettings
                 
                 // Validate and apply safe defaults
                 settings.Validate();
+                settings.MigrateToServiceSlots();
                 
                 return settings;
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Trace.WriteLine($"Error loading settings: {ex.Message}");
+            Serilog.Log.Warning(ex, "Error loading settings");
         }
-        return new AppSettings();
+        var defaults = new AppSettings();
+        defaults.MigrateToServiceSlots();
+        return defaults;
+    }
+
+    /// <summary>
+    /// If ServiceSlots is empty (first run or upgrade from old version),
+    /// seeds it from the legacy per-song properties. Called by Load().
+    /// </summary>
+    public void MigrateToServiceSlots()
+    {
+        if (ServiceSlots.Count > 0)
+            return; // Already migrated, nothing to do
+
+        // Map old fixed properties to new dynamic slots.
+        // Each legacy slot is sticky=false (they were never persisted between services before).
+        var legacyMappings = new[]
+        {
+            ("Call to Worship",              CallToWorshipFile),
+            ("Song for Beginning of Church", SongForBeginningFile),
+            ("Doxology",                     DoxologyFile),
+            ("Praise Song",                  PraiseSongFile),
+            ("Gloria Patri",                 GloriaPatriFile),
+            ("Lord's Prayer",                LordsPrayerFile),
+            ("Prayer Song",                  PrayerSongFile),
+            ("Communion Song",               CommunionSongFile),
+            ("Children's Moment Song",       ChildrensMomentSongFile),
+            ("Invitation Song",              InvitationSongFile),
+            ("Ending Song",                  EndingSongFile),
+        };
+
+        foreach (var (name, fileName) in legacyMappings)
+        {
+            ServiceSlots.Add(new ServiceSlot
+            {
+                DisplayName = name,
+                FilePath    = null,   // Legacy stored filename only, not full path — left blank for user to re-select
+                IsSticky    = false,
+                LastUsedFolder = LastMediaDirectory
+            });
+        }
     }
 
     public void Validate()
@@ -90,17 +145,15 @@ public class AppSettings
         PlaylistFontSize = Math.Clamp(PlaylistFontSize, 6.0, 30.0);
 
         // Proportion validation (0.0 to 1.0)
-        // Aggressive Migration: If user has a layout favoring the playlist (> 0.4 proportion)
-        // or a layout where the top area is too small (< 0.75), reset to Preview-First defaults.
-        if (!MainWindowLeftColumnProportion.HasValue || MainWindowLeftColumnProportion.Value > 0.4)
+        if (!MainWindowLeftColumnProportion.HasValue)
             MainWindowLeftColumnProportion = 0.25; // Favor Preview Wide
         else
-            MainWindowLeftColumnProportion = Math.Clamp(MainWindowLeftColumnProportion.Value, 0.0, 1.0);
+            MainWindowLeftColumnProportion = Math.Clamp(MainWindowLeftColumnProportion.Value, 0.05, 0.95);
 
-        if (!MainWindowTopRowProportion.HasValue || MainWindowTopRowProportion.Value < 0.75)
+        if (!MainWindowTopRowProportion.HasValue)
             MainWindowTopRowProportion = 0.8; // Favor Preview Tall
         else
-            MainWindowTopRowProportion = Math.Clamp(MainWindowTopRowProportion.Value, 0.0, 1.0);
+            MainWindowTopRowProportion = Math.Clamp(MainWindowTopRowProportion.Value, 0.05, 0.95);
 
         // Ensure strings are not null (where applicable)
         BackgroundMusicPath ??= string.Empty;
@@ -130,7 +183,48 @@ public class AppSettings
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Trace.WriteLine($"Error saving settings: {ex.Message}");
+            Serilog.Log.Warning(ex, "Error saving settings");
         }
     }
+
+    public string? GetSongFile(string settingsProperty) => settingsProperty switch
+    {
+        nameof(CallToWorshipFile) => CallToWorshipFile,
+        nameof(DoxologyFile) => DoxologyFile,
+        nameof(GloriaPatriFile) => GloriaPatriFile,
+        nameof(LordsPrayerFile) => LordsPrayerFile,
+        nameof(SongForBeginningFile) => SongForBeginningFile,
+        nameof(PraiseSongFile) => PraiseSongFile,
+        nameof(PrayerSongFile) => PrayerSongFile,
+        nameof(CommunionSongFile) => CommunionSongFile,
+        nameof(ChildrensMomentSongFile) => ChildrensMomentSongFile,
+        nameof(InvitationSongFile) => InvitationSongFile,
+        nameof(EndingSongFile) => EndingSongFile,
+        _ => null
+    };
+
+    public void SetSongFile(string settingsProperty, string? value)
+    {
+        switch (settingsProperty)
+        {
+            case nameof(CallToWorshipFile): CallToWorshipFile = value; break;
+            case nameof(DoxologyFile): DoxologyFile = value; break;
+            case nameof(GloriaPatriFile): GloriaPatriFile = value; break;
+            case nameof(LordsPrayerFile): LordsPrayerFile = value; break;
+            case nameof(SongForBeginningFile): SongForBeginningFile = value; break;
+            case nameof(PraiseSongFile): PraiseSongFile = value; break;
+            case nameof(PrayerSongFile): PrayerSongFile = value; break;
+            case nameof(CommunionSongFile): CommunionSongFile = value; break;
+            case nameof(ChildrensMomentSongFile): ChildrensMomentSongFile = value; break;
+            case nameof(InvitationSongFile): InvitationSongFile = value; break;
+            case nameof(EndingSongFile): EndingSongFile = value; break;
+        }
+    }
+
+    private static AppSettings? _instance;
+
+    /// <summary>
+    /// Gets the shared application settings instance. Call Load() once at startup.
+    /// </summary>
+    public static AppSettings Current => _instance ??= Load();
 }

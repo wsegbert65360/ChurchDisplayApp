@@ -37,7 +37,17 @@ public partial class App : Application
         {
             Log.Fatal(args.Exception, "Unhandled Dispatcher exception");
             Log.CloseAndFlush();
-            args.Handled = false;
+            
+            MessageBox.Show(
+                $"An unexpected error occurred and the application must close.\n\n" +
+                $"Error: {args.Exception.Message}\n\n" +
+                $"Details have been saved to the log file.",
+                "Unexpected Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            args.Handled = true;
+            Current.Shutdown(1);
         };
     }
 
@@ -46,6 +56,9 @@ public partial class App : Application
         Log.Information("Application exiting...");
         Log.CloseAndFlush();
         base.OnExit(e);
+
+        // Ensure the process actually terminates, even if background threads (VLC, ASP.NET Core) are lingering.
+        Environment.Exit(e.ApplicationExitCode);
     }
 }
 

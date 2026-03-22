@@ -1,0 +1,65 @@
+<Window x:Class="ChurchDisplayApp.ServiceElementsSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Service Slot Settings"
+        Width="500" Height="480"
+        MinWidth="380" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip">
+
+    <DockPanel Margin="10">
+
+        <!-- Bottom buttons -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button x:Name="OkButton"     Content="OK"     MinWidth="80" Padding="8,4" Margin="4,0" Click="Ok_Click"
+                    IsDefault="True" Background="#1565C0" Foreground="White"/>
+            <Button x:Name="CancelButton" Content="Cancel" MinWidth="80" Padding="8,4" Margin="4,0" Click="Cancel_Click"
+                    IsCancel="True"/>
+        </StackPanel>
+
+        <!-- Global default folder -->
+        <GroupBox DockPanel.Dock="Top" Header="Default Media Folder" Margin="0,0,0,8" Padding="6">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Browse…" MinWidth="70" Padding="8,4"
+                        Margin="4,0,0,0" Click="BrowseDefaultFolder_Click"/>
+                <TextBox x:Name="DefaultFolderBox" MinHeight="26" IsReadOnly="True"
+                         VerticalContentAlignment="Center"/>
+            </DockPanel>
+        </GroupBox>
+
+        <!-- Slot management -->
+        <GroupBox Header="Service Slots" Padding="6">
+            <DockPanel>
+
+                <!-- Add / Remove / Move buttons -->
+                <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0" MinWidth="80">
+                    <Button Content="+ Add"    Padding="8,4" MinWidth="0" Margin="0,2" Click="AddSlot_Click"/>
+                    <Button Content="✕ Remove" Padding="8,4" MinWidth="0" Margin="0,2" Click="RemoveSlot_Click"/>
+                    <Separator Margin="0,6"/>
+                    <Button Content="▲ Up"     Padding="8,4" MinWidth="0" Margin="0,2" Click="MoveUp_Click"/>
+                    <Button Content="▼ Down"   Padding="8,4" MinWidth="0" Margin="0,2" Click="MoveDown_Click"/>
+                </StackPanel>
+
+                <DockPanel>
+                    <!-- Rename instruction -->
+                    <TextBlock DockPanel.Dock="Top" Text="Double-click a slot name to rename it."
+                               Foreground="Gray" FontStyle="Italic" FontSize="11" Margin="0,0,0,4"/>
+
+                    <!-- Slot list -->
+                    <ListBox x:Name="SlotListBox"
+                             SelectionMode="Single"
+                             MouseDoubleClick="SlotListBox_DoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" Padding="4,2"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+
+            </DockPanel>
+        </GroupBox>
+
+    </DockPanel>
+</Window>
