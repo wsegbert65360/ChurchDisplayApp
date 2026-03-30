@@ -53,26 +53,27 @@ public class MonitorService
     {
         var results = new List<MonitorBounds>();
 
-        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero,
-            (hMonitor, hdcMonitor, ref lprcMonitor, dwData) =>
+        bool EnumCallback(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData)
+        {
+            MonitorInfoEx mi = new() { cbSize = (uint)Marshal.SizeOf(typeof(MonitorInfoEx)) };
+            GetMonitorInfo(hMonitor, ref mi);
+
+            const uint MONITORINFOF_PRIMARY = 1;
+            bool isPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
+
+            results.Add(new MonitorBounds
             {
-                MonitorInfoEx mi = new() { cbSize = (uint)Marshal.SizeOf(typeof(MonitorInfoEx)) };
-                GetMonitorInfo(hMonitor, ref mi);
+                Left = mi.rcMonitor.left,
+                Top = mi.rcMonitor.top,
+                Right = mi.rcMonitor.right,
+                Bottom = mi.rcMonitor.bottom,
+                IsPrimary = isPrimary
+            });
 
-                const uint MONITORINFOF_PRIMARY = 1;
-                bool isPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
+            return true;
+        }
 
-                results.Add(new MonitorBounds
-                {
-                    Left = mi.rcMonitor.left,
-                    Top = mi.rcMonitor.top,
-                    Right = mi.rcMonitor.right,
-                    Bottom = mi.rcMonitor.bottom,
-                    IsPrimary = isPrimary
-                });
-
-                return true;
-            }, IntPtr.Zero);
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, EnumCallback, IntPtr.Zero);
 
         return results;
     }
