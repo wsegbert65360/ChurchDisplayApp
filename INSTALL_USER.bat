@@ -1,33 +1,59 @@
 @echo off
+setlocal enabledelayedexpansion
+
 echo Church Display App Installer (User Version)
 echo ==========================================
 echo.
+echo This version installs the app to your Documents folder 
+echo and does not require administrator privileges.
+echo.
 
-REM Create installation directory in user's Documents
-set INSTALL_DIR=%USERPROFILE%\Documents\ChurchDisplayApp
-echo Creating installation directory: %INSTALL_DIR%
-if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+REM Set installation directory in user's Documents
+set "INSTALL_DIR=%USERPROFILE%\Documents\ChurchDisplayApp"
+echo Target installation directory: %INSTALL_DIR%
 
-REM Copy the application
-echo Copying Church Display App...
-copy "ChurchDisplayApp.exe" "%INSTALL_DIR%\" /Y
+REM Create installation directory
+if not exist "%INSTALL_DIR%" (
+    echo Creating installation directory...
+    mkdir "%INSTALL_DIR%"
+    if !errorLevel! neq 0 (
+        echo [ERROR] Failed to create installation directory.
+        pause
+        exit /b 1
+    )
+)
 
-REM Create desktop shortcut
+REM Copy all files using xcopy to ensure subdirectories and all assets are included
+echo Copying application files and dependencies...
+echo.
+
+REM We use xcopy to copy everything in the current folder to the installation folder
+REM /E copies directories and subdirectories, including empty ones.
+REM /I If destination does not exist and copying more than one file, assumes that destination must be a directory.
+REM /Y Suppresses prompting to confirm you want to overwrite an existing destination file.
+xcopy "*.*" "%INSTALL_DIR%\" /E /I /Y
+if !errorLevel! gtr 4 (
+    echo [ERROR] Failed to copy files. Error code: !errorLevel!
+    pause
+    exit /b 1
+)
+
+REM Create desktop shortcut using PowerShell
 echo Creating desktop shortcut...
-powershell "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%USERPROFILE%\Desktop\Church Display App.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\ChurchDisplayApp.exe'; $Shortcut.Save()"
+powershell -NoProfile -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%USERPROFILE%\Desktop\Church Display App.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\ChurchDisplayApp.exe'; $Shortcut.WorkingDirectory = '%INSTALL_DIR%'; $Shortcut.Save()"
 
 REM Create Start Menu shortcut
 echo Creating Start Menu shortcut...
-if not exist "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Church Display App" mkdir "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Church Display App"
-powershell "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%APPDATA%\Microsoft\Windows\Start Menu\Programs\Church Display App\Church Display App.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\ChurchDisplayApp.exe'; $Shortcut.Save()"
+set "START_MENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Church Display App"
+if not exist "%START_MENU_DIR%" (
+    mkdir "%START_MENU_DIR%"
+)
+powershell -NoProfile -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%START_MENU_DIR%\Church Display App.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\ChurchDisplayApp.exe'; $Shortcut.WorkingDirectory = '%INSTALL_DIR%'; $Shortcut.Save()"
 
 echo.
-echo Installation Complete!
-echo.
-echo Church Display App has been installed to:
-echo - Desktop shortcut
-echo - Start Menu > Programs > Church Display App  
-echo - Installation folder: %INSTALL_DIR%
+echo ===========================================
+echo Installation Complete Successfully!
+echo ===========================================
 echo.
 echo You can now run the app from the desktop shortcut!
 echo.

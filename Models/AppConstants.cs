@@ -13,7 +13,7 @@ public static class AppConstants
 
     public static class UI
     {
-        public const int LivePreviewIntervalMs = 100;
+        public const int LivePreviewIntervalMs = 250;
         public const int ProgressUpdateIntervalMs = 200;
         public const int LiveWindowSeekDelayMs = 300;
     }

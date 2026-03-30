@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeltySynth;
 using NAudio.Wave;
+using Serilog;
 
 namespace ChurchDisplayApp.Services
 {
@@ -17,7 +18,7 @@ namespace ChurchDisplayApp.Services
         private MeltySynth.Synthesizer? _synth;
         private WaveOutEvent? _waveOut;
         private SynthSampleProvider? _sampleProvider;
-        private readonly object _lock = new object();
+        private readonly SemaphoreSlim _semaphore = new(1, 1);
 
         public AmenResolveService(string soundFontPath)
         {
@@ -42,67 +43,71 @@ namespace ChurchDisplayApp.Services
 
         public async Task ExecuteResolveAsync(float volume = 1.0f)
         {
-            await Task.Run(() =>
+            if (!await _semaphore.WaitAsync(0))
             {
-                lock (_lock)
+                Log.Information("Amen resolve already in progress, skipping");
+                return;
+            }
+
+            try
+            {
+                Initialize();
+                if (_synth == null || _waveOut == null) return;
+
+                _waveOut.Volume = Math.Clamp(volume, 0.0f, 1.0f);
+
+                int C2 = 36; int F2 = 41; int C3 = 48; int E3 = 52; int F3 = 53; int G3 = 55; int A3 = 57;
+                int C4 = 60;
+
+                Random rnd = new Random();
+
+                _synth.ProcessMidiMessage(0, 0xB0, 64, 127);
+
+                _synth.ProcessMidiMessage(0, 0x90, F2, 60);
+                _synth.ProcessMidiMessage(0, 0x90, F3, 70 + rnd.Next(-5, 6));
+                _synth.ProcessMidiMessage(0, 0x90, A3, 70 + rnd.Next(-5, 6));
+                _synth.ProcessMidiMessage(0, 0x90, C4, 70 + rnd.Next(-5, 6));
+
+                await Task.Delay(2000);
+
+                _synth.ProcessMidiMessage(0, 0x80, F2, 0);
+                _synth.ProcessMidiMessage(0, 0x80, F3, 0);
+                _synth.ProcessMidiMessage(0, 0x80, A3, 0);
+                _synth.ProcessMidiMessage(0, 0x80, C4, 0);
+
+                _synth.ProcessMidiMessage(0, 0x90, C2, 65);
+                _synth.ProcessMidiMessage(0, 0x90, C3, 85 + rnd.Next(-5, 6));
+                _synth.ProcessMidiMessage(0, 0x90, E3, 85 + rnd.Next(-5, 6));
+                _synth.ProcessMidiMessage(0, 0x90, G3, 85 + rnd.Next(-5, 6));
+                _synth.ProcessMidiMessage(0, 0x90, C4, 85 + rnd.Next(-5, 6));
+
+                await Task.Delay(2500);
+
+                for (int vol = 100; vol >= 0; vol -= 5)
                 {
-                    Initialize();
-                    if (_synth == null || _waveOut == null) return;
-                    
-                    // Sync volume
-                    _waveOut.Volume = Math.Clamp(volume, 0.0f, 1.0f);
-
-                    // MIDI Note Definitions
-                    int C2=36; int F2=41; int C3=48; int E3=52; int F3=53; int G3=55; int A3=57;
-                    int C4=60;
-
-                    Random rnd = new Random();
-
-                    // Engage Pedal
-                    _synth.ProcessMidiMessage(0, 0xB0, 64, 127);
-
-                    // IV (The "A-")
-                    _synth.ProcessMidiMessage(0, 0x90, F2, 60);
-                    _synth.ProcessMidiMessage(0, 0x90, F3, 70 + rnd.Next(-5, 6));
-                    _synth.ProcessMidiMessage(0, 0x90, A3, 70 + rnd.Next(-5, 6));
-                    _synth.ProcessMidiMessage(0, 0x90, C4, 70 + rnd.Next(-5, 6));
-                    
-                    Thread.Sleep(2000);
-
-                    // I (The "-men")
-                    _synth.ProcessMidiMessage(0, 0x80, F2, 0);
-                    _synth.ProcessMidiMessage(0, 0x80, F3, 0);
-                    _synth.ProcessMidiMessage(0, 0x80, A3, 0);
-                    _synth.ProcessMidiMessage(0, 0x80, C4, 0);
-
-                    _synth.ProcessMidiMessage(0, 0x90, C2, 65);
-                    _synth.ProcessMidiMessage(0, 0x90, C3, 85 + rnd.Next(-5, 6));
-                    _synth.ProcessMidiMessage(0, 0x90, E3, 85 + rnd.Next(-5, 6));
-                    _synth.ProcessMidiMessage(0, 0x90, G3, 85 + rnd.Next(-5, 6));
-                    _synth.ProcessMidiMessage(0, 0x90, C4, 85 + rnd.Next(-5, 6));
-
-                    // Ring out
-                    Thread.Sleep(2500);
-
-                    // Fade out
-                    for (int vol = 100; vol >= 0; vol -= 5)
-                    {
-                        _synth.ProcessMidiMessage(0, 0xB0, 7, vol);
-                        Thread.Sleep(50);
-                    }
-
-                    // Pedal up and reset
-                    _synth.ProcessMidiMessage(0, 0xB0, 64, 0);
-                    _synth.Reset();
-                    _synth.ProcessMidiMessage(0, 0xB0, 7, 100);
+                    _synth.ProcessMidiMessage(0, 0xB0, 7, vol);
+                    await Task.Delay(50);
                 }
-            });
+
+                _synth.ProcessMidiMessage(0, 0xB0, 64, 0);
+                _synth.Reset();
+                _synth.ProcessMidiMessage(0, 0xB0, 7, 100);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Amen resolve execution failed");
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
 
         public void Dispose()
         {
             _waveOut?.Stop();
             _waveOut?.Dispose();
+            _semaphore.Dispose();
         }
 
         private class SynthSampleProvider : ISampleProvider
@@ -117,7 +122,6 @@ namespace ChurchDisplayApp.Services
 
             public int Read(float[] buffer, int offset, int count)
             {
-                // MeltySynth renders left and right separately
                 float[] left = new float[count / 2];
                 float[] right = new float[count / 2];
                 

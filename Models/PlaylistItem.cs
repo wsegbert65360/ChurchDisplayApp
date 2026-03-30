@@ -5,9 +5,9 @@ namespace ChurchDisplayApp.Models
 {
     public class PlaylistItem
     {
-        public string FullPath { get; set; }
-        public string FileName { get; set; }
-        public string Extension { get; set; }
+        public string FullPath { get; init; }
+        public string FileName { get; init; }
+        public string Extension { get; init; }
 
         public PlaylistItem(string fullPath)
         {

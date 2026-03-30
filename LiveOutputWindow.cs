@@ -16,7 +16,7 @@ namespace ChurchDisplayApp;
 /// The primary display window that projects media (video, images, text) to the target monitor.
 /// Uses LibVLC for high-performance media playback.
 /// </summary>
-public class LiveOutputWindow : Window
+public class LiveOutputWindow : Window, IDisposable
 {
     private readonly TextBlock _filenameLabel;
     private readonly VideoView _videoView;
@@ -29,6 +29,7 @@ public class LiveOutputWindow : Window
     private bool _isPlaying = false;
     private string? _currentMediaPath;
     private int _targetVolume = 100; // Stored volume to apply when VLC starts playing
+    public bool IsDisposed { get; private set; }
 
     /// <summary>Occurs when a media file finishes playing.</summary>
     public event EventHandler? MediaEnded;
@@ -41,15 +42,13 @@ public class LiveOutputWindow : Window
         if (_mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero || !_mediaPlayer.IsPlaying)
             return null;
 
+        string? tempPath = null;
         try
         {
-            // Create a temporary file path for the snapshot
-            var tempPath = Path.Combine(Path.GetTempPath(), $"vlc_snapshot_{Guid.NewGuid()}.png");
+            tempPath = Path.Combine(Path.GetTempPath(), $"vlc_snapshot_{Guid.NewGuid()}.png");
 
-            // Take snapshot using VLC's API (this is synchronous)
             if (_mediaPlayer.TakeSnapshot(0, tempPath, 0, 0))
             {
-                // Wait a brief moment or check for file with short timeout
                 int retries = 5;
                 while (retries > 0 && !File.Exists(tempPath))
                 {
@@ -59,24 +58,26 @@ public class LiveOutputWindow : Window
 
                 if (File.Exists(tempPath))
                 {
-                    // Load the image
                     var bitmap = new BitmapImage();
                     bitmap.BeginInit();
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
                     bitmap.UriSource = new Uri(tempPath);
                     bitmap.EndInit();
-                    bitmap.Freeze(); // Make it cross-thread accessible
-
-                    // Delete the temporary file
-                    try { File.Delete(tempPath); } catch { }
-
+                    bitmap.Freeze();
                     return bitmap;
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Snapshot failed, return null
+            Serilog.Log.Warning(ex, "Video snapshot failed");
+        }
+        finally
+        {
+            if (tempPath != null)
+            {
+                try { File.Delete(tempPath); } catch { }
+            }
         }
 
         return null;
@@ -206,28 +207,38 @@ public class LiveOutputWindow : Window
         // re-apply the stored volume (safe — only one VLC instance, BGM is NAudio)
         _mediaPlayer.Playing += (s, e) =>
         {
-            // Set immediately
             _mediaPlayer.Volume = _targetVolume;
             
-            // Also set after a short delay to ensure DirectSound is fully initialized
             System.Threading.Tasks.Task.Run(async () =>
             {
-                await System.Threading.Tasks.Task.Delay(150);
-                if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
-                    _mediaPlayer.Volume = _targetVolume;
+                try
+                {
+                    await System.Threading.Tasks.Task.Delay(150);
+                    if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                        _mediaPlayer.Volume = _targetVolume;
+                }
+                catch (ObjectDisposedException) { /* Window closed during delay */ }
+                catch (Exception ex) { Serilog.Log.Debug(ex, "Delayed volume set failed"); }
             });
         };
 
         Closing += (s, e) =>
         {
-            _timer?.Stop();
-            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
-            {
-                _mediaPlayer.Stop();
-                _mediaPlayer.Dispose();
-            }
-            // _libVLC.Dispose() is now handled by MainWindow
+            Dispose();
         };
+    }
+
+    public void Dispose()
+    {
+        if (IsDisposed) return;
+        IsDisposed = true;
+
+        _timer?.Stop();
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            _mediaPlayer.Stop();
+            _mediaPlayer.Dispose();
+        }
     }
 
     private void Timer_Tick(object? sender, EventArgs e)

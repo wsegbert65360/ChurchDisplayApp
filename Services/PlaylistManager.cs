@@ -75,8 +75,9 @@ public class PlaylistManager
 
             return MediaConstants.IsSupported(filePath);
         }
-        catch
+        catch (Exception ex)
         {
+            Serilog.Log.Debug(ex, "File validation failed");
             return false;
         }
     }
@@ -143,10 +144,6 @@ public class PlaylistManager
         return null;
     }
 
-    public bool IsImageFormat(string extension) => MediaConstants.ImageExtensions.Contains(extension);
-    public bool IsVideoFormat(string extension) => MediaConstants.VideoExtensions.Contains(extension);
-    public bool IsAudioFormat(string extension) => MediaConstants.AudioExtensions.Contains(extension);
-    public bool IsMediaFormat(string extension) => IsVideoFormat(extension) || IsAudioFormat(extension);
 
     private class PlaylistData
     {

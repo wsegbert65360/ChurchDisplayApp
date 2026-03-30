@@ -18,6 +18,8 @@
 - .NET 8.0 Runtime (included in self-contained build)
 - Graphics card with DirectX support
 - Speakers for audio playback
+- **Visual C++ 2015-2022 Redistributable (x64)** - Required for video playback (LibVLC)
+  Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
 
 ## First Time Setup
 1. Run the application
@@ -26,7 +28,8 @@
 4. Start adding media files to your playlist
 
 ## Portable Application
-This is a portable application - no installation required. Just run the executable from any folder.
+This is a portable application - no installation required. Just run the executable from any folder. 
+You can also use `RUN_PORTABLE.bat` to launch it with all settings in the current folder.
 
 ## Support
 For issues or questions, contact your church technical support team.

@@ -4,7 +4,6 @@ using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -33,7 +32,7 @@ public partial class MainWindow : Window, IDisplayController
     private readonly PlaylistManager _playlistManager = new();
     public PlaylistManager PlaylistManager => _playlistManager;
     private MediaControlService _mediaControlService = null!;
-    private readonly LiveOutputWindow _liveWindow;
+    private LiveOutputWindow _liveWindow = null!;
     public MainViewModel ViewModel { get; private set; } = null!;
     private readonly MonitorService _monitorService = new();
     private System.Windows.Threading.DispatcherTimer? _progressUpdateTimer;
@@ -232,8 +231,9 @@ public partial class MainWindow : Window, IDisplayController
 
                 RemoteQrImage.Source = image;
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Failed to generate QR code");
                 RemoteQrImage.Source = null;
             }
         });
@@ -293,8 +293,9 @@ public partial class MainWindow : Window, IDisplayController
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to enumerate local IP addresses");
         }
 
         return null;
@@ -348,7 +349,7 @@ public partial class MainWindow : Window, IDisplayController
                 // Stop remote control server (no .Wait() to avoid deadlock)
                 if (_remoteControlServer != null && _remoteControlServer.IsRunning)
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
                     await _remoteControlServer.StopAsync(cts.Token);
                 }
 
@@ -523,29 +524,22 @@ public partial class MainWindow : Window, IDisplayController
 
     private void RecreateLiveOutputWindow()
     {
-        // The _liveWindow is now readonly and initialized in the constructor.
-        // If it was closed, we can't recreate it this way.
-        // For now, we'll just ensure it's visible and positioned.
-        // A more robust solution might involve handling the window's closure differently
-        // or making _liveWindow not readonly.
+        _liveWindow?.Dispose();
         
-        // If the window was closed, its handle might be invalid.
-        // The current design assumes _liveWindow is always available after initial setup.
-        // For now, we'll just ensure it's visible and positioned.
-        if (_liveWindow != null)
+        _liveWindow = new LiveOutputWindow(_libVLC)
         {
-            _liveWindow.MediaEnded -= (s, e) => ViewModel.StopCommand.Execute(null); // Unsubscribe old
-            _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null); // Resubscribe
-            
-            // Update existing services with new window instead of recreating everything
-            _mediaControlService?.UpdateLiveWindow(_liveWindow);
-            
-            // Position on secondary monitor if available
-            PositionDisplayWindow();
-            
-            _liveWindow.Show();
-            _liveWindow.ShowBlank();
-        }
+            Owner = this
+        };
+        
+        _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
+        
+        // Update existing services with new window
+        _mediaControlService?.UpdateLiveWindow(_liveWindow);
+        
+        PositionDisplayWindow();
+        
+        _liveWindow.Show();
+        _liveWindow.ShowBlank();
     }
 
     private void CreatePlaylist_Click(object sender, RoutedEventArgs e)
@@ -626,80 +620,6 @@ public partial class MainWindow : Window, IDisplayController
     }
 
 
-    private System.Windows.Media.Imaging.BitmapImage? CreateVideoThumbnail(string videoPath)
-    {
-        try
-        {
-            var width = 320;
-            var height = 240;
-            var filename = System.IO.Path.GetFileNameWithoutExtension(videoPath);
-            
-            // Create a better placeholder with filename
-            var drawingVisual = new DrawingVisual();
-            using (var context = drawingVisual.RenderOpen())
-            {
-                // Draw a gradient background
-                var gradientBrush = new LinearGradientBrush();
-                gradientBrush.StartPoint = new Point(0, 0);
-                gradientBrush.EndPoint = new Point(0, 1);
-                gradientBrush.GradientStops.Add(new GradientStop(Colors.DarkBlue, 0));
-                gradientBrush.GradientStops.Add(new GradientStop(Colors.MediumBlue, 1));
-                
-                context.DrawRectangle(gradientBrush, null, new System.Windows.Rect(0, 0, width, height));
-                
-                // Draw a play icon in the center
-                var playIconGeometry = new PathGeometry();
-                var pathFigure = new PathFigure
-                {
-                    StartPoint = new Point(width * 0.4, height * 0.3)
-                };
-                pathFigure.Segments.Add(new LineSegment(new Point(width * 0.4, height * 0.7), true));
-                pathFigure.Segments.Add(new LineSegment(new Point(width * 0.7, height * 0.5), true));
-                pathFigure.Segments.Add(new LineSegment(new Point(width * 0.4, height * 0.3), true));
-                playIconGeometry.Figures.Add(pathFigure);
-                
-                context.DrawGeometry(Brushes.White, null, playIconGeometry);
-                
-                // Draw filename at the bottom
-                var formattedText = new FormattedText(
-                    filename.Length > 25 ? filename.Substring(0, 22) + "..." : filename,
-                    System.Globalization.CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight,
-                    new Typeface("Segoe UI"),
-                    12,
-                    Brushes.White,
-                    96);
-                
-                var textX = (width - formattedText.Width) / 2;
-                var textY = height - 25;
-                context.DrawText(formattedText, new Point(textX, textY));
-            }
-            
-            var renderTargetBitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-            renderTargetBitmap.Render(drawingVisual);
-            
-            var bitmapImage = new BitmapImage();
-            using (var stream = new MemoryStream())
-            {
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(renderTargetBitmap));
-                encoder.Save(stream);
-                
-                bitmapImage.BeginInit();
-                bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-                bitmapImage.StreamSource = stream;
-                bitmapImage.EndInit();
-                bitmapImage.Freeze();
-            }
-            
-            return bitmapImage;
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Thumbnail creation failed for {FilePath}", videoPath);
-            return null;
-        }
-    }
 
 
     private void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
@@ -968,7 +888,17 @@ public partial class MainWindow : Window, IDisplayController
         {
             // Brief delay to let VLC stop complete before starting Amen resolve
             await Task.Delay(150);
-            _ = _amenResolveService.ExecuteResolveAsync((float)_settings.BackgroundMusicVolume);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _amenResolveService!.ExecuteResolveAsync((float)_settings.BackgroundMusicVolume);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Amen resolve failed");
+                }
+            });
         }
     }
 
