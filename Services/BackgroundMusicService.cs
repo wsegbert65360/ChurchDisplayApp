@@ -19,7 +19,7 @@ public class BackgroundMusicService : IDisposable
     private DispatcherTimer? _pulseTimer;
     private Border? _pulseTarget;
     private bool _isAutoPaused;
-    private readonly SolidColorBrush _pulseBrush = new SolidColorBrush(Color.FromRgb(173, 216, 230));
+    private readonly SolidColorBrush _pulseBrush = new SolidColorBrush(ChurchDisplayApp.Models.AppConstants.Colors.PulseLightBlue);
 
     private WaveOutEvent? _waveOut;
     private AudioFileReader? _audioReader;

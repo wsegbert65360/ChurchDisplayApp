@@ -42,7 +42,7 @@ public partial class MainWindow : Window, IDisplayController
     private DispatcherTimer? _mediaPulseTimer;
     private double _mediaPulseOpacity = 0.3;
     private int _mediaPulseDirection = 1;
-    private readonly SolidColorBrush _mediaPulseBrush = new SolidColorBrush(Color.FromRgb(173, 216, 230));
+    private readonly SolidColorBrush _mediaPulseBrush = new SolidColorBrush(AppConstants.Colors.PulseLightBlue);
 
     public MainWindow()
     {
@@ -175,6 +175,10 @@ public partial class MainWindow : Window, IDisplayController
         if (System.IO.File.Exists(soundFontPath))
         {
             _amenResolveService = new AmenResolveService(soundFontPath);
+        }
+        else
+        {
+            Log.Warning("SoundFont file not found at {Path}. Amen resolve feature will be unavailable.", soundFontPath);
         }
     }
 

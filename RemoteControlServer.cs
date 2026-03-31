@@ -6,6 +6,7 @@ using System.IO;
 using ChurchDisplayApp.Services;
 using ChurchDisplayApp.Interfaces;
 using ChurchDisplayApp.Models;
+using Serilog;
 
 namespace ChurchDisplayApp;
 
@@ -43,8 +44,18 @@ public sealed class RemoteControlServer
 
         var app = builder.Build();
 
+        app.UseSerilogRequestLogging();
+
+        app.UseExceptionHandler("/error");
+        app.MapGet("/error", (HttpContext context) =>
+        {
+            Log.Error("Unhandled exception in remote control API");
+            return Results.Problem("An internal error occurred");
+        });
+
         app.MapGet("/", async context =>
         {
+            context.Response.Headers["Cache-Control"] = "public, max-age=3600";
             context.Response.ContentType = "text/html; charset=utf-8";
             var htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteControl", "index.html");
             if (File.Exists(htmlPath))
@@ -65,18 +76,21 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/play/{index:int}", (int index) =>
         {
+            Log.Information("Remote: Play index {Index}", index);
             dispatcher.BeginInvoke(() => controller.PlayIndex(index));
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/play", () =>
         {
+            Log.Information("Remote: Play");
             dispatcher.BeginInvoke(() => controller.Play());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/pause", () =>
         {
+            Log.Information("Remote: Pause");
             dispatcher.BeginInvoke(() => controller.Pause());
             return Results.Ok(new { ok = true });
         });
@@ -89,30 +103,35 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/stop", () =>
         {
+            Log.Information("Remote: Stop");
             dispatcher.BeginInvoke(() => controller.Stop());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/blank", () =>
         {
+            Log.Information("Remote: Blank");
             dispatcher.BeginInvoke(() => controller.Blank());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/volume/up", () =>
         {
+            Log.Information("Remote: Volume Up");
             dispatcher.BeginInvoke(() => controller.VolumeUp());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/volume/down", () =>
         {
+            Log.Information("Remote: Volume Down");
             dispatcher.BeginInvoke(() => controller.VolumeDown());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/volume/{level:double}", (double level) =>
         {
+            Log.Information("Remote: Set Volume {Level}", level);
             dispatcher.BeginInvoke(() => controller.SetVolume(level));
             return Results.Ok(new { ok = true });
         });
@@ -120,24 +139,28 @@ public sealed class RemoteControlServer
         // BGM Endpoints
         app.MapPost("/api/bgm/play/standard", () =>
         {
+            Log.Information("Remote: BGM Standard");
             dispatcher.BeginInvoke(() => controller.PlayStandardBgm());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/bgm/play/kids", () =>
         {
+            Log.Information("Remote: BGM Kids");
             dispatcher.BeginInvoke(() => controller.PlayKidsBgm());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/bgm/pause", () =>
         {
+            Log.Information("Remote: BGM Pause");
             dispatcher.BeginInvoke(() => controller.PauseBgm());
             return Results.Ok(new { ok = true });
         });
 
         app.MapPost("/api/bgm/stop", () =>
         {
+            Log.Information("Remote: BGM Stop");
             dispatcher.BeginInvoke(() => controller.StopBgm());
             return Results.Ok(new { ok = true });
         });

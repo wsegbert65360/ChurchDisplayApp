@@ -29,4 +29,9 @@ public static class AppConstants
     {
         public const int ShutdownTimeoutSeconds = 2;
     }
+
+    public static class Colors
+    {
+        public static readonly System.Windows.Media.Color PulseLightBlue = System.Windows.Media.Color.FromArgb(255, 173, 216, 230);
+    }
 }

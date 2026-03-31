@@ -206,3 +206,5 @@ project.fragment.lock.json
 StyleCopReport.xml
 
 # End of core .gitignore
+
+ChurchDisplayApp_Installer.exe

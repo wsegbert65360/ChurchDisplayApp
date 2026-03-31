@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using Serilog;
 
@@ -21,7 +21,7 @@ public partial class App : Application
         );
 
         Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
+            .MinimumLevel.Information()
             .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
             .CreateLogger();
 

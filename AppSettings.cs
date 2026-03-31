@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp;
@@ -172,18 +174,49 @@ public class AppSettings
         LastMediaDirectory ??= string.Empty;
     }
 
+    private CancellationTokenSource? _saveCts;
+    private readonly object _saveLock = new();
+
+    /// <summary>
+    /// Saves the settings to the JSON file with a debounce delay to prevent excessive disk writes.
+    /// </summary>
     public void Save()
     {
-        try
+        lock (_saveLock)
         {
-            Validate(); // Final validation before save
-            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(SettingsPath, json);
+            _saveCts?.Cancel();
+            _saveCts = new CancellationTokenSource();
+            var token = _saveCts.Token;
+
+            Task.Delay(500, token).ContinueWith(t =>
+            {
+                if (t.IsCompletedSuccessfully)
+                {
+                    SaveImmediate();
+                }
+            }, token);
         }
-        catch (Exception ex)
+    }
+
+    /// <summary>
+    /// Saves the settings immediately to the JSON file.
+    /// </summary>
+    public void SaveImmediate()
+    {
+        lock (_saveLock)
         {
-            Serilog.Log.Warning(ex, "Error saving settings");
+            try
+            {
+                Validate(); // Final validation before save
+                Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+                var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(SettingsPath, json);
+                Serilog.Log.Information("Settings saved successfully.");
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "Error saving settings");
+            }
         }
     }
 
