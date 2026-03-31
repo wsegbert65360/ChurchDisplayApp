@@ -2,65 +2,61 @@ Church Display App - Setup Information
 =====================================
 
 📦 PACKAGE CONTENTS:
-✅ ChurchDisplayApp.exe - Main application
-✅ libvlc.dll & plugins/ folder - VLC media engine
-✅ INSTALL.bat - Installation script
-✅ UNINSTALL.bat - Uninstallation script  
-✅ README_INSTALL.txt - Detailed instructions
+✅ ChurchDisplayApp-Setup.exe - Windows Installer
+✅ Documentation/ - User guides and technical info
+✅ LICENSE.txt - License details
 
 🚀 QUICK INSTALL:
-1. Extract ChurchDisplayApp_Installer.zip
-2. Right-click INSTALL.bat → "Run as administrator"
-3. Follow prompts
-4. Launch from desktop shortcut
+1. Run ChurchDisplayApp-Setup.exe
+2. Follow the on-screen installation wizard
+3. Launch from the desktop shortcut
 
 💻 SYSTEM REQUIREMENTS:
 - Windows 10/11 (64-bit)
-- .NET 8.0 Runtime (included)
-- Visual C++ Redistributable (x64) - Required for VLC
+- .NET 8.0/10.0 Runtime (packaged in installer)
+- Visual C++ Redistributable (x64) - Required for media
 - 2GB RAM minimum
 - 200MB disk space
 - Second monitor/Projector recommended
 
 🎯 INSTALLATION SIZE:
-- Application: ~138 MB
 - Total disk space: ~140 MB
 
 📍 DEFAULT INSTALL LOCATION:
 C:\Program Files\ChurchDisplayApp\
 
 🔧 TECHNICAL DETAILS:
-- Self-contained executable (no separate dependencies)
-- Multi-language support included
+- Self-contained installer
 - Automatic multi-monitor detection
+- Centralized premium design system
+- Debounced thread-safe settings persistence
 - Professional WPF application
 
 ⚡ PERFORMANCE:
 - Fast startup (< 3 seconds)
-- Low memory usage
-- Smooth video playback
-- Responsive UI
+- Optimized memory usage
+- Smooth hardware-accelerated video playback
+- Fluid, responsive UI
 
 🎨 FEATURES INCLUDED:
-✅ Background music with visual feedback
-✅ Media playback controls
-✅ Progress bar for all media
-✅ Perfect image scaling
-✅ Playlist management
-✅ Drag-and-drop support
-✅ Display toggle feature
-✅ Multi-monitor support
+✅ Background music with pulsing visual feedback
+✅ Advanced media playback with progress controls
+✅ Independent volume management
+✅ High-fidelity image scaling
+✅ Sequential playlist management
+✅ Drag-and-drop file support
+✅ Live output monitor selection
+✅ Browser-based remote control
 
 📞 VERSION INFORMATION:
-Version: 1.0
-Build Date: January 2026
+Version: 1.0.0
+Build Date: March 2026
 Platform: Windows x64
 Framework: .NET 10.0
 
 🔐 SECURITY:
-- No internet connection required
+- No internet connection required for core features
 - No user data collection
-- Runs entirely offline
 - Safe for church environments
 
 📝 LICENSE:

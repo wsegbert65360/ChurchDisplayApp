@@ -6,14 +6,10 @@ This document provides comprehensive information on installing, setting up, and 
 
 ## 🚀 Installation Instructions
 
-### Quick Install (Portable Version)
-1. **Download** the `ChurchDisplayApp` package.
-2. **Extract** all files to a folder on your computer (e.g., `C:\ChurchDisplayApp`).
-3. **Run** `ChurchDisplayApp.exe`.
-
 ### Automated Installation (Recommended)
-1. **Extract** the installation package ZIP.
-2. **Right-click** on `INSTALL.bat` and select **"Run as administrator"**.
+ChurchDisplayApp is distributed as a professional Windows Installer.
+1. **Download** `ChurchDisplayApp-Setup.exe`.
+2. **Run** the installer.
 3. Follow the on-screen prompts.
 4. The application will be installed to `C:\Program Files\ChurchDisplayApp\`, and shortcuts will be created on your Desktop and Start Menu.
 
@@ -29,39 +25,41 @@ This document provides comprehensive information on installing, setting up, and 
 
 ### Prerequisites
 1. **.NET 10.0 SDK** (or version specified in project).
-2. **Inno Setup** - Required for creating the Windows Installer (`.exe`). Download from [jrsoftware.org](https://jrsoftware.org/isdl.php).
+2. **Inno Setup 6** - Required for creating the Windows Installer (`.exe`). Download from [jrsoftware.org](https://jrsoftware.org/isdl.php).
 
 ### Build Steps
-You can build the application using the provided scripts or manually via CLI.
+The easiest way to build and deploy is using the automated sync script.
 
-#### Using Build Scripts
-Run `build-release.bat` from the project root. This script handles the build and publish process.
+#### Using Automated Sync (Recommended)
+Run **`sync-fcc.bat`** from the project root. This script:
+1. Cleans and publishes the app in Release mode.
+2. Compiles the Inno Setup installer.
+3. Automatically syncs the installer to the designated deployment folder (e.g., `D:\FCC Sync Folder`).
 
 #### Manual Build (CLI)
 ```powershell
 # Build in Release mode
 dotnet build -c Release
 
-# Publish self-contained executable (includes all .NET runtime)
+# Publish self-contained executable
 dotnet publish -c Release -r win-x64 --self-contained true
 ```
-The published files will be located at: `bin\Release\net10.0-windows\win-x64\publish\`
+The published files (used by the installer) will be at: `bin\Publish\win-x64\`
 
 ---
 
-## 📦 Creating the Windows Installer
+## 📦 Windows Installer Details
 
 ChurchDisplayApp uses Inno Setup to create a professional single-file installer.
 
-1. **Open Inno Setup**.
-2. **Open** the script file: `ChurchDisplayApp.iss` located in the project root.
-3. Click **"Build" → "Compile"**.
-4. The installer will be created at: `bin\Installer\ChurchDisplayApp-1.0.0-Setup.exe`.
+1. **Configuration**: The installer logic is defined in `ChurchDisplayApp.iss`.
+2. **Compilation**: The `sync-fcc.bat` script calls `ISCC.exe` to compile the installer.
+3. **Output**: The installer is generated at `bin\Installer\ChurchDisplayApp-1.0.0-Setup.exe`.
 
 ### Installer Features
 - **Self-Contained**: Includes all necessary .NET runtimes and codecs.
 - **Shortcut Creation**: Automatically creates Desktop and Start Menu shortcuts.
-- **Uninstaller Support**: Includes a clean uninstaller accessible via `UNINSTALL.bat` or Windows Settings.
+- **Uninstaller Support**: Includes a clean uninstaller accessible via Windows Settings.
 - **Admin Required**: Installs to `Program Files` for all users.
 
 ---
@@ -74,6 +72,7 @@ ChurchDisplayApp uses Inno Setup to create a professional single-file installer.
 - ✅ **Background Music**: Pulsing visual feedback and dedicated controls.
 - ✅ **Playlist Management**: Drag-and-drop support for organizing service elements.
 - ✅ **Remote Control**: Web-based remote control for operation from mobile devices.
+- ✅ **Hardened Persistence**: Debounced, thread-safe settings preservation.
 
 ### Basic Usage
 - **Add Media**: Use the "Add Files" button or drag-and-drop files into the playlist.
@@ -84,10 +83,7 @@ ChurchDisplayApp uses Inno Setup to create a professional single-file installer.
 ---
 
 ## 🗑️ Uninstallation
-To remove the application:
-1. **Right-click** on `UNINSTALL.bat` in the installation folder.
-2. Select **"Run as administrator"**.
-3. Follow the prompts to remove all shortcuts and application files.
+To remove the application, use the standard Windows **"Add or Remove Programs"** interface or run the uninstaller created in the installation directory.
 
 ---
 

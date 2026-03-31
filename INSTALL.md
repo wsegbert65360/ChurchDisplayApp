@@ -1,35 +1,35 @@
 # Church Display App - Installation Instructions
 
-## Quick Install
+## Quick Install (Recommended)
 
-1. **Download** the `ChurchDisplayApp.exe` and all `.dll` files from the publish folder
-2. **Create** a new folder on your computer (e.g., `C:\ChurchDisplayApp`)
-3. **Copy** all files to that folder
-4. **Run** `ChurchDisplayApp.exe`
-
-## Files Needed
-- `ChurchDisplayApp.exe` (main application)
-- `libvlc/` folder (VLC media engine)
-- All `.dll` files (required dependencies)
+1. **Download** the `ChurchDisplayApp-Setup.exe` installer.
+2. **Run** the installer.
+3. **Follow** the on-screen wizard to complete the installation.
+4. **Launch** the application from your Desktop or Start Menu.
 
 ## System Requirements
-- Windows 10 or Windows 11 (64-bit)
-- Visual C++ 2015-2022 Redistributable (x64) - **Required for video**
-- .NET 8.0 Runtime (included in self-contained build)
-- Graphics card with DirectX support
-- Speakers for audio playback
-- **Visual C++ 2015-2022 Redistributable (x64)** - Required for video playback (LibVLC)
-  Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
+
+- **OS**: Windows 10 or Windows 11 (64-bit)
+- **Runtime**: .NET 8.0/10.0 Runtime (packaged in the installer)
+- **Media Support**: Visual C++ 2015-2022 Redistributable (x64) - **Required for video playback**
+  Download: [aka.ms/vs/17/release/vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+- **Hardware**: Graphics card with DirectX support, second monitor or projector recommended.
 
 ## First Time Setup
-1. Run the application
-2. Select background music when prompted
-3. Configure your display (projector/monitor)
-4. Start adding media files to your playlist
 
-## Portable Application
-This is a portable application - no installation required. Just run the executable from any folder. 
-You can also use `RUN_PORTABLE.bat` to launch it with all settings in the current folder.
+1. **Launch** the application.
+2. **Select Background Music**: When prompted, choose the folder containing your church's background music.
+3. **Configure Display**: Go to Settings to select which monitor/projector should be used for the live output.
+4. **Add Media**: Use the "Add Files" button or drag-and-drop media onto the playlist.
+5. **Go Live**: Double-click an item in the playlist to start the projection.
+
+## Building from Source (Developers)
+
+If you are a developer and want to build the installer yourself:
+1. Ensure **Inno Setup 6** is installed on your Windows machine.
+2. Open the solution in **Visual Studio 2022**.
+3. Run **`sync-fcc.bat`** from the command line. This script will build the release, generate the installer, and copy it to the deployment folder.
 
 ## Support
-For issues or questions, contact your church technical support team.
+
+For technical assistance, please refer to the [DOCS.md](DOCS.md) file or contact your church's IT support team.
