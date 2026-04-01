@@ -113,10 +113,15 @@ This script does the following automatically:
 5. Outputs the installer to `bin\Installer\ChurchDisplayApp-1.0.0-Setup.exe`
 
 If `build-release.bat` cannot find Inno Setup at the expected path, run
-the compiler manually:
+the compiler manually. **Important:** Use `cmd /c` or run from a CMD prompt.
+PowerShell path-parsing can cause errors with the space in "Program Files (x86)".
 
 ```cmd
+rem From CMD (recommended):
 "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ChurchDisplayApp.iss
+
+rem From PowerShell:
+cmd /c "\"C:\Program Files (x86)\Inno Setup 6\ISCC.exe\" ChurchDisplayApp.iss"
 ```
 
 ### Step 4: Test the installer
@@ -200,6 +205,8 @@ operation on the target machine.
 |---------|---------|
 | `dotnet` command not found | Install .NET 10.0 SDK from https://dotnet.microsoft.com |
 | ISCC not found by build script | Verify Inno Setup 6 is installed at `C:\Program Files (x86)\Inno Setup 6\` |
+| ISCC path fails in PowerShell | Use `cmd /c` to invoke ISCC, or run from a CMD prompt. PowerShell path-parsing errors occur with spaces in `Program Files (x86)`. |
+| `copy /Y` fails in PowerShell | `copy` is an alias for `Copy-Item` in PowerShell, which does not support the CMD `/Y` flag. Use `Copy-Item -Path ... -Destination ... -Force` instead. |
 | Port 80 fails at runtime | Run the app as Administrator, or the app will fall back to port 8088 automatically |
 | Remote control not reachable | Run app as Administrator on first launch to add firewall rule |
 | Installer sources not found | Ensure you published with `-o bin\Publish\win-x64` before running ISCC |
