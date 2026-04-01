@@ -187,25 +187,94 @@ public partial class MainWindow : Window, IDisplayController
     {
         // Prefer port 80 so you can type only http://PC-IP/ on your phone.
         // If port 80 fails (requires admin / may be in use), fall back to 8088.
+        int successfulPort = 0;
+
         try
         {
             await _remoteControlServer.StartAsync(Dispatcher, this, RemoteControlPortPreferred);
-            UpdateRemoteQrCode(RemoteControlPortPreferred);
-            return;
+            successfulPort = RemoteControlPortPreferred;
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Failed to start remote control server on preferred port {Port}", RemoteControlPortPreferred);
         }
 
+        if (successfulPort == 0)
+        {
+            try
+            {
+                await _remoteControlServer.StartAsync(Dispatcher, this, RemoteControlPortFallback);
+                successfulPort = RemoteControlPortFallback;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to start remote control server on fallback port {Port}. Remote control will be unavailable.", RemoteControlPortFallback);
+            }
+        }
+
+        if (successfulPort > 0)
+        {
+            AddFirewallRule(successfulPort);
+            UpdateRemoteQrCode(successfulPort);
+            Log.Information("Remote control server running on port {Port}", successfulPort);
+        }
+        else
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                RemoteUrlText.Text = "Remote control unavailable";
+                RemoteQrImage.Source = null;
+            });
+            Log.Error("Remote control server failed to start on any port");
+        }
+    }
+
+    private static void AddFirewallRule(int port)
+    {
         try
         {
-            await _remoteControlServer.StartAsync(Dispatcher, this, RemoteControlPortFallback);
-            UpdateRemoteQrCode(RemoteControlPortFallback);
+            var ruleName = "ChurchDisplayApp Remote Control";
+            // Check if rule already exists
+            var checkProc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = $"advfirewall firewall show rule name=\"{ruleName}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            checkProc?.WaitForExit(3000);
+            var output = checkProc?.StandardOutput.ReadToEnd() ?? "";
+
+            if (output.Contains(ruleName))
+            {
+                Log.Information("Firewall rule '{RuleName}' already exists", ruleName);
+                return;
+            }
+
+            // Add inbound rule allowing TCP on the specified port
+            var addProc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = $"advfirewall firewall add rule name=\"{ruleName}\" dir=in action=allow protocol=TCP localport={port} profile=any",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            addProc?.WaitForExit(5000);
+            var addOutput = addProc?.StandardOutput.ReadToEnd() ?? "";
+            var addError = addProc?.StandardError.ReadToEnd() ?? "";
+
+            if (addProc?.ExitCode == 0)
+                Log.Information("Firewall rule added for port {Port}", port);
+            else
+                Log.Warning("Could not add firewall rule (may need admin): {Output} {Error}", addOutput, addError);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to start remote control server on fallback port {Port}. Remote control will be unavailable.", RemoteControlPortFallback);
+            Log.Warning(ex, "Failed to configure firewall rule");
         }
     }
 
