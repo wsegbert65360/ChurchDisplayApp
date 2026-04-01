@@ -19,8 +19,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "bin\Release\net8.0-windows\win-x64\publish\ChurchDisplayApp.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "bin\Release\net8.0-windows\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "bin\Release\net10.0-windows\win-x64\publish\ChurchDisplayApp.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "bin\Release\net10.0-windows\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

@@ -96,6 +96,9 @@ When `LiveOutputWindow` is recreated (e.g., after being closed), the saved volum
 
 ## 📦 Deployment & Maintenance
 
+See [BUILD-INSTALLER.md](BUILD-INSTALLER.md) for complete step-by-step build
+and install instructions written for an AI code agent.
+
 ### Build Pipeline (`sync-fcc.bat`)
 A professional automation script that:
 1. Performs a **Self-Contained** publish (no external .NET needed on target).
@@ -106,6 +109,7 @@ A professional automation script that:
 - Standard Windows Installer focusing on `Program Files` installation.
 - Clean uninstallation process.
 - Desktop and Start Menu shortcut management.
+- Sources from `bin\Publish\win-x64\` (matched to `build-release.bat` output).
 
 ---
 *Last Updated: April 2, 2026*
