@@ -171,7 +171,7 @@ public class LiveOutputWindow : Window, IDisposable
         // Progress bar
         _progressBar = new ProgressBar
         {
-            Height = 5,
+            Height = 7,
             Foreground = new SolidColorBrush(AppConstants.Colors.PulseLightBlue),
             Background = Brushes.DarkGray,
             Visibility = Visibility.Collapsed
