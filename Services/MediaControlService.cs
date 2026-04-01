@@ -33,6 +33,15 @@ public class MediaControlService
     }
 
     /// <summary>
+    /// Notifies the service that BGM was auto-paused externally (e.g., by the ViewModel
+    /// resume shortcut). Sets the flag so BGM will auto-resume when media stops.
+    /// </summary>
+    public void NotifyBgmAutoPaused()
+    {
+        _mainMediaAutoPausedBgm = true;
+    }
+
+    /// <summary>
     /// Plays the specified media file on the live output window.
     /// Automatically pauses background music if enabled.
     /// </summary>

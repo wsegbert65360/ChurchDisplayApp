@@ -173,6 +173,13 @@ public class MainViewModel : BaseViewModel
             // If already loaded and just paused, simply resume
             if (SelectedItem.FullPath == _currentlyLoadedPath && !IsPlaying)
             {
+                // Auto-pause BGM before resuming to prevent audio overlap
+                if (_backgroundMusicService != null && _backgroundMusicService.IsPlaying)
+                {
+                    _backgroundMusicService.AutoPause();
+                    _mediaControlService.NotifyBgmAutoPaused();
+                }
+
                 _mediaControlService.Play();
                 IsPlaying = true;
                 return;
