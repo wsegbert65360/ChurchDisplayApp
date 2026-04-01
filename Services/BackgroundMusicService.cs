@@ -10,8 +10,9 @@ namespace ChurchDisplayApp.Services;
 
 /// <summary>
 /// Manages background music playback using NAudio for independent audio control.
-/// Uses NAudio instead of LibVLC to avoid Windows per-process audio session
-/// volume sharing with the main media player (which uses LibVLC).
+/// Uses NAudio with WASAPI (WasapiOut) to ensure a fully independent
+/// Windows audio session from the main media player (LibVLC), preventing
+/// volume contamination when switching between players.
 /// </summary>
 public class BackgroundMusicService : IDisposable
 {
@@ -21,7 +22,7 @@ public class BackgroundMusicService : IDisposable
     private bool _isAutoPaused;
     private readonly SolidColorBrush _pulseBrush = new SolidColorBrush(ChurchDisplayApp.Models.AppConstants.Colors.PulseLightBlue);
 
-    private WaveOutEvent? _waveOut;
+    private WasapiOut? _waveOut;
     private AudioFileReader? _audioReader;
     public string? LoadedPath { get; private set; }
     private float _volume;
@@ -53,7 +54,7 @@ public class BackgroundMusicService : IDisposable
             _audioReader = new AudioFileReader(path);
             _audioReader.Volume = _volume;
 
-            _waveOut = new WaveOutEvent();
+            _waveOut = new WasapiOut();
             _waveOut.Init(_audioReader);
 
             // Setup looping: when playback stops naturally (end of file), restart

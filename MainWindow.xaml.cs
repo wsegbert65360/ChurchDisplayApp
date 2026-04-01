@@ -62,7 +62,7 @@ public partial class MainWindow : Window, IDisplayController
             "--no-osd", 
             "--no-video-title-show", 
             "--no-snapshot-preview",
-            "--aout=directsound"
+            "--aout=wasapi"
         };
         _libVLC = new LibVLC(vlcOptions);
         _backgroundMusicService = new BackgroundMusicService(_settings);
@@ -539,6 +539,8 @@ public partial class MainWindow : Window, IDisplayController
         
         // Update existing services with new window
         _mediaControlService?.UpdateLiveWindow(_liveWindow);
+        // Restore saved volume to the new window
+        _mediaControlService?.SetVolume(ViewModel.Volume);
         
         PositionDisplayWindow();
         

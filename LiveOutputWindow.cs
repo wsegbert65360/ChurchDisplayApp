@@ -29,6 +29,7 @@ public class LiveOutputWindow : Window, IDisposable
     private bool _isPlaying = false;
     private string? _currentMediaPath;
     private int _targetVolume = 100; // Stored volume to apply when VLC starts playing
+    private Media? _currentMedia; // Track current media for proper disposal
     public bool IsDisposed { get; private set; }
 
     /// <summary>Occurs when a media file finishes playing.</summary>
@@ -239,6 +240,8 @@ public class LiveOutputWindow : Window, IDisposable
             _mediaPlayer.Stop();
             _mediaPlayer.Dispose();
         }
+        _currentMedia?.Dispose();
+        _currentMedia = null;
     }
 
     private void Timer_Tick(object? sender, EventArgs e)
@@ -309,8 +312,9 @@ public class LiveOutputWindow : Window, IDisposable
         _progressBar.Visibility = Visibility.Visible;
         _progressBar.Value = 0;
 
-        var media = new Media(_libVLC, videoPath, FromType.FromPath);
-        _mediaPlayer.Play(media);
+        _currentMedia?.Dispose();
+        _currentMedia = new Media(_libVLC, videoPath, FromType.FromPath);
+        _mediaPlayer.Play(_currentMedia);
         _isPlaying = true;
         _timer.Start();
     }

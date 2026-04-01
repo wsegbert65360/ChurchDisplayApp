@@ -184,8 +184,9 @@ public class MainViewModel : BaseViewModel
                 return;
             }
 
-            _backgroundMusicService?.Stop();
             _backgroundMusicService?.StopPulseAnimation();
+            // Note: BGM auto-pause is handled inside PlayMedia() via MediaControlService,
+            // so we don't fully stop BGM here — it gets AutoPaused to allow AutoResume later.
 
             _mediaControlService.PlayMedia(SelectedItem.FullPath);
             _currentlyLoadedPath = SelectedItem.FullPath;
