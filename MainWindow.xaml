@@ -266,6 +266,9 @@
                                         Margin="0,0,0,2" Height="22" FontSize="8" Padding="2,0" />
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding BlankCommand}" Content="BLANK" Margin="0,0,2,0" Height="22" FontSize="8" Padding="2,0" />
                                 <Button Style="{StaticResource PrimaryButtonStyle}" Click="ToggleDisplay_Click" Content="DISPLAY" Grid.ColumnSpan="2" Height="22" FontSize="8" Padding="2,0" />
+                                <Button Style="{StaticResource ModernButtonStyle}" Click="ClosePlaylist_Click" Content="CLOSE PLAYLIST" 
+                                        ToolTip="Close Current Playlist"
+                                        Grid.ColumnSpan="3" Height="22" FontSize="8" Padding="2,0" Margin="0,2,0,0" />
                             </UniformGrid>
                         </StackPanel>
                     </Border>

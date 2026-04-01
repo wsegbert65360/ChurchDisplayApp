@@ -791,6 +791,79 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
+    private void ClosePlaylist_Click(object sender, RoutedEventArgs e)
+    {
+        // If playlist is empty or has no unsaved changes, just clear and stop
+        if (_playlistManager.Items.Count == 0)
+        {
+            ViewModel.StopCommand.Execute(null);
+            return;
+        }
+
+        if (!_playlistManager.IsDirty)
+        {
+            // No unsaved changes — just stop media and clear
+            ViewModel.StopCommand.Execute(null);
+            _playlistManager.Clear();
+            PlaylistListBox.SelectedIndex = -1;
+            return;
+        }
+
+        // Playlist has unsaved changes — ask the user what they want to do
+        var result = MessageBox.Show(
+            "The current playlist has unsaved changes.\n\nWould you like to save before closing?",
+            "Save Playlist?",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Cancel)
+        {
+            // User changed their mind — do nothing
+            return;
+        }
+
+        if (result == MessageBoxResult.Yes)
+        {
+            // User wants to save first
+            var dlg = new SaveFileDialog
+            {
+                Filter = MediaConstants.GetPlaylistFilter(),
+                DefaultExt = ".pls",
+                Title = "Save Playlist Before Closing"
+            };
+
+            var startDir = _settings.LastPlaylistSaveDirectory ?? _settings.LastMediaDirectory;
+            if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
+                dlg.InitialDirectory = startDir;
+
+            if (dlg.ShowDialog() == true)
+            {
+                try
+                {
+                    _playlistManager.SavePlaylist(dlg.FileName);
+                    _settings.LastPlaylistSaveDirectory = Path.GetDirectoryName(dlg.FileName);
+                    _settings.Save();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error saving playlist: {ex.Message}", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+            else
+            {
+                // User cancelled the save dialog — abort the close
+                return;
+            }
+        }
+
+        // result == No, or save succeeded — stop media and clear
+        ViewModel.StopCommand.Execute(null);
+        _playlistManager.Clear();
+        PlaylistListBox.SelectedIndex = -1;
+    }
+
     private void SelectStandardMusic_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog

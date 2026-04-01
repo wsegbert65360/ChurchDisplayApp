@@ -7,15 +7,43 @@ namespace ChurchDisplayApp.Services;
 
 /// <summary>
 /// Manages playlist operations including add, remove, save, and load functionality.
+/// Tracks unsaved changes so the UI can prompt before closing or discarding.
 /// </summary>
 public class PlaylistManager
 {
 
     public ObservableCollection<PlaylistItem> Items { get; } = new();
 
+    private bool _isDirty;
+    /// <summary>
+    /// Gets whether the playlist has unsaved changes since the last save/load.
+    /// </summary>
+    public bool IsDirty
+    {
+        get => _isDirty;
+        private set
+        {
+            if (_isDirty != value)
+            {
+                _isDirty = value;
+                IsDirtyChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Raised when the IsDirty state changes.
+    /// </summary>
+    public event EventHandler? IsDirtyChanged;
+
     /// <summary>
     /// Adds multiple files to the playlist.
     /// </summary>
+    public PlaylistManager()
+    {
+        Items.CollectionChanged += (_, _) => IsDirty = true;
+    }
+
     public void AddFiles(string[] filePaths)
     {
         if (filePaths == null || filePaths.Length == 0)
@@ -53,11 +81,12 @@ public class PlaylistManager
     }
 
     /// <summary>
-    /// Clears all items from the playlist.
+    /// Clears all items from the playlist and resets the dirty flag.
     /// </summary>
     public void Clear()
     {
         Items.Clear();
+        IsDirty = false;
     }
 
     /// <summary>
@@ -96,6 +125,7 @@ public class PlaylistManager
 
             var json = JsonSerializer.Serialize(playlistData, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(filePath, json);
+            IsDirty = false;
         }
         catch (Exception ex)
         {
@@ -127,6 +157,7 @@ public class PlaylistManager
                     Items.Add(new PlaylistItem(itemPath));
                 }
             }
+            IsDirty = false;
         }
         catch (Exception ex)
         {
