@@ -171,11 +171,15 @@ public class BackgroundMusicService : IDisposable
         _shouldLoop = false;
         try
         {
-            _waveOut.Pause();
+            // Stop (not Pause) to eliminate the race with OnPlaybackStopped.
+            // OnPlaybackStopped runs on a background NAudio thread and may have
+            // already queued a Play() before we paused — Stop() guarantees the
+            // waveout is fully stopped regardless.
+            _waveOut.Stop();
         }
         catch
         {
-            // Pause may throw if WasapiOut is in a transitional state
+            // Stop may throw if WasapiOut is in a transitional state
         }
         _isAutoPaused = true;
     }
