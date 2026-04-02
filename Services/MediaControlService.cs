@@ -53,8 +53,10 @@ public class MediaControlService
         if (!File.Exists(filePath))
             throw new FileNotFoundException("Media file not found", filePath);
 
-        // Auto-pause background music when playing media
-        if (_bgmService != null && _bgmService.IsPlaying)
+        // Auto-pause background music when playing media.
+        // Use HasActiveSession (not IsPlaying) because WasapiOut PlaybackState
+        // may not have transitioned to Playing yet after a recent Play() call.
+        if (_bgmService != null && _bgmService.HasActiveSession)
         {
             _bgmService.AutoPause();
             _mainMediaAutoPausedBgm = true;

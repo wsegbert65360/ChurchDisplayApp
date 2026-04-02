@@ -30,6 +30,13 @@ public class BackgroundMusicService : IDisposable
 
     public bool IsPlaying => _waveOut?.PlaybackState == PlaybackState.Playing;
 
+    /// <summary>
+    /// Gets whether BGM has an initialized audio session. This is broader than
+    /// IsPlaying because it returns true even during the brief moment after Play()
+    /// is called but before PlaybackState transitions to Playing.
+    /// </summary>
+    public bool HasActiveSession => _waveOut != null;
+
     public bool IsAutoPaused => _isAutoPaused;
     public bool CanPlay => _waveOut != null || LoadedPath != null;
 
@@ -159,12 +166,18 @@ public class BackgroundMusicService : IDisposable
 
     public void AutoPause()
     {
-        if (IsPlaying)
+        if (_waveOut == null) return;
+
+        _shouldLoop = false;
+        try
         {
-            _shouldLoop = false;
-            _waveOut?.Pause();
-            _isAutoPaused = true;
+            _waveOut.Pause();
         }
+        catch
+        {
+            // Pause may throw if WasapiOut is in a transitional state
+        }
+        _isAutoPaused = true;
     }
 
     public void AutoStop()

@@ -174,7 +174,7 @@ public class MainViewModel : BaseViewModel
             if (SelectedItem.FullPath == _currentlyLoadedPath && !IsPlaying)
             {
                 // Auto-pause BGM before resuming to prevent audio overlap
-                if (_backgroundMusicService != null && _backgroundMusicService.IsPlaying)
+                if (_backgroundMusicService != null && _backgroundMusicService.HasActiveSession)
                 {
                     _backgroundMusicService.AutoPause();
                     _mediaControlService.NotifyBgmAutoPaused();
