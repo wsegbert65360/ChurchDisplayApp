@@ -1011,8 +1011,15 @@ public partial class MainWindow : Window, IDisplayController
             return;
         }
 
-        // Stop any active media playback to avoid overlapping audio
-        ViewModel.StopCommand.Execute(null);
+        // Stop any active media playback to avoid overlapping audio.
+        // Use StopMediaOnly() to avoid triggering BGM auto-resume —
+        // we are about to start new BGM immediately.
+        _mediaControlService?.StopMediaOnly();
+        if (ViewModel.IsPlaying)
+        {
+            ViewModel.CurrentMediaTitle = "Idle";
+            ViewModel.IsPlaying = false;
+        }
 
         _backgroundMusicService.StopPulseAnimation();
         _backgroundMusicService.Load(path);

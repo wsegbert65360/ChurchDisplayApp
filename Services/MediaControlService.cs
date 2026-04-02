@@ -91,6 +91,18 @@ public class MediaControlService
     }
 
     /// <summary>
+    /// Stops the current media without resuming background music.
+    /// Use this when you are about to start new BGM immediately after.
+    /// </summary>
+    public void StopMediaOnly()
+    {
+        _liveWindow.Stop();
+        // Intentionally do NOT auto-resume BGM here — the caller handles it.
+        _mainMediaAutoPausedBgm = false;
+        MediaStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
     /// Stops the current media and clears the display.
     /// Resumes background music if it was auto-paused.
     /// </summary>
