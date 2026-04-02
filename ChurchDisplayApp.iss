@@ -1,6 +1,6 @@
 [Setup]
 AppName=Church Display App
-AppVersion=1.0.0
+AppVersion=1.2
 AppPublisher=Church Media Ministry
 AppPublisherURL=https://
 AppSupportURL=https://
@@ -11,7 +11,7 @@ DefaultGroupName=Church Display App
 AllowNoIcons=no
 LicenseFile=.\LICENSE.txt
 OutputDir=.\bin\Installer
-OutputBaseFilename=ChurchDisplayApp-1.0.0-Setup
+OutputBaseFilename=ChurchDisplayApp-1.2-Setup
 Compression=lzma
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
@@ -34,7 +34,16 @@ Name: "{commonprograms}\Church Display App\Church Display App"; Filename: "{app}
 Name: "{commondesktop}\Church Display App"; Filename: "{app}\ChurchDisplayApp.exe"
 
 [Run]
+; Create firewall rules during install (installer is elevated)
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ChurchDisplayApp Remote"" dir=in action=allow protocol=TCP localport=80 profile=any"; Flags: runhidden ignoreerrors;
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ChurchDisplayApp Remote Fallback"" dir=in action=allow protocol=TCP localport=8088 profile=any"; Flags: runhidden ignoreerrors;
+; Launch app after install
 Filename: "{app}\ChurchDisplayApp.exe"; Description: "{cm:LaunchProgram,Church Display App}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Clean up firewall rules when uninstalling
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ChurchDisplayApp Remote"""; Flags: runhidden ignoreerrors; RunOnceId: "UninstallFirewall1"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ChurchDisplayApp Remote Fallback"""; Flags: runhidden ignoreerrors; RunOnceId: "UninstallFirewall2"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

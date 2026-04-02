@@ -62,8 +62,10 @@ Or simply double-click `ChurchDisplayApp.exe` in File Explorer.
 ### Notes for Direct Run
 
 - **No admin required** to run the app itself.
-- **Run as Administrator** is recommended on first launch so the app can
-  automatically add a Windows Firewall rule for the remote control feature.
+- **Firewall note**: When running directly (not installed), the app cannot
+  create firewall rules automatically. You must manually add a Windows
+  Firewall inbound rule for TCP port 80 (and optionally 8088), or run
+  the app as Administrator once to create them.
 - Settings are stored in `%APPDATA%\ChurchDisplayApp\settings.json`.
 - Logs are stored in `%APPDATA%\ChurchDisplayApp\logs\`.
 - The publish folder can be copied to any Windows 10/11 x64 machine and
@@ -133,10 +135,14 @@ bin\Installer\ChurchDisplayApp-1.0.0-Setup.exe
 ```
 
 The installer will:
-- Install to `C:\Program Files\ChurchDisplayApp\`
+- Show a Windows UAC prompt (admin elevation) to request permission
+- Install to `C:\Program Files\Church Display App\`
+- Create Windows Firewall inbound rules for TCP ports 80 and 8088
 - Create a Start Menu entry under "Church Display App"
 - Optionally create a Desktop shortcut
 - Add an uninstaller entry in Windows "Add or Remove Programs"
+
+On uninstall, the firewall rules are automatically removed.
 
 ### Alternative: Full Build + Sync Script
 
@@ -160,7 +166,7 @@ primary one):
 | File | Purpose |
 |------|---------|
 | `ChurchDisplayApp.iss` | Primary installer. Sources from `bin\Publish\win-x64\`. Outputs to `bin\Installer\`. Includes license, admin requirement, x64 enforcement. |
-| `installer.iss` | Secondary/simpler installer. Sources from `bin\Release\net10.0-windows\win-x64\publish\`. Outputs to current directory. |
+| `installer.iss` | Secondary/simpler installer. Sources from `bin\Release\net10.0-windows\win-x64\publish\`. Outputs to current directory. Creates firewall rules during install. |
 
 To customize the installer, edit the `[Setup]` section of `ChurchDisplayApp.iss`:
 
@@ -207,7 +213,8 @@ operation on the target machine.
 | ISCC not found by build script | Verify Inno Setup 6 is installed at `C:\Program Files (x86)\Inno Setup 6\` |
 | ISCC path fails in PowerShell | Use `cmd /c` to invoke ISCC, or run from a CMD prompt. PowerShell path-parsing errors occur with spaces in `Program Files (x86)`. |
 | `copy /Y` fails in PowerShell | `copy` is an alias for `Copy-Item` in PowerShell, which does not support the CMD `/Y` flag. Use `Copy-Item -Path ... -Destination ... -Force` instead. |
-| Port 80 fails at runtime | Run the app as Administrator, or the app will fall back to port 8088 automatically |
-| Remote control not reachable | Run app as Administrator on first launch to add firewall rule |
+| Port 80 fails at runtime | The app will fall back to port 8088 automatically. No admin needed. |
+| Remote control not reachable (installed version) | Reinstall the app — the installer creates firewall rules via UAC elevation. |
+| Remote control not reachable (direct run) | Run the app as Administrator once to create firewall rules, or add them manually in Windows Firewall. |
 | Installer sources not found | Ensure you published with `-o bin\Publish\win-x64` before running ISCC |
 | VLC media not playing | Verify VLC redistributable files are in the publish folder |

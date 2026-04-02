@@ -214,7 +214,7 @@ public partial class MainWindow : Window, IDisplayController
 
         if (successfulPort > 0)
         {
-            AddFirewallRule(successfulPort);
+            VerifyFirewallRule(successfulPort);
             UpdateRemoteQrCode(successfulPort);
             Log.Information("Remote control server running on port {Port}", successfulPort);
         }
@@ -229,52 +229,52 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private static void AddFirewallRule(int port)
+    /// <summary>
+    /// Verifies that the Windows Firewall rule for the remote control port exists.
+    /// The rule is normally created by the installer (which runs elevated).
+    /// If the rule is missing, we log a warning — the app should not need admin rights at runtime.
+    /// </summary>
+    private static void VerifyFirewallRule(int port)
     {
         try
         {
-            var ruleName = "ChurchDisplayApp Remote Control";
-            // Check if rule already exists
-            var checkProc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "netsh",
-                Arguments = $"advfirewall firewall show rule name=\"{ruleName}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            });
-            checkProc?.WaitForExit(3000);
-            var output = checkProc?.StandardOutput.ReadToEnd() ?? "";
+            // Check for either the preferred or fallback rule name
+            var ruleNames = new[] { "ChurchDisplayApp Remote", "ChurchDisplayApp Remote Fallback" };
+            bool found = false;
 
-            if (output.Contains(ruleName))
+            foreach (var ruleName in ruleNames)
             {
-                Log.Information("Firewall rule '{RuleName}' already exists", ruleName);
-                return;
+                var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall show rule name=\"{ruleName}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                proc?.WaitForExit(3000);
+                var output = proc?.StandardOutput.ReadToEnd() ?? "";
+
+                if (output.Contains(ruleName))
+                {
+                    found = true;
+                    Log.Information("Firewall rule '{RuleName}' found — remote control accessible on port {Port}", ruleName, port);
+                    break;
+                }
             }
 
-            // Add inbound rule allowing TCP on the specified port
-            var addProc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            if (!found)
             {
-                FileName = "netsh",
-                Arguments = $"advfirewall firewall add rule name=\"{ruleName}\" dir=in action=allow protocol=TCP localport={port} profile=any",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            });
-            addProc?.WaitForExit(5000);
-            var addOutput = addProc?.StandardOutput.ReadToEnd() ?? "";
-            var addError = addProc?.StandardError.ReadToEnd() ?? "";
-
-            if (addProc?.ExitCode == 0)
-                Log.Information("Firewall rule added for port {Port}", port);
-            else
-                Log.Warning("Could not add firewall rule (may need admin): {Output} {Error}", addOutput, addError);
+                Log.Warning("No firewall rule found for remote control port {Port}. " +
+                    "The rule is normally created during installation. " +
+                    "Users on other devices may not be able to connect. " +
+                    "Reinstall the app or manually create a firewall rule for TCP port {Port}.", port);
+            }
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to configure firewall rule");
+            Log.Warning(ex, "Could not verify firewall rule for port {Port}", port);
         }
     }
 
