@@ -205,7 +205,7 @@ public class LiveOutputWindow : Window, IDisposable
         };
 
         // When VLC starts playing and audio output is ready,
-        // re-apply the stored volume (safe — only one VLC instance, BGM is NAudio)
+        // re-apply the stored volume for reliable audio initialization
         _mediaPlayer.Playing += (s, e) =>
         {
             _mediaPlayer.Volume = _targetVolume;

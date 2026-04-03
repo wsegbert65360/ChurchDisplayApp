@@ -6,7 +6,6 @@ namespace ChurchDisplayApp.Services;
 
 /// <summary>
 /// Manages media playback control for the main media player.
-/// BGM (Background Music) features have been removed as part of the refactor.
 /// </summary>
 public class MediaControlService
 {

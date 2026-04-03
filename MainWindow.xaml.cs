@@ -88,7 +88,7 @@ public partial class MainWindow : Window, IDisplayController
         // Subscribe to MediaEnded event to stop media state
         _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
 
-        // Initialize media control service and ViewModel (no BackgroundMusicService)
+        // Initialize media control service and ViewModel
         _mediaControlService = new MediaControlService(_liveWindow, _settings);
         _mediaControlService.MediaStateChanged += (s, e) => {
             if (_mediaControlService.IsPlaying()) StartMediaPulseAnimation();

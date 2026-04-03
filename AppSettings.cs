@@ -26,27 +26,6 @@ public class AppSettings
     /// </summary>
     public string? LastPlaylistSaveDirectory { get; set; }
 
-    // --- Obsolete BGM settings kept for backward-compatible deserialization ---
-    // These are no longer used at runtime but are preserved so that loading
-    // an existing settings.json does not throw or lose data.
-    #pragma warning disable CS0618 // Suppress obsolete warnings internally
-    /// <summary>Obsolete: Background music file path. Kept for deserialization compatibility.</summary>
-    [Obsolete("Background music feature has been removed.")]
-    public string? BackgroundMusicPath { get; set; }
-
-    /// <summary>Obsolete: Children's sermon music path. Kept for deserialization compatibility.</summary>
-    [Obsolete("Background music feature has been removed.")]
-    public string? BackgroundMusicChildSermonPath { get; set; }
-
-    /// <summary>Obsolete: Background music volume. Kept for deserialization compatibility.</summary>
-    [Obsolete("Background music feature has been removed.")]
-    public double BackgroundMusicVolume { get; set; } = 0.3;
-
-    /// <summary>Obsolete: Whether background music is enabled. Kept for deserialization compatibility.</summary>
-    [Obsolete("Background music feature has been removed.")]
-    public bool BackgroundMusicEnabled { get; set; } = true;
-    #pragma warning restore CS0618
-
     /// <summary>Gets or sets the volume level for the main media (0.0 to 1.0).</summary>
     public double MainMediaVolume { get; set; } = 0.5;
 

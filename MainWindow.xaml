@@ -174,7 +174,7 @@
                     
                     <!-- Content Type Label -->
                     <Border Background="#44000000" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="15" Padding="8,4" CornerRadius="15">
-                        <TextBlock x:Name="PreviewLabel" Text="{Binding CurrentMediaType}" Foreground="White" FontSize="10" FontWeight="Bold" />
+                        <TextBlock x:Name="PreviewLabel" Text="Live Output" Foreground="White" FontSize="10" FontWeight="Bold" />
                     </Border>
                 </Grid>
             </Border>

@@ -53,7 +53,7 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - **Strategy**: Asynchronous, debounced auto-save.
 - **Mechanism**: Serializes to `settings.json`.
 - **Hardening**: Uses `CancellationTokenSource` to debounce rapid changes and a thread-safe `SaveImmediate()` for critical persistence.
-- **Backward Compatibility**: Old BGM-related settings fields are preserved with `[Obsolete]` attributes so existing settings files load without errors.
+- **Backward Compatibility**: Old BGM-related settings fields are silently ignored during JSON deserialization (System.Text.Json default behavior).
 
 ### 2. Media Control (`MediaControlService.cs`)
 - Manages playback of all media elements through a single path.
