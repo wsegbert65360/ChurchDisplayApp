@@ -57,6 +57,7 @@ public class MainViewModel : BaseViewModel
             if (SetProperty(ref _selectedItem, value))
             {
                 OnPropertyChanged(nameof(SelectedItemVolumePercent));
+                OnPropertyChanged(nameof(IsSelectedItemPlaying));
             }
         }
     }
@@ -136,6 +137,11 @@ public class MainViewModel : BaseViewModel
         ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(100, 173, 216, 230))
         : System.Windows.Media.Brushes.White;
 
+    /// <summary>
+    /// Gets a value indicating whether the currently selected item is also the one being played.
+    /// </summary>
+    public bool IsSelectedItemPlaying => SelectedItem != null && _currentlyLoadedPath == SelectedItem.FullPath;
+
     public string CurrentTimeStr
     {
         get => _currentTimeStr;
@@ -188,6 +194,7 @@ public class MainViewModel : BaseViewModel
             // Sync the global volume slider to reflect the item's volume
             Volume = SelectedItem.Volume;
             IsPlaying = true;
+            OnPropertyChanged(nameof(IsSelectedItemPlaying));
         }
     }
 
@@ -197,6 +204,7 @@ public class MainViewModel : BaseViewModel
         IsPlaying = false;
         _currentlyLoadedPath = null;
         CurrentMediaTitle = "Idle";
+        OnPropertyChanged(nameof(IsSelectedItemPlaying));
     }
 
     private void Pause()

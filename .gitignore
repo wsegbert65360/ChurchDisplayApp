@@ -208,3 +208,7 @@ StyleCopReport.xml
 # End of core .gitignore
 
 ChurchDisplayApp_Installer.exe
+
+# Build and debug logs
+build_*.txt
+*.log

@@ -696,9 +696,12 @@ public partial class MainWindow : Window, IDisplayController
         if (SelectedItemVolumeText != null)
             SelectedItemVolumeText.Text = $"{(int)(vol * 100)}%";
 
-        // Apply immediately to playback engine
-        ViewModel.Volume = vol;
-        _mediaControlService?.SetVolume(vol);
+        // Only apply to active playback if this item is currently playing (Issue #decp)
+        if (ViewModel != null && ViewModel.IsSelectedItemPlaying)
+        {
+            ViewModel.Volume = vol;
+            _mediaControlService?.SetVolume(vol);
+        }
     }
 
     private void SelectedItemVolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -712,10 +715,12 @@ public partial class MainWindow : Window, IDisplayController
         if (ViewModel?.SelectedItem != null)
             ViewModel.SelectedItem.Volume = newVolume;
 
-        // Always apply to live playback
-        if (ViewModel != null)
+        // Only apply to live playback if this is the active item
+        if (ViewModel != null && ViewModel.IsSelectedItemPlaying)
+        {
             ViewModel.Volume = newVolume;
-        _mediaControlService?.SetVolume(newVolume);
+            _mediaControlService?.SetVolume(newVolume);
+        }
     }
 
 
