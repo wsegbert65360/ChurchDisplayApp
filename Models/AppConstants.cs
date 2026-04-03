@@ -7,8 +7,8 @@ public static class AppConstants
 {
     public static class Network
     {
-        public const int RemoteControlPortPreferred = 80;
-        public const int RemoteControlPortFallback = 8088;
+        public const int RemoteControlPortPreferred = 8088;
+        public const int RemoteControlPortFallback = 8090;
         public const int RemoteControlPortCustom = 0; // 0 = not set
     }
 
