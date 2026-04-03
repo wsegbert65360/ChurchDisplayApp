@@ -31,9 +31,9 @@ set "SYNC_DIR=D:\FCC Sync Folder"
 if exist "!SYNC_DIR!" (
     echo Syncing to !SYNC_DIR!...
     
-    if exist "bin\Installer\ChurchDisplayApp-1.0.0-Setup.exe" (
+    if exist "bin\Installer\ChurchDisplayApp-1.2-Setup.exe" (
         echo Copying Installer...
-        copy /Y "bin\Installer\ChurchDisplayApp-1.0.0-Setup.exe" "!SYNC_DIR!\ChurchDisplayApp-Setup.exe"
+        copy /Y "bin\Installer\ChurchDisplayApp-1.2-Setup.exe" "!SYNC_DIR!\ChurchDisplayApp-Setup.exe"
     )
     
     echo.

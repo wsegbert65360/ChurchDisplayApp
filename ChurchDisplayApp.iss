@@ -35,15 +35,15 @@ Name: "{commondesktop}\Church Display App"; Filename: "{app}\ChurchDisplayApp.ex
 
 [Run]
 ; Create firewall rules during install (installer is elevated)
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ChurchDisplayApp Remote"" dir=in action=allow protocol=TCP localport=80 profile=any"; Flags: runhidden ignoreerrors;
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ChurchDisplayApp Remote Fallback"" dir=in action=allow protocol=TCP localport=8088 profile=any"; Flags: runhidden ignoreerrors;
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ChurchDisplayApp Remote"" dir=in action=allow protocol=TCP localport=80 profile=any"; Flags: runhidden
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ChurchDisplayApp Remote Fallback"" dir=in action=allow protocol=TCP localport=8088 profile=any"; Flags: runhidden
 ; Launch app after install
 Filename: "{app}\ChurchDisplayApp.exe"; Description: "{cm:LaunchProgram,Church Display App}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; Clean up firewall rules when uninstalling
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ChurchDisplayApp Remote"""; Flags: runhidden ignoreerrors; RunOnceId: "UninstallFirewall1"
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ChurchDisplayApp Remote Fallback"""; Flags: runhidden ignoreerrors; RunOnceId: "UninstallFirewall2"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ChurchDisplayApp Remote"""; Flags: runhidden; RunOnceId: "UninstallFirewall1"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ChurchDisplayApp Remote Fallback"""; Flags: runhidden; RunOnceId: "UninstallFirewall2"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

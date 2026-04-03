@@ -40,7 +40,7 @@ public class PlaylistManager
     /// <summary>
     /// Default volume for newly created playlist items.
     /// </summary>
-    public const double DefaultItemVolume = 0.8;
+    public const double DefaultItemVolume = 1.0;
 
     /// <summary>
     /// Adds multiple files to the playlist.

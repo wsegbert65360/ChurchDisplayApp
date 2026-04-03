@@ -163,6 +163,7 @@ public class AppSettings
 
     private CancellationTokenSource? _saveCts;
     private readonly object _saveLock = new();
+    private bool _isDirty = false;
 
     /// <summary>
     /// Saves the settings to the JSON file with a debounce delay to prevent excessive disk writes.
@@ -171,6 +172,7 @@ public class AppSettings
     {
         lock (_saveLock)
         {
+            _isDirty = true;
             _saveCts?.Cancel();
             _saveCts = new CancellationTokenSource();
             var token = _saveCts.Token;
@@ -192,12 +194,15 @@ public class AppSettings
     {
         lock (_saveLock)
         {
+            if (!_isDirty) return;
+
             try
             {
                 Validate();
                 Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
                 var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(SettingsPath, json);
+                _isDirty = false;
                 Serilog.Log.Information("Settings saved successfully.");
             }
             catch (Exception ex)

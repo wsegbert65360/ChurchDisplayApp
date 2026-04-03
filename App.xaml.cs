@@ -29,25 +29,36 @@ public partial class App : Application
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
-            Log.Fatal((Exception)args.ExceptionObject, "Unhandled AppDomain exception");
-            Log.CloseAndFlush();
+            var ex = args.ExceptionObject as Exception;
+            Log.Fatal(ex, "FATAL: Unhandled background exception (Terminating: {IsTerminating})", args.IsTerminating);
+            
+            if (args.IsTerminating)
+            {
+                MessageBox.Show(
+                    "A fatal background error occurred and the application must close.\n\n" +
+                    $"Error: {ex?.Message ?? "Unknown error"}\n\n" +
+                    "Please check the logs for more details.",
+                    "Fatal Application Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Stop);
+                
+                Log.CloseAndFlush();
+            }
         };
 
         DispatcherUnhandledException += (s, args) =>
         {
-            Log.Fatal(args.Exception, "Unhandled Dispatcher exception");
-            Log.CloseAndFlush();
+            Log.Error(args.Exception, "Unhandled UI Dispatcher exception");
             
             MessageBox.Show(
-                $"An unexpected error occurred and the application must close.\n\n" +
-                $"Error: {args.Exception.Message}\n\n" +
-                $"Details have been saved to the log file.",
-                "Unexpected Error",
+                "An unexpected error occurred in the user interface:\n\n" +
+                $"{args.Exception.Message}\n\n" +
+                "The application will attempt to continue. If you continue to see this error, please restart the application.",
+                "Unexpected UI Error",
                 MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                MessageBoxImage.Warning);
 
-            args.Handled = true;
-            Current.Shutdown(1);
+            args.Handled = true; // Attempt to recover/continue
         };
     }
 

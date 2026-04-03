@@ -19,6 +19,8 @@ namespace ChurchDisplayApp.Services
         private WaveOutEvent? _waveOut;
         private SynthSampleProvider? _sampleProvider;
         private readonly SemaphoreSlim _semaphore = new(1, 1);
+        private CancellationTokenSource _cts = new();
+        private bool _disposed = false;
 
         public AmenResolveService(string soundFontPath)
         {
@@ -30,15 +32,32 @@ namespace ChurchDisplayApp.Services
             if (_synth != null) return;
 
             if (!File.Exists(_soundFontPath))
-                throw new FileNotFoundException("SoundFont file not found.", _soundFontPath);
+            {
+                Log.Error("SoundFont file not found at {Path}. Amen resolve will be unavailable.", _soundFontPath);
+                return;
+            }
 
-            var sf = new SoundFont(_soundFontPath);
-            _synth = new MeltySynth.Synthesizer(sf, 44100);
-            _sampleProvider = new SynthSampleProvider(_synth);
-            
-            _waveOut = new WaveOutEvent();
-            _waveOut.Init(_sampleProvider);
-            _waveOut.Play();
+            try
+            {
+                var sf = new SoundFont(_soundFontPath);
+                _synth = new MeltySynth.Synthesizer(sf, 44100);
+                _sampleProvider = new SynthSampleProvider(_synth);
+                
+                _waveOut = new WaveOutEvent();
+                _waveOut.Init(_sampleProvider);
+                _waveOut.Play();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to initialize synthesizer with SoundFont at {Path}", _soundFontPath);
+                _synth = null;
+            }
+        }
+
+        public void Cancel()
+        {
+            _cts.Cancel();
+            try { _waveOut?.Stop(); } catch { }
         }
 
         public async Task ExecuteResolveAsync(float volume = 1.0f)
@@ -48,6 +67,9 @@ namespace ChurchDisplayApp.Services
                 Log.Information("Amen resolve already in progress, skipping");
                 return;
             }
+
+            _cts = new CancellationTokenSource();
+            var token = _cts.Token;
 
             try
             {
@@ -68,7 +90,7 @@ namespace ChurchDisplayApp.Services
                 _synth.ProcessMidiMessage(0, 0x90, A3, 70 + rnd.Next(-5, 6));
                 _synth.ProcessMidiMessage(0, 0x90, C4, 70 + rnd.Next(-5, 6));
 
-                await Task.Delay(2000);
+                await Task.Delay(2000, token);
 
                 _synth.ProcessMidiMessage(0, 0x80, F2, 0);
                 _synth.ProcessMidiMessage(0, 0x80, F3, 0);
@@ -81,17 +103,22 @@ namespace ChurchDisplayApp.Services
                 _synth.ProcessMidiMessage(0, 0x90, G3, 85 + rnd.Next(-5, 6));
                 _synth.ProcessMidiMessage(0, 0x90, C4, 85 + rnd.Next(-5, 6));
 
-                await Task.Delay(2500);
+                await Task.Delay(2500, token);
 
                 for (int vol = 100; vol >= 0; vol -= 5)
                 {
+                    token.ThrowIfCancellationRequested();
                     _synth.ProcessMidiMessage(0, 0xB0, 7, vol);
-                    await Task.Delay(50);
+                    await Task.Delay(50, token);
                 }
 
                 _synth.ProcessMidiMessage(0, 0xB0, 64, 0);
                 _synth.Reset();
                 _synth.ProcessMidiMessage(0, 0xB0, 7, 100);
+            }
+            catch (OperationCanceledException)
+            {
+                Log.Information("Amen resolve was cancelled");
             }
             catch (Exception ex)
             {
@@ -105,9 +132,30 @@ namespace ChurchDisplayApp.Services
 
         public void Dispose()
         {
-            _waveOut?.Stop();
-            _waveOut?.Dispose();
-            _semaphore.Dispose();
+            if (_disposed) return;
+            _disposed = true;
+
+            try
+            {
+                _cts.Cancel();
+                _cts.Dispose();
+
+                if (_waveOut != null)
+                {
+                    _waveOut.Stop();
+                    _waveOut.Dispose();
+                }
+
+                _semaphore.Dispose();
+                
+                // Synthesizer doesn't implement IDisposable in MeltySynth, 
+                // but we null it out for safety.
+                _synth = null;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Error disposing AmenResolveService");
+            }
         }
 
         private class SynthSampleProvider : ISampleProvider

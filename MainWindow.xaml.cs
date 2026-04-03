@@ -42,6 +42,7 @@ public partial class MainWindow : Window, IDisplayController
     private double _mediaPulseOpacity = 0.3;
     private int _mediaPulseDirection = 1;
     private readonly SolidColorBrush _mediaPulseBrush = new SolidColorBrush(AppConstants.Colors.PulseLightBlue);
+    private bool _isClosing = false;
 
     public MainWindow()
     {
@@ -54,14 +55,30 @@ public partial class MainWindow : Window, IDisplayController
         SizeChanged += MainWindow_SizeChanged;
         
         // Initialize services
-        LibVLCSharp.Shared.Core.Initialize();
+        try
+        {
+            LibVLCSharp.Shared.Core.Initialize();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Failed to initialize media engine.\n\nError: {ex.Message}\n\n" +
+                "Please ensure VLC is installed and restart the application.",
+                "Church Display App - Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+            Application.Current.Shutdown();
+            return;
+        }
+
         var vlcOptions = new[] 
         { 
             "--quiet", 
             "--no-osd", 
             "--no-video-title-show", 
-            "--no-snapshot-preview",
-            "--aout=wasapi"
+            "--no-snapshot-preview"
+            // Note: --aout=wasapi removed to support RDP audio redirection
         };
         _libVLC = new LibVLC(vlcOptions);
         _liveWindow = new LiveOutputWindow(_libVLC);
@@ -138,7 +155,7 @@ public partial class MainWindow : Window, IDisplayController
         _ = StartRemoteControlAsync();
 
         // Initialize AmenResolveService
-        var soundFontPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Sounds", "SalC5Light2.sf2");
+        var soundFontPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppConstants.Media.SoundsDirectory, AppConstants.Media.SoundFontFileName);
         if (System.IO.File.Exists(soundFontPath))
         {
             _amenResolveService = new AmenResolveService(soundFontPath);
@@ -314,59 +331,77 @@ public partial class MainWindow : Window, IDisplayController
     }
 
 
-    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (_isClosing)
+        {
+            e.Cancel = false;
+            return;
+        }
+
+        // Prevent immediate close to allow for cleanup
+        e.Cancel = true;
+        _isClosing = true;
+
         try
         {
-            if (ActualWidth > 0)
-            {
-                var sidebarWidth = RootGrid.ColumnDefinitions[0].ActualWidth;
-                _settings.MainWindowLeftColumnProportion = sidebarWidth / ActualWidth;
-                _settings.Save();
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Could not save sidebar width");
-        }
+            Log.Information("Main window closing (Orderly Shutdown initiated)...");
 
-        Log.Information("Main window closing (Fast Shutdown initiated)...");
+            // 1. Update UI to show shutdown state if possible (optional polish)
+            // if (ViewModel != null) ViewModel.StatusMessage = "Shutting down...";
 
-        Hide();
-        if (_liveWindow != null)
-        {
-            try { _liveWindow.Hide(); } catch { }
-        }
-
-        _livePreviewTimer?.Stop();
-        _progressUpdateTimer?.Stop();
-
-        Task.Run(async () =>
-        {
+            // 2. Save settings (window state, etc.)
             try
             {
-                Log.Information("Background cleanup started...");
-
-                if (_remoteControlServer != null && _remoteControlServer.IsRunning)
+                if (ActualWidth > 0)
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
-                    await _remoteControlServer.StopAsync(cts.Token);
+                    var sidebarWidth = RootGrid.ColumnDefinitions[0].ActualWidth;
+                    _settings.MainWindowLeftColumnProportion = sidebarWidth / ActualWidth;
                 }
-
-                _libVLC?.Dispose();
                 
-                Log.Information("Background cleanup finished.");
+                // Ensure any pending changes are saved immediately
+                _settings.SaveImmediate();
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "Error during background cleanup");
+                Log.Warning(ex, "Could not save settings during shutdown");
             }
-            finally
+
+            // 3. Stop background services
+            _livePreviewTimer?.Stop();
+            _progressUpdateTimer?.Stop();
+
+            // 4. Cancel Amen Resolve if running
+            _amenResolveService?.Cancel();
+            _amenResolveService?.Dispose();
+
+            // 5. Stop Remote Control Server
+            if (_remoteControlServer != null && _remoteControlServer.IsRunning)
             {
-                Log.Information("Final process exit.");
-                Environment.Exit(0);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
+                await _remoteControlServer.StopAsync(cts.Token);
             }
-        });
+
+            // 6. Stop and dispose VLC resources
+            if (_liveWindow != null)
+            {
+                _liveWindow.Stop();
+                _liveWindow.Hide();
+                _liveWindow.Dispose();
+            }
+            _libVLC?.Dispose();
+
+            Log.Information("Shutdown cleanup finished.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error during shutdown cleanup");
+        }
+        finally
+        {
+            Log.Information("Final process exit.");
+            Application.Current.Shutdown();
+        }
     }
 
     private void ApplySavedSidebarWidth()

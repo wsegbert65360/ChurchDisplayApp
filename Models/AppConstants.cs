@@ -16,6 +16,18 @@ public static class AppConstants
         public const int LivePreviewIntervalMs = 250;
         public const int ProgressUpdateIntervalMs = 200;
         public const int LiveWindowSeekDelayMs = 300;
+        public const int LiveWindowTimerIntervalMs = 100;
+        public const int DefaultLiveWindowWidth = 800;
+        public const int DefaultLiveWindowHeight = 450;
+        public const int ProgressBarHeight = 7;
+    }
+
+    public static class Media
+    {
+        public const string SnapshotPrefix = "vlc_snapshot_";
+        public const string SnapshotExtension = ".png";
+        public const string SoundFontFileName = "SalC5Light2.sf2";
+        public const string SoundsDirectory = "Sounds";
     }
 
     public static class Storage

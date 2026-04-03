@@ -46,7 +46,7 @@ public class LiveOutputWindow : Window, IDisposable
         string? tempPath = null;
         try
         {
-            tempPath = Path.Combine(Path.GetTempPath(), $"vlc_snapshot_{Guid.NewGuid()}.png");
+            tempPath = Path.Combine(Path.GetTempPath(), $"{AppConstants.Media.SnapshotPrefix}{Guid.NewGuid()}{AppConstants.Media.SnapshotExtension}");
 
             if (_mediaPlayer.TakeSnapshot(0, tempPath, 0, 0))
             {
@@ -109,8 +109,8 @@ public class LiveOutputWindow : Window, IDisposable
         _libVLC = libVLC ?? throw new ArgumentNullException(nameof(libVLC));
         
         Title = "Live Output";
-        Width = 800;
-        Height = 450;
+        Width = AppConstants.UI.DefaultLiveWindowWidth;
+        Height = AppConstants.UI.DefaultLiveWindowHeight;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = Brushes.Black;
         WindowStyle = WindowStyle.None;  // Remove title bar and borders
@@ -171,7 +171,7 @@ public class LiveOutputWindow : Window, IDisposable
         // Progress bar
         _progressBar = new ProgressBar
         {
-            Height = 7,
+            Height = AppConstants.UI.ProgressBarHeight,
             Foreground = new SolidColorBrush(AppConstants.Colors.PulseLightBlue),
             Background = Brushes.DarkGray,
             Visibility = Visibility.Collapsed
@@ -188,40 +188,58 @@ public class LiveOutputWindow : Window, IDisposable
         // Set up timer for progress updates
         _timer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(100)
+            Interval = TimeSpan.FromMilliseconds(AppConstants.UI.LiveWindowTimerIntervalMs)
         };
         _timer.Tick += Timer_Tick;
 
         // Subscribe to media player events
-        _mediaPlayer.EndReached += (s, e) =>
+        if (_mediaPlayer != null)
         {
-            Dispatcher.BeginInvoke(() =>
+            _mediaPlayer.EndReached += (s, e) =>
             {
-                _isPlaying = false;
-                _progressBar.Visibility = Visibility.Collapsed;
-                _timer.Stop();
-                MediaEnded?.Invoke(this, EventArgs.Empty);
-            });
-        };
-
-        // When VLC starts playing and audio output is ready,
-        // re-apply the stored volume for reliable audio initialization
-        _mediaPlayer.Playing += (s, e) =>
-        {
-            _mediaPlayer.Volume = _targetVolume;
-            
-            System.Threading.Tasks.Task.Run(async () =>
-            {
-                try
+                Dispatcher.BeginInvoke(() =>
                 {
-                    await System.Threading.Tasks.Task.Delay(150);
+                    _isPlaying = false;
+                    _progressBar.Visibility = Visibility.Collapsed;
+                    _timer.Stop();
+                    MediaEnded?.Invoke(this, EventArgs.Empty);
+                });
+            };
+
+            // When VLC starts playing and audio output is ready,
+            // re-apply the stored volume for reliable audio initialization
+            _mediaPlayer.Playing += (s, e) =>
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
                     if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
                         _mediaPlayer.Volume = _targetVolume;
-                }
-                catch (ObjectDisposedException) { /* Window closed during delay */ }
-                catch (Exception ex) { Serilog.Log.Debug(ex, "Delayed volume set failed"); }
-            });
-        };
+                });
+                
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    try
+                    {
+                        await System.Threading.Tasks.Task.Delay(150);
+                        if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                            _mediaPlayer.Volume = _targetVolume;
+                    }
+                    catch (ObjectDisposedException) { /* Window closed during delay */ }
+                    catch (Exception ex) { Serilog.Log.Debug(ex, "Delayed volume set failed"); }
+                });
+            };
+
+            _mediaPlayer.EncounteredError += (s, e) =>
+            {
+                Serilog.Log.Error("MediaPlayer encountered an error playback of {Path}", _currentMediaPath);
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _isPlaying = false;
+                    _timer.Stop();
+                    _progressBar.Visibility = Visibility.Collapsed;
+                });
+            };
+        }
 
         Closing += (s, e) =>
         {
@@ -265,7 +283,7 @@ public class LiveOutputWindow : Window, IDisposable
 
         if (MediaConstants.IsImage(filePath))
         {
-            ShowImage(filePath);
+            _ = ShowImageAsync(filePath);
         }
         else if (MediaConstants.IsSupported(filePath))
         {
@@ -273,29 +291,51 @@ public class LiveOutputWindow : Window, IDisposable
         }
     }
 
-    private void ShowImage(string imagePath)
+    private async Task ShowImageAsync(string imagePath)
     {
-        // Ensure any currently playing video/audio (e.g., mp4/mp3) is stopped
-        // before switching to a static image.
-        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
         {
-            _mediaPlayer.Stop();
+            Stop();
+            return;
         }
 
-        _videoView.Visibility = Visibility.Collapsed;
-        _imageDisplay.Visibility = Visibility.Visible;
-        _filenameLabel.Visibility = Visibility.Collapsed;
-        _progressBar.Visibility = Visibility.Collapsed;
+        try
+        {
+            // Ensure any currently playing video/audio is stopped
+            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+            {
+                _mediaPlayer.Stop();
+            }
 
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.UriSource = new Uri(imagePath);
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.EndInit();
-        bitmap.Freeze(); // Make it cross-thread accessible
+            _videoView.Visibility = Visibility.Collapsed;
+            _imageDisplay.Visibility = Visibility.Visible;
+            _filenameLabel.Visibility = Visibility.Collapsed;
+            _progressBar.Visibility = Visibility.Collapsed;
 
-        _imageDisplay.Source = bitmap;
-        _isPlaying = false;
+            // Decode image on background thread for large files (Issue #13)
+            var bitmap = await Task.Run(() =>
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                // Limit decode size for performance if needed, or use full size for quality
+                bmp.UriSource = new Uri(imagePath, UriKind.Absolute);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                
+                if (bmp.CanFreeze)
+                    bmp.Freeze();
+                    
+                return bmp;
+            });
+
+            _imageDisplay.Source = bitmap;
+            _isPlaying = false;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Failed to load image at {Path}", imagePath);
+            Stop();
+        }
     }
 
     private void PlayVideo(string videoPath)

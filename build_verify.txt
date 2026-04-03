@@ -1,0 +1,14 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+C:\Projects\ChurchDisplayApp\MainWindow.xaml.cs(184,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [C:\Projects\ChurchDisplayApp\ChurchDisplayApp_kdfxwyri_wpftmp.csproj]
+C:\Projects\ChurchDisplayApp\MainWindow.xaml.cs(184,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [C:\Projects\ChurchDisplayApp\ChurchDisplayApp.csproj]
+  ChurchDisplayApp -> C:\Projects\ChurchDisplayApp\bin\Debug\net10.0-windows\ChurchDisplayApp.dll
+
+Build succeeded.
+
+C:\Projects\ChurchDisplayApp\MainWindow.xaml.cs(184,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [C:\Projects\ChurchDisplayApp\ChurchDisplayApp_kdfxwyri_wpftmp.csproj]
+C:\Projects\ChurchDisplayApp\MainWindow.xaml.cs(184,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [C:\Projects\ChurchDisplayApp\ChurchDisplayApp.csproj]
+    2 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.84
