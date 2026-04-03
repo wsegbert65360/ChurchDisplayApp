@@ -311,21 +311,18 @@ public class LiveOutputWindow : Window, IDisposable
             _filenameLabel.Visibility = Visibility.Collapsed;
             _progressBar.Visibility = Visibility.Collapsed;
 
-            // Decode image on background thread for large files (Issue #13 and #4)
-            var bitmap = await Task.Run(() =>
+            // Prevent UI freeze from disk I/O by reading the file bytes asynchronously
+            byte[] fileBytes = await File.ReadAllBytesAsync(imagePath);
+
+            var bitmap = new BitmapImage();
+            using (var ms = new System.IO.MemoryStream(fileBytes))
             {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
-                bmp.EndInit();
-                
-                if (bmp.CanFreeze)
-                    bmp.Freeze();
-                    
-                return bmp;
-            });
+                bitmap.BeginInit();
+                bitmap.StreamSource = ms;
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
+                bitmap.EndInit();
+            }
 
             _imageDisplay.Source = bitmap;
             _isPlaying = false;

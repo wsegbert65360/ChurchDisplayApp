@@ -1,0 +1,74 @@
+﻿commit 4800ec606236a7175b5cab67f10127a9c0d9d484
+Author: Z User <z@container>
+Date:   Fri Apr 3 21:12:54 2026 +0000
+
+    Fix: Serve lucide.min.js static file + defensive JS guards
+    
+    - Added UseStaticFiles middleware to serve RemoteControl folder contents
+      (lucide.min.js was returning 404, causing blank remote screen)
+    - Guarded all lucide.createIcons() calls with typeof checks
+    - This was the root cause of the remote showing a blank screen
+
+diff --git a/RemoteControl/index.html b/RemoteControl/index.html
+index 53c97e0..dccb7e4 100755
+--- a/RemoteControl/index.html
++++ b/RemoteControl/index.html
+@@ -347,8 +347,12 @@
+     <script>
+         let currentStatus = null;
+ 
+-        // Initialize Lucide icons
+-        lucide.createIcons();
++        // Initialize Lucide icons (guard against load failure)
++        if (typeof lucide !== 'undefined') {
++            lucide.createIcons();
++        } else {
++            console.error('Lucide icons failed to load. Icons will not be rendered.');
++        }
+ 
+         function showToast(msg) {
+             const toast = document.getElementById('toast');
+@@ -406,7 +410,9 @@
+                     }
+                 });
+ 
+-                if (typeof lucide !== 'undefined') lucide.createIcons();
++                if (typeof lucide !== 'undefined') {
++                    try { lucide.createIcons(); } catch(e) { console.warn('lucide.createIcons failed', e); }
++                }
+ 
+             } catch (e) {
+                 console.error('Poll failed', e);
+@@ -444,7 +450,9 @@
+                     card.querySelector('.card-title').textContent = it.fileName;
+                     container.appendChild(card);
+                 });
+-                lucide.createIcons();
++                if (typeof lucide !== 'undefined') {
++                    try { lucide.createIcons(); } catch(e) { console.warn('lucide.createIcons failed', e); }
++                }
+             } catch (e) {
+                 container.innerHTML = '<div style="text-align:center; padding: 40px; color:var(--text-dim);">Connection failed</div>';
+             }
+diff --git a/RemoteControlServer.cs b/RemoteControlServer.cs
+index 0a2aa09..3f95463 100755
+--- a/RemoteControlServer.cs
++++ b/RemoteControlServer.cs
+@@ -47,6 +47,17 @@ public sealed class RemoteControlServer
+ 
+         app.UseSerilogRequestLogging();
+ 
++        // Serve static files (lucide.min.js, etc.) from the RemoteControl folder
++        var remoteControlDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteControl");
++        if (Directory.Exists(remoteControlDir))
++        {
++            app.UseStaticFiles(new StaticFileOptions
++            {
++                FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(remoteControlDir),
++                RequestPath = ""
++            });
++        }
++
+         app.UseExceptionHandler("/error");
+         app.MapGet("/error", (HttpContext context) =>
+         {

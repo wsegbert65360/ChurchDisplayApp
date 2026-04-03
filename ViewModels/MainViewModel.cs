@@ -78,7 +78,17 @@ public class MainViewModel : BaseViewModel
             {
                 _mediaControlService.SetVolume(value);
                 _settings.MainMediaVolume = value;
-                // Settings are saved on debounce/shutdown to prevent excessive disk I/O
+                
+                // Save it back to the currently loaded item so its volume persists!
+                if (!string.IsNullOrEmpty(_currentlyLoadedPath))
+                {
+                    var playingItem = _playlistManager.Items.FirstOrDefault(i => i.FullPath == _currentlyLoadedPath);
+                    if (playingItem != null)
+                    {
+                        playingItem.Volume = value;
+                    }
+                }
+                
                 OnPropertyChanged(nameof(VolumePercentage));
             }
         }
