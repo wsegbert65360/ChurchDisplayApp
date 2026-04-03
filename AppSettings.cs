@@ -30,7 +30,7 @@ public class AppSettings
     public double MainMediaVolume { get; set; } = 0.5;
 
     /// <summary>Gets or sets the default volume used by the Service Elements creator when adding items to the playlist (0.0 to 1.0).</summary>
-    public double DefaultServiceVolume { get; set; } = 0.8;
+    public double DefaultServiceVolume { get; set; } = 1.0;
 
     /// <summary>Gets or sets the font size for the playlist items.</summary>
     public double PlaylistFontSize { get; set; } = 13.0;

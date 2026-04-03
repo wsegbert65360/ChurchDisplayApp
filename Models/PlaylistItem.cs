@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace ChurchDisplayApp.Models
@@ -17,7 +18,7 @@ namespace ChurchDisplayApp.Models
         public string Extension { get; init; }
 
         /// <summary>
-        /// Per-item playback volume (0.0 to 1.0). Default is 0.8 (80%).
+        /// Per-item playback volume (0.0 to 1.0). Default is 1.0 (100%).
         /// </summary>
         public double Volume
         {
@@ -33,7 +34,7 @@ namespace ChurchDisplayApp.Models
             }
         }
 
-        public PlaylistItem(string fullPath, double volume = 0.8)
+        public PlaylistItem(string fullPath, double volume = 1.0)
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);

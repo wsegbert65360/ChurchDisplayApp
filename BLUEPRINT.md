@@ -73,9 +73,9 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 ### 4. Playlist Management (`PlaylistManager.cs`)
 - `ObservableCollection<PlaylistItem>` with drag-and-drop reordering support.
 - **Dirty tracking**: `IsDirty` property automatically detects any collection change (add, remove, reorder) via `CollectionChanged` event. Resets on save and load.
-- **Per-Item Volume**: Each `PlaylistItem` stores its own `Volume` property (default 0.8). Implements `INotifyPropertyChanged` for UI binding.
+- **Per-Item Volume**: Each `PlaylistItem` stores its own `Volume` property (default 1.0). Implements `INotifyPropertyChanged` for UI binding.
 - Save/Load via JSON serialization (`.pls` files).
-- **Playlist Format v2**: `{ "version": 2, "items": [{ "fullPath": "...", "volume": 0.8 }] }`.
+- **Playlist Format v2**: `{ "version": 2, "items": [{ "fullPath": "...", "volume": 1.0 }] }`.
 - **Backward Compatibility**: Old playlists (plain array of path strings) are automatically loaded with default volume.
 - **Close Playlist**: Prompts user with Yes/No/Cancel dialog if unsaved changes exist before clearing.
 

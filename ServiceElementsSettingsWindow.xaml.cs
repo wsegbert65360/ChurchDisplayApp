@@ -28,7 +28,8 @@ public partial class ServiceElementsSettingsWindow : Window
                 DisplayName    = s.DisplayName,
                 FilePath       = s.FilePath,
                 IsSticky       = s.IsSticky,
-                LastUsedFolder = s.LastUsedFolder
+                LastUsedFolder = s.LastUsedFolder,
+                DefaultVolume  = s.DefaultVolume
             }));
 
         SlotListBox.ItemsSource = _workingSlots;

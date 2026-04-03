@@ -98,6 +98,10 @@ public partial class MainWindow : Window, IDisplayController
         DataContext = ViewModel;
 
         // Wire selected item volume slider to the currently selected playlist item
+        ViewModel.PropertyChanged += (s, e) => {
+            if (e.PropertyName == nameof(MainViewModel.SelectedItem)) 
+                UpdateSelectedItemVolumeSlider();
+        };
         UpdateSelectedItemVolumeSlider();
 
         // Detect monitors using the service
@@ -640,45 +644,45 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    // --- Selected Item Volume Editor (Task B) ---
+    // --- Volume Slider (single control for currently-playing item) ---
 
     private void UpdateSelectedItemVolumeSlider()
     {
+        // Load the item's stored volume, falling back to global default
+        double vol;
         if (ViewModel?.SelectedItem != null)
-        {
-            SelectedItemVolumeSlider.Value = ViewModel.SelectedItem.Volume;
-            SelectedItemVolumeText.Text = $"{(int)(ViewModel.SelectedItem.Volume * 100)}%";
-        }
+            vol = ViewModel.SelectedItem.Volume;
         else
-        {
-            var defaultVol = AppSettings.Current.DefaultServiceVolume;
-            SelectedItemVolumeSlider.Value = defaultVol;
-            SelectedItemVolumeText.Text = $"{(int)(defaultVol * 100)}%";
-        }
+            vol = AppSettings.Current.DefaultServiceVolume;
+
+        // Clamp and apply to the slider and ViewModel
+        vol = Math.Clamp(vol, 0.0, 1.0);
+        SelectedItemVolumeSlider.Value = vol;
+        if (SelectedItemVolumeText != null)
+            SelectedItemVolumeText.Text = $"{(int)(vol * 100)}%";
+
+        // Apply immediately to playback engine
+        ViewModel.Volume = vol;
+        _mediaControlService?.SetVolume(vol);
     }
 
     private void SelectedItemVolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         var newVolume = Math.Clamp(e.NewValue, 0.0, 1.0);
-        
-        if (SelectedItemVolumeText != null)
-        {
-            SelectedItemVolumeText.Text = $"{(int)(newVolume * 100)}%";
-        }
 
-        // Update the selected playlist item's volume
+        if (SelectedItemVolumeText != null)
+            SelectedItemVolumeText.Text = $"{(int)(newVolume * 100)}%";
+
+        // Save back to the playlist item so it persists in the playlist
         if (ViewModel?.SelectedItem != null)
-        {
             ViewModel.SelectedItem.Volume = newVolume;
 
-            // If the selected item is currently playing, apply volume immediately
-            if (ViewModel.IsPlaying)
-            {
-                _mediaControlService.SetVolume(newVolume);
-                ViewModel.Volume = newVolume;
-            }
-        }
+        // Always apply to live playback
+        if (ViewModel != null)
+            ViewModel.Volume = newVolume;
+        _mediaControlService?.SetVolume(newVolume);
     }
+
 
     // --- Amen Button Handler (Task C) ---
 

@@ -30,4 +30,10 @@ public class ServiceSlot
     /// Used as the initial directory for the file picker.
     /// </summary>
     public string? LastUsedFolder { get; set; }
+
+    /// <summary>
+    /// Per-slot default volume override (0.0 – 1.0).
+    /// When negative (default -1), the global DefaultServiceVolume slider is used instead.
+    /// </summary>
+    public double DefaultVolume { get; set; } = -1.0;
 }
