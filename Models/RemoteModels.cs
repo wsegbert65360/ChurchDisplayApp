@@ -18,6 +18,5 @@ public record RemoteStatus(
 /// </summary>
 public record RemotePlaylistItem(
     int Index, 
-    string FileName, 
-    string FullPath
+    string FileName
 );

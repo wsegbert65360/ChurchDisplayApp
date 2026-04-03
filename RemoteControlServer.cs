@@ -17,6 +17,7 @@ namespace ChurchDisplayApp;
 public sealed class RemoteControlServer
 {
     private IHost? _host;
+    private volatile bool _isShuttingDown;
 
     /// <summary>Gets a value indicating whether the remote control server is currently running.</summary>
     public bool IsRunning => _host != null;
@@ -68,9 +69,10 @@ public sealed class RemoteControlServer
             }
         });
 
-        app.MapGet("/api/playlist", () =>
+        app.MapGet("/api/playlist", async () =>
         {
-            var items = dispatcher.Invoke(() => controller.GetPlaylistItems());
+            if (_isShuttingDown) return Results.StatusCode(503);
+            var items = await dispatcher.InvokeAsync(() => controller.GetPlaylistItems());
             return Results.Json(items);
         });
 
@@ -95,9 +97,10 @@ public sealed class RemoteControlServer
             return Results.Ok(new { ok = true });
         });
 
-        app.MapGet("/api/status", () =>
+        app.MapGet("/api/status", async () =>
         {
-            var status = dispatcher.Invoke(() => controller.GetStatus());
+            if (_isShuttingDown) return Results.StatusCode(503);
+            var status = await dispatcher.InvokeAsync(() => controller.GetStatus());
             return Results.Json(status);
         });
 
@@ -159,6 +162,8 @@ public sealed class RemoteControlServer
         {
             return;
         }
+
+        _isShuttingDown = true;
 
         try
         {

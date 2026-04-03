@@ -78,7 +78,7 @@ public class MainViewModel : BaseViewModel
             {
                 _mediaControlService.SetVolume(value);
                 _settings.MainMediaVolume = value;
-                _settings.Save();
+                // Settings are saved on debounce/shutdown to prevent excessive disk I/O
                 OnPropertyChanged(nameof(VolumePercentage));
             }
         }
@@ -100,7 +100,7 @@ public class MainViewModel : BaseViewModel
             if (SetProperty(ref _playlistFontSize, value))
             {
                 _settings.PlaylistFontSize = value;
-                _settings.Save();
+                // Settings are saved on debounce/shutdown
             }
         }
     }
@@ -129,12 +129,18 @@ public class MainViewModel : BaseViewModel
         }
     }
 
+    private static readonly System.Windows.Media.SolidColorBrush PlayingBackgroundBrush = 
+        new(System.Windows.Media.Color.FromRgb(135, 206, 250));
+
+    private static readonly System.Windows.Media.SolidColorBrush EmptyPlaylistBrush = 
+        new(System.Windows.Media.Color.FromArgb(100, 173, 216, 230));
+
     public System.Windows.Media.Brush MediaControlsBackground => IsPlaying 
-        ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(135, 206, 250)) 
+        ? PlayingBackgroundBrush 
         : System.Windows.Media.Brushes.Transparent;
 
     public System.Windows.Media.Brush PlaylistBackground => _playlistManager.Items.Count == 0
-        ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(100, 173, 216, 230))
+        ? EmptyPlaylistBrush
         : System.Windows.Media.Brushes.White;
 
     /// <summary>

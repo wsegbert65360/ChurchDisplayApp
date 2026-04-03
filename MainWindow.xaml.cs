@@ -43,6 +43,7 @@ public partial class MainWindow : Window, IDisplayController
     private int _mediaPulseDirection = 1;
     private readonly SolidColorBrush _mediaPulseBrush = new SolidColorBrush(AppConstants.Colors.PulseLightBlue);
     private bool _isClosing = false;
+    private Task? _amenTask;
 
     public MainWindow()
     {
@@ -205,6 +206,8 @@ public partial class MainWindow : Window, IDisplayController
             Dispatcher.BeginInvoke(() =>
             {
                 RemoteUrlText.Text = "Remote control unavailable";
+                RemoteUrlText.ToolTip = $"Ports {RemoteControlPortPreferred} and {RemoteControlPortFallback} are in use or blocked. " +
+                    "Try running as administrator or closing other applications.";
                 RemoteQrImage.Source = null;
             });
             Log.Error("Remote control server failed to start on any port");
@@ -372,7 +375,11 @@ public partial class MainWindow : Window, IDisplayController
             _progressUpdateTimer?.Stop();
 
             // 4. Cancel Amen Resolve if running
-            _amenResolveService?.Cancel();
+            if (_amenTask != null)
+            {
+                _amenResolveService?.Cancel();
+                try { await Task.WhenAny(_amenTask, Task.Delay(1000)); } catch { }
+            }
             _amenResolveService?.Dispose();
 
             // 5. Stop Remote Control Server
@@ -737,7 +744,7 @@ public partial class MainWindow : Window, IDisplayController
         if (_amenResolveService != null)
         {
             await Task.Delay(150);
-            _ = Task.Run(async () =>
+            _amenTask = Task.Run(async () =>
             {
                 try
                 {
@@ -936,7 +943,7 @@ public partial class MainWindow : Window, IDisplayController
         for (int i = 0; i < _playlistManager.Items.Count; i++)
         {
             var item = _playlistManager.Items[i];
-            result.Add(new RemotePlaylistItem(i, item.FileName, item.FullPath));
+            result.Add(new RemotePlaylistItem(i, item.FileName));
         }
         return result;
     }

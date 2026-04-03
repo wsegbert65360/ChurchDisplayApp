@@ -210,16 +210,15 @@ public class LiveOutputWindow : Window, IDisposable
             // re-apply the stored volume for reliable audio initialization
             _mediaPlayer.Playing += (s, e) =>
             {
-                Dispatcher.BeginInvoke(() =>
-                {
-                    if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
-                        _mediaPlayer.Volume = _targetVolume;
-                });
-                
                 System.Threading.Tasks.Task.Run(async () =>
                 {
                     try
                     {
+                        // Set immediately (VLC thread-safe)
+                        if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                            _mediaPlayer.Volume = _targetVolume;
+                        
+                        // Re-apply after audio output initializes
                         await System.Threading.Tasks.Task.Delay(150);
                         if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
                             _mediaPlayer.Volume = _targetVolume;
@@ -312,14 +311,14 @@ public class LiveOutputWindow : Window, IDisposable
             _filenameLabel.Visibility = Visibility.Collapsed;
             _progressBar.Visibility = Visibility.Collapsed;
 
-            // Decode image on background thread for large files (Issue #13)
+            // Decode image on background thread for large files (Issue #13 and #4)
             var bitmap = await Task.Run(() =>
             {
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
-                // Limit decode size for performance if needed, or use full size for quality
                 bmp.UriSource = new Uri(imagePath, UriKind.Absolute);
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
                 bmp.EndInit();
                 
                 if (bmp.CanFreeze)

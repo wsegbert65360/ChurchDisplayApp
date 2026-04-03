@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Church Display Remote</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="lucide.min.js"></script>
     <style>
         :root {
             --primary: #3b82f6;
@@ -34,7 +34,7 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
@@ -437,10 +437,11 @@
                     card.innerHTML = `
                         <div class="card-icon"><i data-lucide="${iconName}"></i></div>
                         <div class="card-info">
-                            <div class="card-title">${it.fileName}</div>
+                            <div class="card-title"></div>
                             <div class="card-subtitle">Media Content</div>
                         </div>
                     `;
+                    card.querySelector('.card-title').textContent = it.fileName;
                     container.appendChild(card);
                 });
                 lucide.createIcons();

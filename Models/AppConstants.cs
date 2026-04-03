@@ -9,6 +9,7 @@ public static class AppConstants
     {
         public const int RemoteControlPortPreferred = 80;
         public const int RemoteControlPortFallback = 8088;
+        public const int RemoteControlPortCustom = 0; // 0 = not set
     }
 
     public static class UI
