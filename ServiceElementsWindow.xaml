@@ -36,13 +36,17 @@
         <!-- Bottom action bar -->
         <Border DockPanel.Dock="Bottom" BorderBrush="#CCCCCC" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,8,0,0">
             <DockPanel>
-                <!-- Left side: gear button -->
-                <Button x:Name="SettingsButton"
-                        Content="⚙ Settings"
-                        MinWidth="90" Padding="8,4"
-                        Click="Settings_Click"
-                        DockPanel.Dock="Left"
-                        ToolTip="Add, remove, or rename slots and set the default search folder"/>
+                <!-- Left side: gear button + volume -->
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="SettingsButton"
+                            Content="⚙ Settings"
+                            MinWidth="90" Padding="8,4"
+                            Click="Settings_Click"
+                            ToolTip="Add, remove, or rename slots and set the default search folder"/>
+                    <TextBlock Text="🔊" FontSize="12" VerticalAlignment="Center" Margin="10,0,4,0" Opacity="0.6" />
+                    <Slider x:Name="DefaultVolumeSlider" Width="80" Minimum="0" Maximum="1" Value="0.8" VerticalAlignment="Center" SmallChange="0.05" ToolTip="Default volume for items added to playlist" />
+                    <TextBlock x:Name="DefaultVolumeText" Text="80%" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" Width="30" />
+                </StackPanel>
 
                 <!-- Right side: action buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

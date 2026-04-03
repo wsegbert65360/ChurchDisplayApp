@@ -77,11 +77,12 @@ ChurchDisplayApp uses Inno Setup to create a professional single-file installer.
 
 ### Basic Usage
 - **Add Media**: Use the "ADD MEDIA" button or drag-and-drop files into the playlist.
-- **Go Live**: Double-click an item or use the "Play" button to project it.
+- **Go Live**: Double-click an item or use the Play button to project it.
 - **Adjust Item Volume**: Select an item in the playlist, then use the "Selected Item Volume" slider to set its individual volume.
 - **Blank Screen**: Use the "BLANK" button to hide the current content on the live display.
 - **Amen**: Use the dedicated "AMEN" button to stop media and play the Amen resolve chord.
 - **Toggle Display**: Use the "DISPLAY" button to show or hide the live output window.
+- **Service Plan**: Use the "NEW" button to open the service plan creator. Set the default volume slider before adding items.
 
 ### Remote Control
 The remote control web interface provides:

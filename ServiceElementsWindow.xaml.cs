@@ -282,6 +282,12 @@ public partial class ServiceElementsWindow : Window
         RefreshSlotRow(slot);
     }
 
+    private void DefaultVolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (DefaultVolumeText != null)
+            DefaultVolumeText.Text = $"{(int)(Math.Clamp(e.NewValue, 0.0, 1.0) * 100)}%";
+    }
+
     private void UseSlot_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not string id) return;
@@ -295,8 +301,9 @@ public partial class ServiceElementsWindow : Window
             return;
         }
 
-        _playlistManager.AddFiles(new[] { slot.FilePath });
-        MessageBox.Show($"'{slot.DisplayName}' added to playlist.",
+        var volume = Math.Clamp(DefaultVolumeSlider.Value, 0.0, 1.0);
+        _playlistManager.AddFiles(new[] { slot.FilePath }, volume);
+        MessageBox.Show($"'{slot.DisplayName}' added to playlist at {(int)(volume * 100)}%.",
             "Added", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -324,10 +331,12 @@ public partial class ServiceElementsWindow : Window
             return;
         }
 
-        foreach (var slot in validSlots)
-            _playlistManager.AddFiles(new[] { slot.FilePath! });
+        var volume = Math.Clamp(DefaultVolumeSlider.Value, 0.0, 1.0);
 
-        MessageBox.Show($"Service created! Added {validSlots.Count} items to the playlist.",
+        foreach (var slot in validSlots)
+            _playlistManager.AddFiles(new[] { slot.FilePath! }, volume);
+
+        MessageBox.Show($"Service created! Added {validSlots.Count} items to the playlist at {(int)(volume * 100)}%.",
             "Service Created", MessageBoxButton.OK, MessageBoxImage.Information);
 
         DialogResult = true;

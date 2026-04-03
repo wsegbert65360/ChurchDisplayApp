@@ -52,6 +52,14 @@ public class PlaylistManager
 
     public void AddFiles(string[] filePaths)
     {
+        AddFiles(filePaths, DefaultItemVolume);
+    }
+
+    /// <summary>
+    /// Adds multiple files to the playlist with a specified default volume.
+    /// </summary>
+    public void AddFiles(string[] filePaths, double volume)
+    {
         if (filePaths == null || filePaths.Length == 0)
             return;
 
@@ -59,7 +67,7 @@ public class PlaylistManager
         {
             if (ValidateFile(filePath))
             {
-                Items.Add(new PlaylistItem(filePath, DefaultItemVolume));
+                Items.Add(new PlaylistItem(filePath, volume));
             }
         }
     }

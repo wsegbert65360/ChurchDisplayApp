@@ -96,25 +96,23 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - **Font size slider** (A-A) for playlist item text.
 - **Playlist ListBox** with drag-and-drop reordering.
   - Each item shows: file type icon, file name, and per-item volume percentage.
-- **Remote Control QR code** at the bottom.
+- **Media Controls** (compact, at bottom of sidebar).
+  - Seek bar with current time / duration display.
+  - Transport buttons: **Play**, **Pause**, **Stop**, **AMEN** (dedicated button).
+  - Current media title display.
+  - Volume slider with percentage display.
 
 ### Main Content (Right Panel)
-
-#### Media Controls Section
-- Section label: "🎬 MEDIA CONTROLS"
-- Seek bar with current time / duration display.
-- Transport buttons: **Play**, **Pause**, **Stop**, **AMEN** (dedicated button).
-- Current media title display.
-- Global volume slider with percentage display.
 
 #### Selected Item Volume Editor
 - Slider to view and adjust the currently selected playlist item's volume.
 - Changes are applied immediately if the item is currently playing.
 - Persisted when the playlist is saved.
 
-#### Playlist Controls Section
-- Section label: "📂 PLAYLIST CONTROLS"
+#### Playlist Controls + Remote
+- Section label: "📂 PLAYLIST CONTROLS" with compact remote QR code to the right.
 - Buttons: **LOAD**, **SAVE**, **NEW**, **BLANK**, **DISPLAY**, **CLOSE PLAYLIST**.
+- Remote control QR code and URL displayed inline for quick access.
 
 ## 📦 Deployment & Maintenance
 

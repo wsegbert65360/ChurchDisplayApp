@@ -46,10 +46,8 @@ To use the remote control:
 
 ## UI Layout
 
-- **Sidebar**: Playlist with drag-and-drop, font size control, add media button, and remote control QR code.
-- **Media Controls**: Play, Pause, Stop, Amen (dedicated button), seek bar, and volume slider.
-- **Selected Item Volume**: Adjust the volume of the currently selected playlist item.
-- **Playlist Controls**: Load, Save, New, Blank, Display toggle, and Close Playlist buttons.
+- **Sidebar**: Playlist with drag-and-drop, font size control, add media button, and compact media controls (play, pause, stop, amen, seek, volume).
+- **Main Panel**: Live preview, selected item volume editor, and playlist controls with remote QR code.
 
 ## Documentation
 
