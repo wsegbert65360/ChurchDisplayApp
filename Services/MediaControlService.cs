@@ -1,27 +1,24 @@
 using System.IO;
 using ChurchDisplayApp.Services;
-using ChurchDisplayApp.Interfaces;
 using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp.Services;
 
 /// <summary>
-/// Manages media playback control including main media and background music.
+/// Manages media playback control for the main media player.
+/// BGM (Background Music) features have been removed as part of the refactor.
 /// </summary>
 public class MediaControlService
 {
     private LiveOutputWindow _liveWindow;
     private readonly AppSettings _settings;
-    private readonly BackgroundMusicService? _bgmService;
-    private bool _mainMediaAutoPausedBgm = false;
 
     public event EventHandler? MediaStateChanged;
 
-    public MediaControlService(LiveOutputWindow liveWindow, AppSettings settings, BackgroundMusicService? bgmService = null)
+    public MediaControlService(LiveOutputWindow liveWindow, AppSettings settings)
     {
         _liveWindow = liveWindow ?? throw new ArgumentNullException(nameof(liveWindow));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-        _bgmService = bgmService;
     }
 
     /// <summary>
@@ -33,19 +30,11 @@ public class MediaControlService
     }
 
     /// <summary>
-    /// Notifies the service that BGM was auto-paused externally (e.g., by the ViewModel
-    /// resume shortcut). Sets the flag so BGM will auto-resume when media stops.
-    /// </summary>
-    public void NotifyBgmAutoPaused()
-    {
-        _mainMediaAutoPausedBgm = true;
-    }
-
-    /// <summary>
     /// Plays the specified media file on the live output window.
-    /// Automatically pauses background music if enabled.
     /// </summary>
-    public void PlayMedia(string filePath)
+    /// <param name="filePath">The media file to play.</param>
+    /// <param name="itemVolume">Per-item volume (0.0 to 1.0). Falls back to MainMediaVolume if not specified.</param>
+    public void PlayMedia(string filePath, double? itemVolume = null)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("File path cannot be empty", nameof(filePath));
@@ -53,18 +42,9 @@ public class MediaControlService
         if (!File.Exists(filePath))
             throw new FileNotFoundException("Media file not found", filePath);
 
-        // Auto-pause background music when playing media.
-        // Use HasActiveSession (not IsPlaying) because WasapiOut PlaybackState
-        // may not have transitioned to Playing yet after a recent Play() call.
-        if (_bgmService != null && _bgmService.HasActiveSession)
-        {
-            _bgmService.AutoPause();
-            _mainMediaAutoPausedBgm = true;
-        }
-
         // Set volume BEFORE starting playback so _targetVolume is correct
-        // when VLC's Playing event fires
-        var mainVolume = Math.Clamp(_settings.MainMediaVolume, 0.0, 1.0);
+        // when VLC's Playing event fires. Use item volume if provided, else global setting.
+        var mainVolume = Math.Clamp(itemVolume ?? _settings.MainMediaVolume, 0.0, 1.0);
         _liveWindow.SetVolume(mainVolume);
 
         _liveWindow.ShowMedia(filePath);
@@ -91,32 +71,11 @@ public class MediaControlService
     }
 
     /// <summary>
-    /// Stops the current media without resuming background music.
-    /// Use this when you are about to start new BGM immediately after.
-    /// </summary>
-    public void StopMediaOnly()
-    {
-        _liveWindow.Stop();
-        // Intentionally do NOT auto-resume BGM here — the caller handles it.
-        _mainMediaAutoPausedBgm = false;
-        MediaStateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>
     /// Stops the current media and clears the display.
-    /// Resumes background music if it was auto-paused.
     /// </summary>
     public void Stop()
     {
         _liveWindow.Stop();
-        
-        // Resume background music if it was auto-paused
-        if (_mainMediaAutoPausedBgm && _bgmService != null)
-        {
-            _bgmService.AutoResume();
-            _mainMediaAutoPausedBgm = false;
-        }
-        
         MediaStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -126,14 +85,6 @@ public class MediaControlService
     public void Blank()
     {
         _liveWindow.ShowBlank();
-        
-        // Resume background music if it was auto-paused
-        if (_mainMediaAutoPausedBgm && _bgmService != null)
-        {
-            _bgmService.AutoResume();
-            _mainMediaAutoPausedBgm = false;
-        }
-        
         MediaStateChanged?.Invoke(this, EventArgs.Empty);
     }
 

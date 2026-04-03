@@ -136,32 +136,11 @@ public sealed class RemoteControlServer
             return Results.Ok(new { ok = true });
         });
 
-        // BGM Endpoints
-        app.MapPost("/api/bgm/play/standard", () =>
+        // Amen endpoint
+        app.MapPost("/api/amen", () =>
         {
-            Log.Information("Remote: BGM Standard");
-            dispatcher.BeginInvoke(() => controller.PlayStandardBgm());
-            return Results.Ok(new { ok = true });
-        });
-
-        app.MapPost("/api/bgm/play/kids", () =>
-        {
-            Log.Information("Remote: BGM Kids");
-            dispatcher.BeginInvoke(() => controller.PlayKidsBgm());
-            return Results.Ok(new { ok = true });
-        });
-
-        app.MapPost("/api/bgm/pause", () =>
-        {
-            Log.Information("Remote: BGM Pause");
-            dispatcher.BeginInvoke(() => controller.PauseBgm());
-            return Results.Ok(new { ok = true });
-        });
-
-        app.MapPost("/api/bgm/stop", () =>
-        {
-            Log.Information("Remote: BGM Stop");
-            dispatcher.BeginInvoke(() => controller.StopBgm());
+            Log.Information("Remote: Amen");
+            dispatcher.BeginInvoke(() => controller.Amen());
             return Results.Ok(new { ok = true });
         });
 

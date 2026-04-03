@@ -8,7 +8,7 @@ ChurchDisplayApp is a professional Windows-based display management system built
 - **Target Runtime**: .NET 10.0 (compatible with 8.0/later)
 - **Language**: C# 14+
 - **Media Engine**: LibVLC (VLC.DotNet) for hardware-accelerated playback of diverse media formats.
-- **Audio Backend**: Dual independent WASAPI audio sessions (VLC + NAudio).
+- **Audio Backend**: WASAPI audio session for main media playback (VLC). Amen resolve uses MeltySynth + NAudio.
 - **UI Architecture**: Standard MVVM-lite (Model-View-ViewModel) with custom `RelayCommand` and `BaseViewModel` implementations.
 
 ## 🎨 Design System
@@ -21,39 +21,31 @@ The application uses a centralized design system to ensure visual consistency an
 
 ## 🔊 Audio Architecture
 
-### Dual Independent Audio Sessions
-The application uses two completely separate audio subsystems, each with its own isolated WASAPI session to prevent volume contamination and ensure only one audio source plays at a time.
+### Single Main Media Audio Path
+The application uses a single audio subsystem for media playback through LibVLC.
 
 | System | Backend | Audio API | Purpose |
 |--------|---------|-----------|---------|
-| **VLC Media Player** | LibVLCSharp | WASAPI (`--aout=wasapi`) | Main media playback (playlist videos, audio files) |
-| **Background Music** | NAudio | `WasapiOut` | Intro songs, kids sermon music, ambient BGM |
+| **Main Media Player** | LibVLCSharp | WASAPI (`--aout=wasapi`) | All playlist media playback |
 
-### Why WASAPI for Both
-Both players use WASAPI (Windows Audio Session API) to ensure fully independent per-session volume controls in the Windows Volume Mixer. This prevents the volume contamination bug where a lower-volume BGM session would affect the main media player's effective volume. Legacy APIs (DirectSound, WaveOutEvent) share the same per-process audio session and were replaced to fix this.
+### Per-Playlist-Item Volume
+Each playlist item stores its own volume setting (0.0 to 1.0, default 0.8). When a playlist item is played:
+1. The item's stored volume is applied to the media player before playback begins.
+2. The global volume slider is synced to reflect the item's volume.
+3. Users can edit the selected item's volume via the "Selected Item Volume" slider below the media controls.
+4. Volume changes are persisted when saving the playlist.
 
 ### Volume Management
-- **Main Media Volume**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), applied via `MediaPlayer.Volume` (0–100 integer) in `LiveOutputWindow`.
-- **BGM Volume**: Stored in `AppSettings.BackgroundMusicVolume` (0.0–1.0), applied via `AudioFileReader.Volume` (float) in `BackgroundMusicService`.
-- **VLC Re-application**: Volume is set both immediately and after a 150ms delay on the `Playing` event to handle VLC's asynchronous audio output initialization.
+- **Per-Item Volume**: Stored in `PlaylistItem.Volume` (0.0–1.0), applied when an item starts playing.
+- **Global Volume**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), synced from per-item volume on playback.
+- **VLC Re-application**: Volume is set both immediately and after VLC's `Playing` event to handle asynchronous audio initialization.
+- **Amen Resolve Volume**: Uses the currently playing item's volume or the global volume as a fallback.
 
-### Audio Mutual Exclusivity
-The `MediaControlService` ensures only one audio system is active at a time:
-
-| User Action | BGM State | Main Media State |
-|-------------|-----------|------------------|
-| Play playlist item | Auto-paused | Starts playing |
-| Stop media | Auto-resumed (if was auto-paused) | Stopped |
-| Blank display | Auto-resumed (if was auto-paused) | Paused/blanked |
-| Pause media | No change | Paused (BGM stays paused) |
-| Resume paused media | Auto-paused (if playing) | Resumed |
-| Play BGM button | Starts playing | Stopped first |
-| Next/Previous track | Auto-paused | New track starts |
-
-The `AutoPause()`/`AutoResume()` mechanism uses a boolean flag (`_mainMediaAutoPausedBgm`) to track whether BGM was silenced by media playback, ensuring it only resumes when appropriate (not if the user manually stopped BGM).
-
-### Volume Restoration on Window Recreate
-When `LiveOutputWindow` is recreated (e.g., after being closed), the saved volume from `MainViewModel.Volume` is explicitly reapplied via `MediaControlService.SetVolume()` to prevent the hardcoded default of 100 from overriding user preferences.
+### Amen Resolve
+The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2) and NAudio (WaveOutEvent). It plays a Plagal Cadence (IV-I) chord progression with:
+- A dedicated Amen button in the media controls section.
+- An `/api/amen` endpoint in the remote control server.
+- Behavior: stops current media, then plays the Amen resolve chord.
 
 ## ⚙️ Core Services & Components
 
@@ -61,13 +53,13 @@ When `LiveOutputWindow` is recreated (e.g., after being closed), the saved volum
 - **Strategy**: Asynchronous, debounced auto-save.
 - **Mechanism**: Serializes to `settings.json`.
 - **Hardening**: Uses `CancellationTokenSource` to debounce rapid changes and a thread-safe `SaveImmediate()` for critical persistence.
+- **Backward Compatibility**: Old BGM-related settings fields are preserved with `[Obsolete]` attributes so existing settings files load without errors.
 
 ### 2. Media Control (`MediaControlService.cs`)
-- Manages playback of background music and main media elements.
-- Handles independent volume levels and media state synchronization.
-- Coordinates auto-pause/resume of BGM when main media starts/stops.
-- Exposes `NotifyBgmAutoPaused()` for external BGM pause notification (used by ViewModel resume shortcut).
-- Updates live window reference when the display window is recreated.
+- Manages playback of all media elements through a single path.
+- Handles volume application before and during playback.
+- Exposes `PlayMedia(filePath, itemVolume)` for per-item volume support.
+- No longer manages background music auto-pause/resume.
 
 ### 3. Display Projection (`LiveOutputWindow.cs`)
 - Optimized for secondary monitor/projector output.
@@ -76,40 +68,69 @@ When `LiveOutputWindow` is recreated (e.g., after being closed), the saved volum
 - Applies volume on the `Playing` event with a delayed re-application for reliability.
 - Progress bar (7px) at the bottom of the display window.
 
-### 4. Background Music (`BackgroundMusicService.cs`)
-- Uses NAudio `WasapiOut` for independent audio session isolation.
-- Supports auto-pause (for media overlap prevention) and manual pause/stop.
-- Looping playback with automatic restart on track end.
-- Pulse animation support for visual BGM status indication.
-- Proper cleanup/disposal of `WasapiOut` and `AudioFileReader` instances.
-
-### 5. Playlist Management (`PlaylistManager.cs`)
+### 4. Playlist Management (`PlaylistManager.cs`)
 - `ObservableCollection<PlaylistItem>` with drag-and-drop reordering support.
 - **Dirty tracking**: `IsDirty` property automatically detects any collection change (add, remove, reorder) via `CollectionChanged` event. Resets on save and load.
+- **Per-Item Volume**: Each `PlaylistItem` stores its own `Volume` property (default 0.8). Implements `INotifyPropertyChanged` for UI binding.
 - Save/Load via JSON serialization (`.pls` files).
+- **Playlist Format v2**: `{ "version": 2, "items": [{ "fullPath": "...", "volume": 0.8 }] }`.
+- **Backward Compatibility**: Old playlists (plain array of path strings) are automatically loaded with default volume.
 - **Close Playlist**: Prompts user with Yes/No/Cancel dialog if unsaved changes exist before clearing.
 
-### 6. Remote Control (`RemoteControlServer.cs`)
+### 5. Remote Control (`RemoteControlServer.cs`)
 - Embedded HTTP server providing a web-based interface.
 - Allows control via any smartphone or tablet on the local network.
 - QR code display for easy connection.
+- **Endpoints**: `/api/play`, `/api/pause`, `/api/stop`, `/api/blank`, `/api/amen`, `/api/volume/*`, `/api/playlist`, `/api/status`.
+
+### 6. Amen Resolve (`AmenResolveService.cs`)
+- Uses MeltySynth synthesizer with a piano SoundFont.
+- Plays a Plagal Cadence (IV-I) with randomized velocity for a natural sound.
+- Triggered by the dedicated Amen button or remote `/api/amen` endpoint.
+- Runs asynchronously with a semaphore to prevent overlapping playback.
+
+## 📐 UI Layout
+
+### Sidebar (Left Panel)
+- **ADD MEDIA** button to add files to the playlist.
+- **Font size slider** (A-A) for playlist item text.
+- **Playlist ListBox** with drag-and-drop reordering.
+  - Each item shows: file type icon, file name, and per-item volume percentage.
+- **Remote Control QR code** at the bottom.
+
+### Main Content (Right Panel)
+
+#### Media Controls Section
+- Section label: "🎬 MEDIA CONTROLS"
+- Seek bar with current time / duration display.
+- Transport buttons: **Play**, **Pause**, **Stop**, **AMEN** (dedicated button).
+- Current media title display.
+- Global volume slider with percentage display.
+
+#### Selected Item Volume Editor
+- Slider to view and adjust the currently selected playlist item's volume.
+- Changes are applied immediately if the item is currently playing.
+- Persisted when the playlist is saved.
+
+#### Playlist Controls Section
+- Section label: "📂 PLAYLIST CONTROLS"
+- Buttons: **LOAD**, **SAVE**, **NEW**, **BLANK**, **DISPLAY**, **CLOSE PLAYLIST**.
 
 ## 📦 Deployment & Maintenance
 
-See [BUILD-INSTALLER.md](BUILD-INSTALLER.md) for complete step-by-step build
-and install instructions written for an AI code agent.
+See [BUILD-INSTALLER.md](BUILD-INSTALLER.md) for complete step-by-step build and install instructions.
 
 ### Build Pipeline (`sync-fcc.bat`)
 A professional automation script that:
 1. Performs a **Self-Contained** publish (no external .NET needed on target).
 2. Triggers **Inno Setup** to compile the Windows Installer.
-3. Automatically synchronized the installer to deployment folders (e.g., `D:\FCC Sync Folder`).
+3. Automatically synchronizes the installer to deployment folders.
 
 ### Installer Logic (`ChurchDisplayApp.iss`)
 - Standard Windows Installer focusing on `Program Files` installation.
 - Clean uninstallation process.
 - Desktop and Start Menu shortcut management.
-- Sources from `bin\Publish\win-x64\` (matched to `build-release.bat` output).
+- Sources from `bin\Publish\win-x64\`.
 
 ---
-*Last Updated: April 2, 2026*
+*Last Updated: April 3, 2026*

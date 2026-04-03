@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp.Services;
@@ -37,6 +38,11 @@ public class PlaylistManager
     public event EventHandler? IsDirtyChanged;
 
     /// <summary>
+    /// Default volume for newly created playlist items.
+    /// </summary>
+    public const double DefaultItemVolume = 0.8;
+
+    /// <summary>
     /// Adds multiple files to the playlist.
     /// </summary>
     public PlaylistManager()
@@ -53,7 +59,7 @@ public class PlaylistManager
         {
             if (ValidateFile(filePath))
             {
-                Items.Add(new PlaylistItem(filePath));
+                Items.Add(new PlaylistItem(filePath, DefaultItemVolume));
             }
         }
     }
@@ -113,14 +119,20 @@ public class PlaylistManager
 
     /// <summary>
     /// Saves the current playlist to a JSON file.
+    /// New format: { "version": 2, "items": [{ "fullPath": "...", "volume": 0.8 }] }
     /// </summary>
     public void SavePlaylist(string filePath)
     {
         try
         {
-            var playlistData = new PlaylistData
+            var playlistData = new PlaylistDataV2
             {
-                Items = Items.Select(item => item.FullPath).ToList()
+                Version = 2,
+                Items = Items.Select(item => new PlaylistItemData
+                {
+                    FullPath = item.FullPath,
+                    Volume = item.Volume
+                }).ToList()
             };
 
             var json = JsonSerializer.Serialize(playlistData, new JsonSerializerOptions { WriteIndented = true });
@@ -135,6 +147,7 @@ public class PlaylistManager
 
     /// <summary>
     /// Loads a playlist from a JSON file.
+    /// Supports both old format (array of path strings) and new format (array of objects with volume).
     /// </summary>
     public void LoadPlaylist(string filePath)
     {
@@ -144,22 +157,67 @@ public class PlaylistManager
                 throw new FileNotFoundException("Playlist file not found", filePath);
 
             var json = File.ReadAllText(filePath);
-            var playlistData = JsonSerializer.Deserialize<PlaylistData>(json);
-
-            if (playlistData?.Items == null)
-                throw new InvalidDataException("Invalid playlist format");
 
             Items.Clear();
-            foreach (var itemPath in playlistData.Items)
+
+            // Try to detect format: new format has a "version" or "items" field at root level
+            using (var doc = JsonDocument.Parse(json))
             {
-                if (ValidateFile(itemPath))
+                var root = doc.RootElement;
+
+                if (root.ValueKind == JsonValueKind.Array)
                 {
-                    Items.Add(new PlaylistItem(itemPath));
+                    // Legacy format: plain array of path strings
+                    foreach (var itemElement in root.EnumerateArray())
+                    {
+                        var itemPath = itemElement.GetString();
+                        if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
+                        {
+                            Items.Add(new PlaylistItem(itemPath, DefaultItemVolume));
+                        }
+                    }
+                }
+                else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("items", out var itemsArray))
+                {
+                    // New format: { "version": 2, "items": [...] }
+                    foreach (var itemElement in itemsArray.EnumerateArray())
+                    {
+                        string? itemPath = null;
+                        double itemVolume = DefaultItemVolume;
+
+                        if (itemElement.ValueKind == JsonValueKind.String)
+                        {
+                            // Items array contains plain strings (edge case)
+                            itemPath = itemElement.GetString();
+                        }
+                        else if (itemElement.ValueKind == JsonValueKind.Object)
+                        {
+                            itemPath = itemElement.TryGetProperty("fullPath", out var fpProp) ? fpProp.GetString() : null;
+                            if (itemElement.TryGetProperty("volume", out var volProp))
+                            {
+                                itemVolume = volProp.GetDouble();
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
+                        {
+                            Items.Add(new PlaylistItem(itemPath, itemVolume));
+                        }
+                    }
+                }
+                else
+                {
+                    throw new InvalidDataException("Unrecognized playlist format");
                 }
             }
+
             IsDirty = false;
         }
-        catch (Exception ex)
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException($"Failed to parse playlist: {ex.Message}", ex);
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
             throw new InvalidOperationException($"Failed to load playlist: {ex.Message}", ex);
         }
@@ -176,8 +234,24 @@ public class PlaylistManager
     }
 
 
-    private class PlaylistData
+    /// <summary>
+    /// New playlist format with per-item volume support.
+    /// </summary>
+    private class PlaylistDataV2
     {
-        public List<string> Items { get; set; } = new();
+        [JsonPropertyName("version")]
+        public int Version { get; set; } = 2;
+
+        [JsonPropertyName("items")]
+        public List<PlaylistItemData> Items { get; set; } = new();
+    }
+
+    private class PlaylistItemData
+    {
+        [JsonPropertyName("fullPath")]
+        public string FullPath { get; set; } = string.Empty;
+
+        [JsonPropertyName("volume")]
+        public double Volume { get; set; } = DefaultItemVolume;
     }
 }

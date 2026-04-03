@@ -68,17 +68,27 @@ ChurchDisplayApp uses Inno Setup to create a professional single-file installer.
 
 ### Key Features
 - ✅ **Multi-Monitor Support**: Automatic detection and fullscreen projection on second displays.
-- ✅ **Media Playback**: Supports video and audio with progress controls and independent volume.
-- ✅ **Background Music**: Pulsing visual feedback and dedicated controls.
-- ✅ **Playlist Management**: Drag-and-drop support for organizing service elements.
-- ✅ **Remote Control**: Web-based remote control for operation from mobile devices.
+- ✅ **Media Playback**: Supports video and audio with progress controls, per-item volume, and seek.
+- ✅ **Per-Item Volume**: Each playlist item remembers its own volume level, applied automatically on playback.
+- ✅ **Playlist Management**: Drag-and-drop support for organizing service elements with save/load.
+- ✅ **Amen Resolve**: Dedicated button plays a musical Plagal Cadence to conclude selections.
+- ✅ **Remote Control**: Web-based remote control for operation from mobile devices with Play, Pause, Stop, Amen, and volume controls.
 - ✅ **Hardened Persistence**: Debounced, thread-safe settings preservation.
 
 ### Basic Usage
-- **Add Media**: Use the "Add Files" button or drag-and-drop files into the playlist.
-- **Go Live**: Double-click an item or use the "Go Live" button to project it.
-- **Blank Screen**: Hides the current content on the live display.
-- **Toggle Display**: Quickly show or hide the live window.
+- **Add Media**: Use the "ADD MEDIA" button or drag-and-drop files into the playlist.
+- **Go Live**: Double-click an item or use the "Play" button to project it.
+- **Adjust Item Volume**: Select an item in the playlist, then use the "Selected Item Volume" slider to set its individual volume.
+- **Blank Screen**: Use the "BLANK" button to hide the current content on the live display.
+- **Amen**: Use the dedicated "AMEN" button to stop media and play the Amen resolve chord.
+- **Toggle Display**: Use the "DISPLAY" button to show or hide the live output window.
+
+### Remote Control
+The remote control web interface provides:
+- Playlist view with tap-to-play for each item.
+- Transport controls: Play, Pause, Stop, Amen.
+- Volume up/down controls.
+- Real-time status display with progress bar.
 
 ---
 

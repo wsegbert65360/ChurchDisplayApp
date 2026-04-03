@@ -6,14 +6,13 @@ using ChurchDisplayApp.Models;
 namespace ChurchDisplayApp.ViewModels;
 
 /// <summary>
-/// The main ViewModel for the application, managing the playlist, media playback, and background music.
+/// The main ViewModel for the application, managing the playlist, media playback, and per-item volume.
 /// </summary>
 public class MainViewModel : BaseViewModel
 {
     private readonly PlaylistManager _playlistManager;
     private readonly MediaControlService _mediaControlService;
     private readonly AppSettings _settings;
-    private readonly BackgroundMusicService? _backgroundMusicService;
     private double _volume = 0.5;
     private double _progress = 0;
     private string _currentMediaTitle = "Idle";
@@ -23,19 +22,15 @@ public class MainViewModel : BaseViewModel
     private bool _isScrubbing = false;
     private PlaylistItem? _selectedItem;
     private double _playlistFontSize = 13;
-    private string _introBgmName = "None Selected";
-    private string _kidsBgmName = "None Selected";
 
-    public MainViewModel(PlaylistManager playlistManager, MediaControlService mediaControlService, AppSettings settings, BackgroundMusicService? backgroundMusicService = null)
+    public MainViewModel(PlaylistManager playlistManager, MediaControlService mediaControlService, AppSettings settings)
     {
         _playlistManager = playlistManager ?? throw new ArgumentNullException(nameof(playlistManager));
         _mediaControlService = mediaControlService ?? throw new ArgumentNullException(nameof(mediaControlService));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-        _backgroundMusicService = backgroundMusicService;
         
         _volume = _settings.MainMediaVolume;
         _playlistFontSize = _settings.PlaylistFontSize;
-        // Explicitly apply saved volume — field assignment above doesn't trigger the setter
         _mediaControlService.SetVolume(_volume);
 
         // Commands
@@ -50,8 +45,6 @@ public class MainViewModel : BaseViewModel
         
         // Listen to playlist changes to update background hint
         _playlistManager.Items.CollectionChanged += (s, e) => OnPropertyChanged(nameof(PlaylistBackground));
-
-        UpdateBgmNames();
     }
 
     public ObservableCollection<PlaylistItem> PlaylistItems => _playlistManager.Items;
@@ -59,8 +52,21 @@ public class MainViewModel : BaseViewModel
     public PlaylistItem? SelectedItem
     {
         get => _selectedItem;
-        set => SetProperty(ref _selectedItem, value);
+        set
+        {
+            if (SetProperty(ref _selectedItem, value))
+            {
+                OnPropertyChanged(nameof(SelectedItemVolumePercent));
+            }
+        }
     }
+
+    /// <summary>
+    /// Gets the selected item's volume as a display string (e.g. "80%").
+    /// </summary>
+    public string SelectedItemVolumePercent => SelectedItem != null 
+        ? $"{(int)(SelectedItem.Volume * 100)}%" 
+        : $"{(int)(PlaylistManager.DefaultItemVolume * 100)}%";
 
     public double Volume
     {
@@ -142,18 +148,6 @@ public class MainViewModel : BaseViewModel
         set => SetProperty(ref _durationStr, value);
     }
 
-    public string IntroBGMName
-    {
-        get => _introBgmName;
-        set => SetProperty(ref _introBgmName, value);
-    }
-
-    public string KidsBGMName
-    {
-        get => _kidsBgmName;
-        set => SetProperty(ref _kidsBgmName, value);
-    }
-
     // Commands
     public ICommand PlayCommand { get; }
     public ICommand StopCommand { get; }
@@ -173,12 +167,9 @@ public class MainViewModel : BaseViewModel
             // If already loaded and just paused, simply resume
             if (SelectedItem.FullPath == _currentlyLoadedPath && !IsPlaying)
             {
-                // Auto-pause BGM before resuming to prevent audio overlap
-                if (_backgroundMusicService != null && _backgroundMusicService.HasActiveSession)
-                {
-                    _backgroundMusicService.AutoPause();
-                    _mediaControlService.NotifyBgmAutoPaused();
-                }
+                // Re-apply the selected item's volume on resume
+                _mediaControlService.SetVolume(SelectedItem.Volume);
+                Volume = SelectedItem.Volume;
 
                 _mediaControlService.Play();
                 IsPlaying = true;
@@ -191,13 +182,11 @@ public class MainViewModel : BaseViewModel
                 return;
             }
 
-            _backgroundMusicService?.StopPulseAnimation();
-            // Note: BGM auto-pause is handled inside PlayMedia() via MediaControlService,
-            // so we don't fully stop BGM here — it gets AutoPaused to allow AutoResume later.
-
-            _mediaControlService.PlayMedia(SelectedItem.FullPath);
+            _mediaControlService.PlayMedia(SelectedItem.FullPath, SelectedItem.Volume);
             _currentlyLoadedPath = SelectedItem.FullPath;
             CurrentMediaTitle = SelectedItem.FileName;
+            // Sync the global volume slider to reflect the item's volume
+            Volume = SelectedItem.Volume;
             IsPlaying = true;
         }
     }
@@ -263,11 +252,8 @@ public class MainViewModel : BaseViewModel
         {
             if (IsScrubbing) return;
 
-            // If something is loaded, try to get progress
             if (_currentlyLoadedPath != null)
             {
-                // If not playing, don't poll VLC constantly as it can be jittery or stale
-                // We'll rely on the position set by the user during seek while paused
                 if (!IsPlaying) return;
 
                 var info = _mediaControlService.GetProgress();
@@ -280,7 +266,6 @@ public class MainViewModel : BaseViewModel
             }
             else
             {
-                // Truly nothing loaded, reset
                 CurrentTimeStr = "00:00";
                 DurationStr = "00:00";
                 Progress = 0;
@@ -295,16 +280,5 @@ public class MainViewModel : BaseViewModel
     public string FormatTime(TimeSpan time)
     {
         return $"{(int)time.TotalMinutes:D2}:{time.Seconds:D2}";
-    }
-
-    public void UpdateBgmNames()
-    {
-        IntroBGMName = !string.IsNullOrEmpty(_settings.BackgroundMusicPath) 
-            ? System.IO.Path.GetFileName(_settings.BackgroundMusicPath) 
-            : "None Selected";
-            
-        KidsBGMName = !string.IsNullOrEmpty(_settings.BackgroundMusicChildSermonPath) 
-            ? System.IO.Path.GetFileName(_settings.BackgroundMusicChildSermonPath) 
-            : "None Selected";
     }
 }

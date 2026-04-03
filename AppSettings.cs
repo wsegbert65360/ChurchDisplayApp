@@ -26,20 +26,29 @@ public class AppSettings
     /// </summary>
     public string? LastPlaylistSaveDirectory { get; set; }
 
-    /// <summary>Gets or sets the file path for background music (Standard).</summary>
+    // --- Obsolete BGM settings kept for backward-compatible deserialization ---
+    // These are no longer used at runtime but are preserved so that loading
+    // an existing settings.json does not throw or lose data.
+    #pragma warning disable CS0618 // Suppress obsolete warnings internally
+    /// <summary>Obsolete: Background music file path. Kept for deserialization compatibility.</summary>
+    [Obsolete("Background music feature has been removed.")]
     public string? BackgroundMusicPath { get; set; }
 
-    /// <summary>Gets or sets the file path for Children's Sermon music.</summary>
+    /// <summary>Obsolete: Children's sermon music path. Kept for deserialization compatibility.</summary>
+    [Obsolete("Background music feature has been removed.")]
     public string? BackgroundMusicChildSermonPath { get; set; }
 
-    /// <summary>Gets or sets the volume level for background music (0.0 to 1.0).</summary>
+    /// <summary>Obsolete: Background music volume. Kept for deserialization compatibility.</summary>
+    [Obsolete("Background music feature has been removed.")]
     public double BackgroundMusicVolume { get; set; } = 0.3;
+
+    /// <summary>Obsolete: Whether background music is enabled. Kept for deserialization compatibility.</summary>
+    [Obsolete("Background music feature has been removed.")]
+    public bool BackgroundMusicEnabled { get; set; } = true;
+    #pragma warning restore CS0618
 
     /// <summary>Gets or sets the volume level for the main media (0.0 to 1.0).</summary>
     public double MainMediaVolume { get; set; } = 0.5;
-
-    /// <summary>Gets or sets whether background music is enabled.</summary>
-    public bool BackgroundMusicEnabled { get; set; } = true;
 
     /// <summary>Gets or sets the font size for the playlist items.</summary>
     public double PlaylistFontSize { get; set; } = 13.0;
@@ -108,10 +117,8 @@ public class AppSettings
     public void MigrateToServiceSlots()
     {
         if (ServiceSlots.Count > 0)
-            return; // Already migrated, nothing to do
+            return;
 
-        // Map old fixed properties to new dynamic slots.
-        // Each legacy slot is sticky=false (they were never persisted between services before).
         var legacyMappings = new[]
         {
             ("Call to Worship",              CallToWorshipFile),
@@ -132,7 +139,7 @@ public class AppSettings
             ServiceSlots.Add(new ServiceSlot
             {
                 DisplayName = name,
-                FilePath    = null,   // Legacy stored filename only, not full path — left blank for user to re-select
+                FilePath    = null,
                 IsSticky    = false,
                 LastUsedFolder = LastMediaDirectory
             });
@@ -142,24 +149,21 @@ public class AppSettings
     public void Validate()
     {
         // Volume validation (0.0 to 1.0)
-        BackgroundMusicVolume = Math.Clamp(BackgroundMusicVolume, 0.0, 1.0);
         MainMediaVolume = Math.Clamp(MainMediaVolume, 0.0, 1.0);
         PlaylistFontSize = Math.Clamp(PlaylistFontSize, 6.0, 30.0);
 
         // Proportion validation (0.0 to 1.0)
         if (!MainWindowLeftColumnProportion.HasValue)
-            MainWindowLeftColumnProportion = 0.25; // Favor Preview Wide
+            MainWindowLeftColumnProportion = 0.25;
         else
             MainWindowLeftColumnProportion = Math.Clamp(MainWindowLeftColumnProportion.Value, 0.05, 0.95);
 
         if (!MainWindowTopRowProportion.HasValue)
-            MainWindowTopRowProportion = 0.8; // Favor Preview Tall
+            MainWindowTopRowProportion = 0.8;
         else
             MainWindowTopRowProportion = Math.Clamp(MainWindowTopRowProportion.Value, 0.05, 0.95);
 
-        // Ensure strings are not null (where applicable)
-        BackgroundMusicPath ??= string.Empty;
-        BackgroundMusicChildSermonPath ??= string.Empty;
+        // Ensure strings are not null
         CallToWorshipFile ??= string.Empty;
         DoxologyFile ??= string.Empty;
         GloriaPatriFile ??= string.Empty;
@@ -207,7 +211,7 @@ public class AppSettings
         {
             try
             {
-                Validate(); // Final validation before save
+                Validate();
                 Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
                 var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(SettingsPath, json);

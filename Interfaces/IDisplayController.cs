@@ -44,16 +44,7 @@ namespace ChurchDisplayApp.Interfaces
         /// <summary>Gets a list of items currently in the playlist for the remote UI.</summary>
         List<RemotePlaylistItem> GetPlaylistItems();
 
-        /// <summary>Plays the standard background music track.</summary>
-        void PlayStandardBgm();
-
-        /// <summary>Plays the children's sermon background music track.</summary>
-        void PlayKidsBgm();
-
-        /// <summary>Pauses background music playback.</summary>
-        void PauseBgm();
-
-        /// <summary>Stops background music playback (with Amen resolve if configured).</summary>
-        void StopBgm();
+        /// <summary>Stops media playback and plays the Amen resolve chord.</summary>
+        void Amen();
     }
 }

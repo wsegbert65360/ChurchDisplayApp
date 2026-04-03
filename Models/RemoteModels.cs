@@ -10,9 +10,7 @@ public record RemoteStatus(
     double ProgressPercent, 
     string CurrentTime, 
     string Duration, 
-    double Volume,
-    string BgmTitle,
-    bool IsBgmPlaying
+    double Volume
 );
 
 /// <summary>

@@ -31,7 +31,6 @@
             width: 100%;
             overflow: hidden;
             position: fixed;
-            /* Prevent elastic scrolling on some mobile devices */
         }
 
         body {
@@ -59,56 +58,13 @@
             color: var(--primary);
         }
 
-        .tabs {
-            display: flex;
-            background: var(--card);
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
-        }
-
-        .tab {
-            flex: 1;
-            padding: 12px;
-            text-align: center;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-dim);
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-
-        .tab i {
-            width: 16px;
-            height: 16px;
-        }
-
-        .tab.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
-        }
-
         .content {
             flex: 1;
             overflow-y: scroll;
-            /* Force scrollbar/scrollability focus */
             min-height: 0;
             padding: 16px;
             padding-bottom: 200px;
-            /* Extra padding for floating controls */
             -webkit-overflow-scrolling: touch;
-        }
-
-        .tab-pane {
-            display: none;
-        }
-
-        .tab-pane.active {
-            display: block;
         }
 
         .card-list {
@@ -265,6 +221,21 @@
             height: 24px;
         }
 
+        .btn-amen {
+            width: 52px;
+            height: 52px;
+            background: #E8B849;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(232, 184, 73, 0.3);
+            font-weight: 800;
+            font-size: 12px;
+            letter-spacing: -0.5px;
+        }
+
         .progress-section {
             display: flex;
             align-items: center;
@@ -294,90 +265,6 @@
             transition: width 0.1s linear;
         }
 
-        /* Custom BGM Styles */
-        .bgm-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        .bgm-btn {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        .bgm-btn.active {
-            border-color: var(--primary);
-            background: var(--primary-light);
-            color: var(--primary);
-        }
-
-        .bgm-btn i {
-            width: 24px;
-            height: 24px;
-            margin-bottom: 4px;
-        }
-
-        .bgm-title {
-            font-weight: 700;
-            font-size: 14px;
-        }
-
-        .bgm-status {
-            font-size: 11px;
-            opacity: 0.8;
-        }
-
-        .volume-popover {
-            position: absolute;
-            bottom: 100%;
-            right: 0;
-            background: white;
-            border: 1px solid var(--border);
-            padding: 16px;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 8px;
-        }
-
-        .volume-popover.show {
-            display: flex;
-        }
-
-        .volume-slider {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 120px;
-            height: 4px;
-            background: #e2e8f0;
-            border-radius: 2px;
-            outline: none;
-        }
-
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            background: var(--primary);
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
         .toast {
             position: fixed;
             top: 20px;
@@ -400,58 +287,10 @@
         <h1>Church Display Remote</h1>
     </header>
 
-    <div class="tabs">
-        <div class="tab active" data-tab="playlist">
-            <i data-lucide="list-music"></i>
-            Playlist
-        </div>
-        <div class="tab" data-tab="bgm">
-            <i data-lucide="star"></i>
-            Background music
-        </div>
-    </div>
-
     <div class="content">
-        <!-- Playlist Tab -->
-        <div class="tab-pane active" id="pane-playlist">
-            <div id="playlist-container" class="card-list">
-                <!-- Items injected by JS -->
-            </div>
-        </div>
-
-        <!-- BGM Tab -->
-        <div class="tab-pane" id="pane-bgm">
-            <div class="card-list">
-                <div class="card bgm-card" id="bgm-standard" onclick="post('/api/bgm/play/standard')">
-                    <div class="card-icon"><i data-lucide="music"></i></div>
-                    <div class="card-info">
-                        <div class="card-title">Standard BGM</div>
-                        <div class="card-subtitle" id="bgm-standard-name">Intro & Transitions</div>
-                    </div>
-                    <div class="bgm-indicator" style="display:none"><i data-lucide="play-circle"
-                            style="color:var(--primary)"></i></div>
-                </div>
-                <div class="card bgm-card" id="bgm-kids" onclick="post('/api/bgm/play/kids')">
-                    <div class="card-icon"><i data-lucide="baby"></i></div>
-                    <div class="card-info">
-                        <div class="card-title">Kids Sermon</div>
-                        <div class="card-subtitle" id="bgm-kids-name">Children's Background</div>
-                    </div>
-                    <div class="bgm-indicator" style="display:none"><i data-lucide="play-circle"
-                            style="color:var(--primary)"></i></div>
-                </div>
-
-                <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                    <div class="bgm-btn" onclick="post('/api/bgm/pause')">
-                        <i data-lucide="pause"></i>
-                        <span class="bgm-title">Pause</span>
-                    </div>
-                    <div class="bgm-btn" onclick="post('/api/bgm/stop')" style="border-color: #fca5a5; color: #ef4444;">
-                        <i data-lucide="square"></i>
-                        <span class="bgm-title">Stop (Amen)</span>
-                    </div>
-                </div>
-            </div>
+        <!-- Playlist -->
+        <div id="playlist-container" class="card-list">
+            <!-- Items injected by JS -->
         </div>
     </div>
 
@@ -489,6 +328,9 @@
             <button class="btn-control" onclick="post('/api/stop')">
                 <i data-lucide="square"></i>
             </button>
+            <button class="btn-amen" onclick="post('/api/amen')">
+                AMEN
+            </button>
         </div>
 
         <div class="progress-section">
@@ -507,18 +349,6 @@
 
         // Initialize Lucide icons
         lucide.createIcons();
-
-        // Tab Switching
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const target = tab.dataset.tab;
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-
-                tab.classList.add('active');
-                document.getElementById('pane-' + target).classList.add('active');
-            });
-        });
 
         function showToast(msg) {
             const toast = document.getElementById('toast');
@@ -568,19 +398,7 @@
                 const timeDuration = document.getElementById('time-duration');
                 if (timeDuration) timeDuration.textContent = data.duration || '0:00';
 
-                // 3. Update BGM status in BGM tab
-                const bgmStandard = document.getElementById('bgm-standard');
-                const bgmKids = document.getElementById('bgm-kids');
-                if (bgmStandard && bgmKids && data.bgmTitle) {
-                    const bgmTitleLow = data.bgmTitle.toLowerCase();
-                    const isKids = bgmTitleLow.includes('child') || bgmTitleLow.includes('kids');
-                    const isStandard = !isKids && data.bgmTitle !== 'None';
-
-                    bgmStandard.classList.toggle('playing', data.isBgmPlaying && isStandard);
-                    bgmKids.classList.toggle('playing', data.isBgmPlaying && isKids);
-                }
-
-                // 4. Active media highlighter in playlist
+                // 3. Active media highlighter in playlist
                 document.querySelectorAll('.card.playlist-item').forEach(card => {
                     const titleEl = card.querySelector('.card-title');
                     if (titleEl) {
@@ -635,7 +453,7 @@
         loadPlaylist();
         pollStatus();
         setInterval(pollStatus, 1000);
-        setInterval(loadPlaylist, 30000); // Less frequent for less UI jumpiness
+        setInterval(loadPlaylist, 30000);
 
     </script>
 </body>
