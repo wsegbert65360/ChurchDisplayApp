@@ -47,6 +47,17 @@ public sealed class RemoteControlServer
 
         app.UseSerilogRequestLogging();
 
+        // Serve static files (lucide.min.js, etc.) from the RemoteControl folder
+        var remoteControlDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteControl");
+        if (Directory.Exists(remoteControlDir))
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(remoteControlDir),
+                RequestPath = ""
+            });
+        }
+
         app.UseExceptionHandler("/error");
         app.MapGet("/error", (HttpContext context) =>
         {
