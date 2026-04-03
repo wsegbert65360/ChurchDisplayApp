@@ -651,8 +651,9 @@ public partial class MainWindow : Window, IDisplayController
         }
         else
         {
-            SelectedItemVolumeSlider.Value = PlaylistManager.DefaultItemVolume;
-            SelectedItemVolumeText.Text = $"{(int)(PlaylistManager.DefaultItemVolume * 100)}%";
+            var defaultVol = AppSettings.Current.DefaultServiceVolume;
+            SelectedItemVolumeSlider.Value = defaultVol;
+            SelectedItemVolumeText.Text = $"{(int)(defaultVol * 100)}%";
         }
     }
 

@@ -30,8 +30,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" /> <!-- Add Button -->
                     <RowDefinition Height="Auto" /> <!-- Font Size -->
-                    <RowDefinition Height="*" />    <!-- Playlist -->
-                    <RowDefinition Height="Auto" /> <!-- Media Controls -->
+                    <RowDefinition Height="*" />    <!-- Playlist (fills all remaining space) -->
                 </Grid.RowDefinitions>
 
                 <!-- Add Media Button -->
@@ -58,7 +57,7 @@
                     </StackPanel>
                 </DockPanel>
 
-                <!-- Playlist ListBox -->
+                <!-- Playlist ListBox (fills remaining sidebar space) -->
                 <ListBox x:Name="PlaylistListBox"
                          Grid.Row="2"
                          ItemsSource="{Binding PlaylistItems}"
@@ -99,70 +98,6 @@
                         </ContextMenu>
                     </ListBox.ContextMenu>
                 </ListBox>
-
-                <!-- Media Controls (bottom of sidebar) -->
-                <Border Grid.Row="3" x:Name="MediaControlsContainer" Background="White" Margin="8,6,8,8" Padding="10,8" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <StackPanel>
-                        <!-- Seek Bar -->
-                        <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding CurrentTimeStr}" FontSize="9" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <Slider x:Name="ProgressSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Progress, Mode=TwoWay}" 
-                                    PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
-                            <TextBlock Text="{Binding DurationStr}" Grid.Column="2" FontSize="9" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
-                        </Grid>
-
-                        <!-- Transport Buttons -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PlayCommand}" 
-                                    ToolTip="Play Current Media"
-                                    Background="{StaticResource ActionBrush}" BorderThickness="0" Width="34" Height="34" Padding="0" Margin="0,0,4,0">
-                                <Border CornerRadius="17">
-                                    <Path Data="{StaticResource PlayIconData}" Fill="White" Stretch="Uniform" Width="12" Height="12" Margin="2,0,0,0" />
-                                </Border>
-                            </Button>
-                            <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PauseCommand}" 
-                                    ToolTip="Pause Media"
-                                    Background="{StaticResource ActionBrush}" BorderThickness="0" Width="26" Height="26" Padding="0" Margin="0,0,4,0">
-                                <Border CornerRadius="13">
-                                    <Path Data="{StaticResource PauseIconData}" Fill="White" Stretch="Uniform" Width="9" Height="9" />
-                                </Border>
-                            </Button>
-                            <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding StopCommand}" 
-                                    ToolTip="Stop Media"
-                                    Background="{StaticResource ActionBrush}" BorderThickness="0" Width="26" Height="26" Padding="0" Margin="0,0,4,0">
-                                <Border CornerRadius="13">
-                                    <Path Data="{StaticResource StopIconData}" Fill="White" Stretch="Uniform" Width="9" Height="9" />
-                                </Border>
-                            </Button>
-                            <Button Style="{StaticResource ModernButtonStyle}" Click="AmenButton_Click" 
-                                    ToolTip="Stop Media &amp; Play Amen Resolve"
-                                    Background="#E8B849" BorderThickness="0" Width="44" Height="26" Padding="0">
-                                <Border CornerRadius="13">
-                                    <TextBlock Text="AMEN" FontSize="7" FontWeight="Black" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                </Border>
-                            </Button>
-                        </StackPanel>
-
-                        <!-- Title + Volume -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding CurrentMediaTitle}" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <TextBlock Text="🔊" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.6" />
-                                <Slider x:Name="MediaVolumeSlider" Width="70" Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding VolumePercentage}" FontSize="9" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" Width="26" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                </Border>
             </Grid>
         </Border>
 
@@ -182,7 +117,6 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="#BBBBBB"
                             BorderThickness="1,0">
-                        <!-- Three dot grip indicator centered on the bar -->
                         <ItemsControl HorizontalAlignment="Center"
                                       VerticalAlignment="Center">
                             <ItemsControl.ItemsPanel>
@@ -231,68 +165,140 @@
                 </Grid>
             </Border>
 
-            <!-- Controls Area -->
-            <StackPanel Grid.Row="1" Margin="20,0,20,10">
-                <!-- Selected Item Volume Editor -->
-                <Border Background="White" CornerRadius="12" Padding="12,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="🎵" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.6" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Selected Item Volume:" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <Slider x:Name="SelectedItemVolumeSlider" Width="120" Minimum="0" Maximum="1" VerticalAlignment="Center" ValueChanged="SelectedItemVolumeSlider_ValueChanged" SmallChange="0.05" />
-                            <TextBlock x:Name="SelectedItemVolumeText" Text="80%" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" Width="30" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
+            <!-- ═══ Controls Area ═══ -->
+            <Grid Grid.Row="1" Margin="20,0,20,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" /> <!-- Playlist Controls + Remote QR (side by side) -->
+                    <RowDefinition Height="Auto" /> <!-- Media Controls (full width) -->
+                </Grid.RowDefinitions>
 
-                <!-- Playlist Controls + Remote -->
-                <Border Margin="0,8,0,0" Background="White" CornerRadius="12" Padding="12,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <Grid>
-                        <!-- Header row: label + remote -->
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                <!-- ──── Playlist Controls + Selected Volume + Remote QR ──── -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="📂 PLAYLIST CONTROLS" FontSize="9" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6" />
+                    <!-- Left: Playlist Controls + Selected Item Volume -->
+                    <StackPanel Grid.Column="0">
+                        <!-- Playlist Controls (compact) -->
+                        <Border Background="White" CornerRadius="12" Padding="10,6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="📂 PLAYLIST CONTROLS" FontSize="9" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,4" />
+                                <UniformGrid Columns="3">
+                                    <Button Style="{StaticResource ModernButtonStyle}" Click="LoadPlaylist_Click" Content="LOAD" 
+                                            ToolTip="Load Saved Playlist" MinWidth="0"
+                                            Margin="0,0,2,2" Height="20" FontSize="7" Padding="4,0" />
+                                    <Button Style="{StaticResource ModernButtonStyle}" Click="SavePlaylist_Click" Content="SAVE" 
+                                            ToolTip="Save Current Playlist" MinWidth="0"
+                                            Margin="0,0,2,2" Height="20" FontSize="7" Padding="4,0" />
+                                    <Button Style="{StaticResource ModernButtonStyle}" Click="CreatePlaylist_Click" Content="NEW" 
+                                            ToolTip="Create Service Plan" MinWidth="0"
+                                            Margin="0,0,0,2" Height="20" FontSize="7" Padding="4,0" />
+                                    <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding BlankCommand}" Content="BLANK" 
+                                            MinWidth="0"
+                                            Margin="0,0,2,0" Height="20" FontSize="7" Padding="4,0" />
+                                    <Button Style="{StaticResource PrimaryButtonStyle}" Click="ToggleDisplay_Click" Content="DISPLAY" 
+                                            MinWidth="0" Grid.ColumnSpan="2" Height="20" FontSize="7" Padding="4,0" />
+                                    <Button Style="{StaticResource ModernButtonStyle}" Click="ClosePlaylist_Click" Content="CLOSE PLAYLIST" 
+                                            ToolTip="Close Current Playlist" MinWidth="0"
+                                            Grid.ColumnSpan="3" Height="20" FontSize="7" Padding="4,0" Margin="0,2,0,0" />
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
 
-                        <!-- Remote Control (right side) -->
-                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,6">
-                            <TextBlock Text="📱" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.5" />
-                            <Border Background="White" Padding="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                                <Image x:Name="RemoteQrImage" Width="36" Height="36" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        <!-- Selected Item Volume Editor -->
+                        <Border Margin="0,6,0,0" Background="White" CornerRadius="12" Padding="10,6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🎵" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" Opacity="0.6" />
+                                <TextBlock Text="Selected Item Volume:" FontSize="9" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <Slider x:Name="SelectedItemVolumeSlider" Width="100" Minimum="0" Maximum="1" VerticalAlignment="Center" ValueChanged="SelectedItemVolumeSlider_ValueChanged" SmallChange="0.05" />
+                                <TextBlock x:Name="SelectedItemVolumeText" Text="80%" FontSize="9" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" Width="28" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Right: Remote QR Code (fills available height) -->
+                    <Border Grid.Column="1" Margin="8,0,0,0" Background="White" CornerRadius="12" Padding="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="📱 Remote" FontSize="9" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                            <Border Background="White" Padding="3" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                                <Image x:Name="RemoteQrImage" Width="88" Height="88" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                             </Border>
-                            <TextBlock x:Name="RemoteUrlText" Text="Starting..." FontSize="8" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            <TextBlock x:Name="RemoteUrlText" Text="Starting..." FontSize="8" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" MaxWidth="100" />
                         </StackPanel>
+                    </Border>
+                </Grid>
 
-                        <!-- Playlist Buttons -->
-                        <UniformGrid Grid.Row="1" Grid.ColumnSpan="2" Columns="3">
-                            <Button Style="{StaticResource ModernButtonStyle}" Click="LoadPlaylist_Click" Content="LOAD" 
-                                    ToolTip="Load Saved Playlist"
-                                    Margin="0,0,2,2" Height="22" FontSize="8" Padding="2,0" />
-                            <Button Style="{StaticResource ModernButtonStyle}" Click="SavePlaylist_Click" Content="SAVE" 
-                                    ToolTip="Save Current Playlist"
-                                    Margin="0,0,2,2" Height="22" FontSize="8" Padding="2,0" />
-                            <Button Style="{StaticResource ModernButtonStyle}" Click="CreatePlaylist_Click" Content="NEW" 
-                                    ToolTip="Create Service Plan"
-                                    Margin="0,0,0,2" Height="22" FontSize="8" Padding="2,0" />
-                            <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding BlankCommand}" Content="BLANK" Margin="0,0,2,0" Height="22" FontSize="8" Padding="2,0" />
-                            <Button Style="{StaticResource PrimaryButtonStyle}" Click="ToggleDisplay_Click" Content="DISPLAY" Grid.ColumnSpan="2" Height="22" FontSize="8" Padding="2,0" />
-                            <Button Style="{StaticResource ModernButtonStyle}" Click="ClosePlaylist_Click" Content="CLOSE PLAYLIST" 
-                                    ToolTip="Close Current Playlist"
-                                    Grid.ColumnSpan="3" Height="22" FontSize="8" Padding="2,0" Margin="0,2,0,0" />
-                        </UniformGrid>
-                    </Grid>
+                <!-- ──── Media Controls (full width, below playlist) ──── -->
+                <Border Grid.Row="1" Margin="0,8,0,0" x:Name="MediaControlsContainer" Background="White" Padding="10,6" CornerRadius="12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <!-- Seek Bar (full width) -->
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding CurrentTimeStr}" FontSize="9" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <Slider x:Name="ProgressSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Progress, Mode=TwoWay}" 
+                                    PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
+                            <TextBlock Text="{Binding DurationStr}" Grid.Column="2" FontSize="9" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </Grid>
+
+                        <!-- Transport Buttons | Title | Volume -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />   <!-- Transport -->
+                                <ColumnDefinition Width="*" />      <!-- Title -->
+                                <ColumnDefinition Width="Auto" />   <!-- Volume -->
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Transport Buttons -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PlayCommand}" 
+                                        ToolTip="Play Current Media"
+                                        Background="{StaticResource ActionBrush}" BorderThickness="0" Width="34" Height="34" Padding="0" Margin="0,0,4,0">
+                                    <Border CornerRadius="17">
+                                        <Path Data="{StaticResource PlayIconData}" Fill="White" Stretch="Uniform" Width="12" Height="12" Margin="2,0,0,0" />
+                                    </Border>
+                                </Button>
+                                <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PauseCommand}" 
+                                        ToolTip="Pause Media"
+                                        Background="{StaticResource ActionBrush}" BorderThickness="0" Width="26" Height="26" Padding="0" Margin="0,0,4,0">
+                                    <Border CornerRadius="13">
+                                        <Path Data="{StaticResource PauseIconData}" Fill="White" Stretch="Uniform" Width="9" Height="9" />
+                                    </Border>
+                                </Button>
+                                <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding StopCommand}" 
+                                        ToolTip="Stop Media"
+                                        Background="{StaticResource ActionBrush}" BorderThickness="0" Width="26" Height="26" Padding="0" Margin="0,0,4,0">
+                                    <Border CornerRadius="13">
+                                        <Path Data="{StaticResource StopIconData}" Fill="White" Stretch="Uniform" Width="9" Height="9" />
+                                    </Border>
+                                </Button>
+                                <Button Style="{StaticResource ModernButtonStyle}" Click="AmenButton_Click" 
+                                        ToolTip="Stop Media &amp; Play Amen Resolve"
+                                        Background="#E8B849" BorderThickness="0" Width="44" Height="26" Padding="0">
+                                    <Border CornerRadius="13">
+                                        <TextBlock Text="AMEN" FontSize="7" FontWeight="Black" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Border>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Current Media Title -->
+                            <TextBlock Grid.Column="1" Text="{Binding CurrentMediaTitle}" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                            <!-- Volume Control -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                <TextBlock Text="🔊" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.6" />
+                                <Slider x:Name="MediaVolumeSlider" Width="100" Minimum="0" Maximum="1" Value="{Binding Volume, Mode=TwoWay}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding VolumePercentage}" FontSize="9" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" Width="26" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
                 </Border>
-            </StackPanel>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

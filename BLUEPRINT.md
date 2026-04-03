@@ -29,15 +29,17 @@ The application uses a single audio subsystem for media playback through LibVLC.
 | **Main Media Player** | LibVLCSharp | WASAPI (`--aout=wasapi`) | All playlist media playback |
 
 ### Per-Playlist-Item Volume
-Each playlist item stores its own volume setting (0.0 to 1.0, default 0.8). When a playlist item is played:
+Each playlist item stores its own volume setting (0.0 to 1.0). The default volume is configured and persisted in the Service Elements window (`AppSettings.DefaultServiceVolume`). When a playlist item is played:
 1. The item's stored volume is applied to the media player before playback begins.
 2. The global volume slider is synced to reflect the item's volume.
-3. Users can edit the selected item's volume via the "Selected Item Volume" slider below the media controls.
+3. Users can edit the selected item's volume via the "Selected Item Volume" slider.
 4. Volume changes are persisted when saving the playlist.
+5. The default volume for new items is set in the Service Elements creator and saved between sessions.
 
 ### Volume Management
 - **Per-Item Volume**: Stored in `PlaylistItem.Volume` (0.0–1.0), applied when an item starts playing.
 - **Global Volume**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), synced from per-item volume on playback.
+- **Default Service Volume**: Stored in `AppSettings.DefaultServiceVolume` (0.0–1.0), configured in the Service Elements window. Used as the default when adding items to the playlist via "ADD MEDIA" or "Send to Playlist". Persisted between sessions.
 - **VLC Re-application**: Volume is set both immediately and after VLC's `Playing` event to handle asynchronous audio initialization.
 - **Amen Resolve Volume**: Uses the currently playing item's volume or the global volume as a fallback.
 
@@ -94,25 +96,28 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 ### Sidebar (Left Panel)
 - **ADD MEDIA** button to add files to the playlist.
 - **Font size slider** (A-A) for playlist item text.
-- **Playlist ListBox** with drag-and-drop reordering.
+- **Playlist ListBox** (fills all remaining sidebar space) with drag-and-drop reordering.
   - Each item shows: file type icon, file name, and per-item volume percentage.
-- **Media Controls** (compact, at bottom of sidebar).
-  - Seek bar with current time / duration display.
-  - Transport buttons: **Play**, **Pause**, **Stop**, **AMEN** (dedicated button).
-  - Current media title display.
-  - Volume slider with percentage display.
 
 ### Main Content (Right Panel)
 
-#### Selected Item Volume Editor
-- Slider to view and adjust the currently selected playlist item's volume.
-- Changes are applied immediately if the item is currently playing.
-- Persisted when the playlist is saved.
+#### Preview Area (top, fills available space)
+- Live output preview with play indicator border animation.
+- Content type label overlay.
 
-#### Playlist Controls + Remote
-- Section label: "📂 PLAYLIST CONTROLS" with compact remote QR code to the right.
-- Buttons: **LOAD**, **SAVE**, **NEW**, **BLANK**, **DISPLAY**, **CLOSE PLAYLIST**.
-- Remote control QR code and URL displayed inline for quick access.
+#### Controls Area (bottom, two rows)
+
+**Row 1 — Playlist Controls + Remote QR (side by side):**
+- **Left**: Compact playlist controls section.
+  - Buttons: **LOAD**, **SAVE**, **NEW**, **BLANK**, **DISPLAY**, **CLOSE PLAYLIST**.
+  - Selected Item Volume slider below the buttons.
+- **Right**: Remote control QR code (88×88px, as large as space allows) and URL.
+
+**Row 2 — Media Controls (full width):**
+- Seek bar with current time / duration display (stretches full width).
+- Transport buttons (left): **Play**, **Pause**, **Stop**, **AMEN**.
+- Current media title (center, fills remaining space).
+- Volume slider with percentage (right).
 
 ## 📦 Deployment & Maintenance
 

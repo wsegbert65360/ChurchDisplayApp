@@ -28,6 +28,10 @@ public partial class ServiceElementsWindow : Window
 
         ValidateStickyFiles();  // Check stored paths before building UI
         BuildSlotList();
+
+        // Load persisted default volume
+        DefaultVolumeSlider.Value = _settings.DefaultServiceVolume;
+        DefaultVolumeText.Text = $"{(int)(_settings.DefaultServiceVolume * 100)}%";
     }
 
     // ── Sticky file validation ─────────────────────────────────────────────────
@@ -284,8 +288,13 @@ public partial class ServiceElementsWindow : Window
 
     private void DefaultVolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
+        var clamped = Math.Clamp(e.NewValue, 0.0, 1.0);
         if (DefaultVolumeText != null)
-            DefaultVolumeText.Text = $"{(int)(Math.Clamp(e.NewValue, 0.0, 1.0) * 100)}%";
+            DefaultVolumeText.Text = $"{(int)(clamped * 100)}%";
+
+        // Persist the default volume so it survives between sessions
+        _settings.DefaultServiceVolume = clamped;
+        _settings.Save();
     }
 
     private void UseSlot_Click(object sender, RoutedEventArgs e)

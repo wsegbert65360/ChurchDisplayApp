@@ -66,7 +66,7 @@ public class MainViewModel : BaseViewModel
     /// </summary>
     public string SelectedItemVolumePercent => SelectedItem != null 
         ? $"{(int)(SelectedItem.Volume * 100)}%" 
-        : $"{(int)(PlaylistManager.DefaultItemVolume * 100)}%";
+        : $"{(int)(AppSettings.Current.DefaultServiceVolume * 100)}%";
 
     public double Volume
     {

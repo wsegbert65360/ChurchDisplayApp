@@ -52,7 +52,7 @@ public class PlaylistManager
 
     public void AddFiles(string[] filePaths)
     {
-        AddFiles(filePaths, DefaultItemVolume);
+        AddFiles(filePaths, AppSettings.Current.DefaultServiceVolume);
     }
 
     /// <summary>
