@@ -131,6 +131,8 @@ namespace ChurchDisplayApp.Services
             catch (Exception ex)
             {
                 Log.Error(ex, "Amen resolve execution failed");
+                try { _synth?.Reset(); } catch { }
+                try { _waveOut?.Stop(); } catch { }
             }
             finally
             {

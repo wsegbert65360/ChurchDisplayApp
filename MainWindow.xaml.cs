@@ -569,8 +569,12 @@ public partial class MainWindow : Window, IDisplayController
         ViewModel.PlayCommand.Execute(null);
     }
 
+    private bool _previewUpdateInProgress = false;
+
     private async void UpdateLivePreview(object? sender, EventArgs e)
     {
+        if (_previewUpdateInProgress) return;
+        _previewUpdateInProgress = true;
         try
         {
             if (_liveWindow != null && _liveWindow.IsLoaded)
@@ -599,6 +603,10 @@ public partial class MainWindow : Window, IDisplayController
             PreviewImage.Source = null;
             PreviewLabel.Text = "Live Output (Preview Error)";
             Serilog.Log.Warning(ex, "Live preview snapshot failed");
+        }
+        finally
+        {
+            _previewUpdateInProgress = false;
         }
     }
 
@@ -687,10 +695,8 @@ public partial class MainWindow : Window, IDisplayController
 
     private async void AmenButton_Click(object sender, RoutedEventArgs e)
     {
-        // Stop current media first
-        _mediaControlService.Stop();
-        ViewModel.IsPlaying = false;
-        ViewModel.CurrentMediaTitle = "Idle";
+        // Stop current media and clear all state (including _currentlyLoadedPath)
+        ViewModel.StopCommand.Execute(null);
 
         // Play Amen resolve if available
         if (_amenResolveService != null)

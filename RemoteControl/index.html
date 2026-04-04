@@ -362,13 +362,17 @@
         }
 
         async function post(url) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 3000);
             try {
-                const res = await fetch(url, { method: 'POST' });
+                const res = await fetch(url, { method: 'POST', signal: controller.signal });
                 if (res.ok) {
                     pollStatus();
                 }
             } catch (e) {
-                showToast('Action failed');
+                showToast(e.name === 'AbortError' ? 'No response — check connection' : 'Action failed');
+            } finally {
+                clearTimeout(id);
             }
         }
 

@@ -13,7 +13,6 @@ public partial class ServiceElementsWindow : Window
     // ── Dependencies ──────────────────────────────────────────────────────────
     private readonly AppSettings _settings = AppSettings.Current;
     private readonly PlaylistManager _playlistManager;
-    private readonly ServicePlanService _servicePlanService = new();
 
     // Tracks the per-slot UI row containers keyed by slot Id, so we can
     // refresh a single row without rebuilding the whole list.
