@@ -37,6 +37,7 @@ public class MainViewModel : BaseViewModel
         PlayCommand = new RelayCommand(_ => PlaySelected());
         StopCommand = new RelayCommand(_ => Stop());
         PauseCommand = new RelayCommand(_ => Pause());
+        TogglePlayPauseCommand = new RelayCommand(_ => TogglePlayPause());
         BlankCommand = new RelayCommand(_ => Blank());
         NextCommand = new RelayCommand(_ => Next());
         PreviousCommand = new RelayCommand(_ => Previous());
@@ -174,6 +175,7 @@ public class MainViewModel : BaseViewModel
     public ICommand PlayCommand { get; }
     public ICommand StopCommand { get; }
     public ICommand PauseCommand { get; }
+    public ICommand TogglePlayPauseCommand { get; }
     public ICommand BlankCommand { get; }
     public ICommand NextCommand { get; }
     public ICommand PreviousCommand { get; }
@@ -227,6 +229,14 @@ public class MainViewModel : BaseViewModel
     {
         _mediaControlService.Pause();
         IsPlaying = false;
+    }
+
+    private void TogglePlayPause()
+    {
+        if (IsPlaying)
+            Pause();
+        else
+            PlaySelected();
     }
 
     private void Blank()

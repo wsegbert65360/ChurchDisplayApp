@@ -102,7 +102,7 @@ namespace ChurchDisplayApp.Services
                         {
                             if (_playlistManager.ValidateFile(file))
                             {
-                                var item = new PlaylistItem(file);
+                                var item = new PlaylistItem(file, AppSettings.Current.DefaultServiceVolume);
                                 _playlistManager.Items.Insert(insertIndex, item);
                                 insertIndex++;
                             }

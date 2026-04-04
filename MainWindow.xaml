@@ -9,7 +9,7 @@
         Icon="icon.ico">
 
     <Window.InputBindings>
-        <KeyBinding Key="Space" Command="{Binding NextCommand}" />
+        <KeyBinding Key="Space" Command="{Binding TogglePlayPauseCommand}" />
         <KeyBinding Key="Right" Command="{Binding NextCommand}" />
         <KeyBinding Key="Left" Command="{Binding PreviousCommand}" />
         <KeyBinding Key="B" Command="{Binding BlankCommand}" />

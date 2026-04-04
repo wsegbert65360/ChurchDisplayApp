@@ -58,7 +58,8 @@ public class MonitorService
         bool EnumCallback(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData)
         {
             MonitorInfoEx mi = new() { cbSize = (uint)Marshal.SizeOf(typeof(MonitorInfoEx)) };
-            GetMonitorInfo(hMonitor, ref mi);
+            if (!GetMonitorInfo(hMonitor, ref mi))
+                return true; // Skip invalid monitor handles (e.g. disconnected during enumeration)
 
             const uint MONITORINFOF_PRIMARY = 1;
             bool isPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;

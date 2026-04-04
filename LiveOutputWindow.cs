@@ -322,6 +322,10 @@ public class LiveOutputWindow : Window, IDisposable
             // Prevent UI freeze from disk I/O by reading the file bytes asynchronously
             byte[] fileBytes = await File.ReadAllBytesAsync(imagePath);
 
+            // Race-condition guard: if the operator loaded a different media item
+            // while we were suspended at the await, discard this stale result.
+            if (_currentMediaPath != imagePath) return;
+
             var bitmap = new BitmapImage();
             using (var ms = new System.IO.MemoryStream(fileBytes))
             {

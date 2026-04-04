@@ -373,8 +373,10 @@
         }
 
         async function pollStatus() {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
             try {
-                const res = await fetch('/api/status');
+                const res = await fetch('/api/status', { signal: controller.signal });
                 const data = await res.json();
                 if (!data) return;
                 currentStatus = data;
@@ -415,14 +417,18 @@
                 }
 
             } catch (e) {
-                console.error('Poll failed', e);
+                if (e.name !== 'AbortError') console.error('Poll failed', e);
+            } finally {
+                clearTimeout(timeoutId);
             }
         }
 
         async function loadPlaylist() {
             const container = document.getElementById('playlist-container');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
             try {
-                const res = await fetch('/api/playlist');
+                const res = await fetch('/api/playlist', { signal: controller.signal });
                 const items = await res.json();
 
                 if (!items || items.length === 0) {
@@ -454,7 +460,11 @@
                     try { lucide.createIcons(); } catch(e) { console.warn('lucide.createIcons failed', e); }
                 }
             } catch (e) {
-                container.innerHTML = '<div style="text-align:center; padding: 40px; color:var(--text-dim);">Connection failed</div>';
+                if (e.name !== 'AbortError') {
+                    container.innerHTML = '<div style="text-align:center; padding: 40px; color:var(--text-dim);">Connection failed</div>';
+                }
+            } finally {
+                clearTimeout(timeoutId);
             }
         }
 
