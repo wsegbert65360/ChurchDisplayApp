@@ -45,7 +45,7 @@ namespace ChurchDisplayApp.Services
                 
                 _waveOut = new WaveOutEvent();
                 _waveOut.Init(_sampleProvider);
-                _waveOut.Play();
+                // Audio output is started/stopped per-execution (Issue #7)
             }
             catch (Exception ex)
             {
@@ -68,6 +68,7 @@ namespace ChurchDisplayApp.Services
                 return;
             }
 
+            _cts?.Dispose();
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
 
@@ -77,6 +78,7 @@ namespace ChurchDisplayApp.Services
                 if (_synth == null || _waveOut == null) return;
 
                 _waveOut.Volume = Math.Clamp(volume, 0.0f, 1.0f);
+                _waveOut.Play();
 
                 int C2 = 36; int F2 = 41; int C3 = 48; int E3 = 52; int F3 = 53; int G3 = 55; int A3 = 57;
                 int C4 = 60;
@@ -115,10 +117,16 @@ namespace ChurchDisplayApp.Services
                 _synth.ProcessMidiMessage(0, 0xB0, 64, 0);
                 _synth.Reset();
                 _synth.ProcessMidiMessage(0, 0xB0, 7, 100);
+
+                _waveOut.Stop();
             }
             catch (OperationCanceledException)
             {
                 Log.Information("Amen resolve was cancelled");
+                // Reset synth state so next Amen starts clean (Issue #3)
+                try { _synth?.ProcessMidiMessage(0, 0xB0, 7, 100); } catch { }
+                try { _synth?.Reset(); } catch { }
+                try { _waveOut?.Stop(); } catch { }
             }
             catch (Exception ex)
             {
@@ -161,6 +169,8 @@ namespace ChurchDisplayApp.Services
         private class SynthSampleProvider : ISampleProvider
         {
             private readonly MeltySynth.Synthesizer _synth;
+            private float[] _leftBuf = Array.Empty<float>();
+            private float[] _rightBuf = Array.Empty<float>();
             public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
             public SynthSampleProvider(MeltySynth.Synthesizer synthesizer)
@@ -170,18 +180,23 @@ namespace ChurchDisplayApp.Services
 
             public int Read(float[] buffer, int offset, int count)
             {
-                float[] left = new float[count / 2];
-                float[] right = new float[count / 2];
+                int half = count / 2;
+                // Grow buffers only if needed (Issue #4)
+                if (_leftBuf.Length < half)
+                {
+                    _leftBuf = new float[half];
+                    _rightBuf = new float[half];
+                }
                 
                 lock (_synth)
                 {
-                    _synth.Render(left, right);
+                    _synth.Render(_leftBuf, _rightBuf);
                 }
                 
-                for (int i = 0; i < count / 2; i++)
+                for (int i = 0; i < half; i++)
                 {
-                    buffer[offset + i * 2] = left[i];
-                    buffer[offset + i * 2 + 1] = right[i];
+                    buffer[offset + i * 2] = _leftBuf[i];
+                    buffer[offset + i * 2 + 1] = _rightBuf[i];
                 }
                 
                 return count;

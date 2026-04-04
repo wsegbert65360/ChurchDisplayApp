@@ -174,6 +174,7 @@ public class AppSettings
         {
             _isDirty = true;
             _saveCts?.Cancel();
+            _saveCts?.Dispose();
             _saveCts = new CancellationTokenSource();
             var token = _saveCts.Token;
 

@@ -532,6 +532,10 @@ public partial class MainWindow : Window, IDisplayController
         _mediaControlService?.UpdateLiveWindow(_liveWindow);
         _mediaControlService?.SetVolume(ViewModel.Volume);
         
+        // Reset playback state — old window was disposed, nothing is playing
+        ViewModel.IsPlaying = false;
+        ViewModel.CurrentMediaTitle = "Idle";
+        
         PositionDisplayWindow();
         
         _liveWindow.Show();
@@ -565,13 +569,13 @@ public partial class MainWindow : Window, IDisplayController
         ViewModel.PlayCommand.Execute(null);
     }
 
-    private void UpdateLivePreview(object? sender, EventArgs e)
+    private async void UpdateLivePreview(object? sender, EventArgs e)
     {
-        if (_liveWindow != null && _liveWindow.IsLoaded)
+        try
         {
-            try
+            if (_liveWindow != null && _liveWindow.IsLoaded)
             {
-                var snapshot = _liveWindow.GetCurrentSnapshot();
+                var snapshot = await _liveWindow.GetCurrentSnapshotAsync();
                 
                 if (snapshot != null)
                 {
@@ -584,17 +588,17 @@ public partial class MainWindow : Window, IDisplayController
                     PreviewLabel.Text = "Live Output (No Media)";
                 }
             }
-            catch (Exception ex)
+            else
             {
                 PreviewImage.Source = null;
-                PreviewLabel.Text = "Live Output (Preview Error)";
-                Log.Warning(ex, "Live preview snapshot failed");
+                PreviewLabel.Text = "Live Output (Loading...)";
             }
         }
-        else
+        catch (Exception ex)
         {
             PreviewImage.Source = null;
-            PreviewLabel.Text = "Live Output (Loading...)";
+            PreviewLabel.Text = "Live Output (Preview Error)";
+            Serilog.Log.Warning(ex, "Live preview snapshot failed");
         }
     }
 

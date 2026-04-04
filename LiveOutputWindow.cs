@@ -36,9 +36,31 @@ public class LiveOutputWindow : Window, IDisposable
     public event EventHandler? MediaEnded;
 
     /// <summary>
-    /// Gets a snapshot of the current video frame as a BitmapSource, or null if no video is playing.
+    /// Gets the current display content as a BitmapSource (for images) or video snapshot (for videos).
+    /// Non-blocking async version for use from the UI thread.
     /// </summary>
-    public BitmapSource? GetVideoSnapshot()
+    public async Task<BitmapSource?> GetCurrentSnapshotAsync()
+    {
+        // If displaying an image, return the image source (no I/O needed)
+        if (_imageDisplay.IsVisible && _imageDisplay.Source is BitmapSource bitmapSource)
+        {
+            return bitmapSource;
+        }
+
+        // If playing video, get a VLC snapshot asynchronously
+        if (_videoView.IsVisible)
+        {
+            return await GetVideoSnapshotAsync();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets a snapshot of the current video frame as a BitmapSource, or null if no video is playing.
+    /// Uses async file-wait to avoid blocking the UI thread.
+    /// </summary>
+    private async Task<BitmapSource?> GetVideoSnapshotAsync()
     {
         if (_mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero || !_mediaPlayer.IsPlaying)
             return null;
@@ -50,21 +72,27 @@ public class LiveOutputWindow : Window, IDisposable
 
             if (_mediaPlayer.TakeSnapshot(0, tempPath, 0, 0))
             {
-                int retries = 5;
-                while (retries > 0 && !File.Exists(tempPath))
+                // Wait for VLC to finish writing the file (non-blocking)
+                for (int i = 0; i < 5; i++)
                 {
-                    System.Threading.Thread.Sleep(10);
-                    retries--;
+                    if (File.Exists(tempPath)) break;
+                    await Task.Delay(10);
                 }
 
                 if (File.Exists(tempPath))
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.UriSource = new Uri(tempPath);
-                    bitmap.EndInit();
-                    bitmap.Freeze();
+                    // Decode bitmap off-thread to avoid UI freeze from large images
+                    var bitmap = await Task.Run(() =>
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.UriSource = new Uri(tempPath);
+                        bmp.EndInit();
+                        bmp.Freeze();
+                        return bmp;
+                    });
+
                     return bitmap;
                 }
             }
@@ -79,26 +107,6 @@ public class LiveOutputWindow : Window, IDisposable
             {
                 try { File.Delete(tempPath); } catch { }
             }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Gets the current display content as a BitmapSource (for images) or video snapshot (for videos).
-    /// </summary>
-    public BitmapSource? GetCurrentSnapshot()
-    {
-        // If displaying an image, return the image source
-        if (_imageDisplay.IsVisible && _imageDisplay.Source is BitmapSource bitmapSource)
-        {
-            return bitmapSource;
-        }
-
-        // If playing video, get a VLC snapshot
-        if (_videoView.IsVisible)
-        {
-            return GetVideoSnapshot();
         }
 
         return null;
@@ -399,7 +407,8 @@ public class LiveOutputWindow : Window, IDisposable
     /// </summary>
     public void Blank()
     {
-        if (_mediaPlayer != null && _mediaPlayer.IsPlaying)
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero
+            && _mediaPlayer.CanPause && _mediaPlayer.IsPlaying)
         {
             _mediaPlayer.Pause();
         }
