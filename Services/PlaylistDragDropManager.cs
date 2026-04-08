@@ -9,19 +9,19 @@ namespace ChurchDisplayApp.Services
 {
     public class PlaylistDragDropManager
     {
-        private readonly ListBox _playlistListBox;
+        private readonly System.Windows.Controls.ListBox _playlistListBox;
         private readonly PlaylistManager _playlistManager;
         private readonly Action _onPlaylistChanged;
-        private Point _dragStartPoint;
+        private System.Windows.Point _dragStartPoint;
 
-        public PlaylistDragDropManager(ListBox playlistListBox, PlaylistManager playlistManager, Action onPlaylistChanged)
+        public PlaylistDragDropManager(System.Windows.Controls.ListBox playlistListBox, PlaylistManager playlistManager, Action onPlaylistChanged)
         {
             _playlistListBox = playlistListBox;
             _playlistManager = playlistManager;
             _onPlaylistChanged = onPlaylistChanged;
         }
 
-        public void HandlePlaylistDrop(object sender, DragEventArgs e)
+        public void HandlePlaylistDrop(object sender, System.Windows.DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
@@ -31,7 +31,7 @@ namespace ChurchDisplayApp.Services
             }
         }
 
-        public void HandleListBoxDragOver(object sender, DragEventArgs e)
+        public void HandleListBoxDragOver(object sender, System.Windows.DragEventArgs e)
         {
             if (e.Data.GetDataPresent("PlaylistItem"))
             {
@@ -72,7 +72,7 @@ namespace ChurchDisplayApp.Services
             }
         }
 
-        public void HandleListBoxDrop(object sender, DragEventArgs e)
+        public void HandleListBoxDrop(object sender, System.Windows.DragEventArgs e)
         {
             try
             {
@@ -119,7 +119,7 @@ namespace ChurchDisplayApp.Services
             }
         }
 
-        private int GetDropIndex(DragEventArgs e)
+        private int GetDropIndex(System.Windows.DragEventArgs e)
         {
             var position = e.GetPosition(_playlistListBox);
             for (int i = 0; i < _playlistListBox.Items.Count; i++)
@@ -127,7 +127,7 @@ namespace ChurchDisplayApp.Services
                 var listBoxItem = _playlistListBox.ItemContainerGenerator.ContainerFromIndex(i) as ListBoxItem;
                 if (listBoxItem != null)
                 {
-                    var itemPosition = listBoxItem.TranslatePoint(new Point(0, 0), _playlistListBox);
+                    var itemPosition = listBoxItem.TranslatePoint(new System.Windows.Point(0, 0), _playlistListBox);
                     var itemHeight = listBoxItem.ActualHeight;
                     if (position.Y < itemPosition.Y + itemHeight)
                     {
