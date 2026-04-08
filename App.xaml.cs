@@ -11,8 +11,8 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
-
+        // Set up logging and exception handlers BEFORE base.OnStartup so they
+        // are active when StartupUri (MainWindow) is constructed.
         var logPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "ChurchDisplayApp",
@@ -60,6 +60,9 @@ public partial class App : Application
 
             args.Handled = true; // Attempt to recover/continue
         };
+
+        // Process StartupUri (creates MainWindow) — now protected by handlers above.
+        base.OnStartup(e);
     }
 
     protected override void OnExit(ExitEventArgs e)

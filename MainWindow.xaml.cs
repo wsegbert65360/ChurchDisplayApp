@@ -55,16 +55,30 @@ public partial class MainWindow : Window, IDisplayController
         Closing += MainWindow_Closing;
         SizeChanged += MainWindow_SizeChanged;
         
-        // Initialize services
+        // Initialize VLC media engine (all native init in one try-catch)
         try
         {
             LibVLCSharp.Shared.Core.Initialize();
+
+            var vlcOptions = new[] 
+            { 
+                "--quiet", 
+                "--no-osd", 
+                "--no-video-title-show", 
+                "--no-snapshot-preview"
+                // Note: --aout=wasapi removed to support RDP audio redirection
+            };
+            _libVLC = new LibVLC(vlcOptions);
+            _liveWindow = new LiveOutputWindow(_libVLC);
         }
         catch (Exception ex)
         {
+            Log.Error(ex, "Failed to initialize VLC media engine");
             MessageBox.Show(
                 $"Failed to initialize media engine.\n\nError: {ex.Message}\n\n" +
-                "Please ensure VLC is installed and restart the application.",
+                "Please ensure the Microsoft Visual C++ Redistributable (x64) is installed\n" +
+                "and restart the application.\n\n" +
+                "Download: https://aka.ms/vs/17/release/vc_redist.x64.exe",
                 "Church Display App - Startup Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error
@@ -73,16 +87,6 @@ public partial class MainWindow : Window, IDisplayController
             return;
         }
 
-        var vlcOptions = new[] 
-        { 
-            "--quiet", 
-            "--no-osd", 
-            "--no-video-title-show", 
-            "--no-snapshot-preview"
-            // Note: --aout=wasapi removed to support RDP audio redirection
-        };
-        _libVLC = new LibVLC(vlcOptions);
-        _liveWindow = new LiveOutputWindow(_libVLC);
         _playlistDragDropManager = new PlaylistDragDropManager(PlaylistListBox, _playlistManager, () => { });
         
         // Set up live preview timer
