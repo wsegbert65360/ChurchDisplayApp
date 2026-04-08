@@ -34,7 +34,7 @@
     <SolidColorBrush x:Key="ControlBackgroundBrush" Color="{StaticResource ControlBackgroundColor}" />
 
     <!-- Typography -->
-    <FontFamily x:Key="MainFontFamily">Segoe UI Variable, Segoe UI, sans-serif</FontFamily>
+    <FontFamily x:Key="MainFontFamily">Segoe UI, Segoe UI Variable, sans-serif</FontFamily>
 
     <!-- Global Styles -->
     <Style TargetType="Window">

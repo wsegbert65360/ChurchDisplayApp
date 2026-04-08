@@ -20,10 +20,19 @@ public partial class App : Application
             "log-.txt"
         );
 
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
-            .CreateLogger();
+        try
+        {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+        }
+        catch (Exception ex)
+        {
+            // Last-resort fallback — cannot use Serilog here
+            System.Diagnostics.Trace.WriteLine($"Serilog init failed: {ex.Message}");
+            Log.Logger = new LoggerConfiguration().CreateLogger(); // silent logger
+        }
 
         Log.Information("Application starting...");
 
