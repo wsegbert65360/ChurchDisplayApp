@@ -556,7 +556,7 @@ public partial class MainWindow : Window, IDisplayController
     }
 
     // Drag and Drop Event Handlers for Playlist
-    private void Playlist_DragEnter(object sender, System.Windows.DragEventArgs e)
+    private void Playlist_DragEnter(object sender, DragEventArgs e)
     {
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
             e.Effects = DragDropEffects.Copy;
@@ -564,11 +564,11 @@ public partial class MainWindow : Window, IDisplayController
             e.Effects = DragDropEffects.None;
     }
 
-    private void Playlist_Drop(object sender, System.Windows.DragEventArgs e) => _playlistDragDropManager?.HandlePlaylistDrop(sender, e);
-    private void PlaylistListBox_DragOver(object sender, System.Windows.DragEventArgs e) => _playlistDragDropManager?.HandleListBoxDragOver(sender, e);
+    private void Playlist_Drop(object sender, DragEventArgs e) => _playlistDragDropManager?.HandlePlaylistDrop(sender, e);
+    private void PlaylistListBox_DragOver(object sender, DragEventArgs e) => _playlistDragDropManager?.HandleListBoxDragOver(sender, e);
     private void PlaylistListBox_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => _playlistDragDropManager?.HandleListBoxPreviewMouseLeftButtonDown(sender, e);
     private void PlaylistListBox_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e) => _playlistDragDropManager?.HandleListBoxPreviewMouseMove(sender, e);
-    private void PlaylistListBox_Drop(object sender, System.Windows.DragEventArgs e) => _playlistDragDropManager?.HandleListBoxDrop(sender, e);
+    private void PlaylistListBox_Drop(object sender, DragEventArgs e) => _playlistDragDropManager?.HandleListBoxDrop(sender, e);
 
     private void PlaylistListBox_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {

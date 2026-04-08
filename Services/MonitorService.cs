@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Forms;
 using Serilog;
 
 namespace ChurchDisplayApp.Services;
@@ -90,7 +89,7 @@ public class MonitorService
         {
             try
             {
-                var screens = Screen.AllScreens;
+                var screens = System.Windows.Forms.Screen.AllScreens;
                 Log.Information("Screen.AllScreens found {Count} screen(s): {Screens}",
                     screens.Length,
                     string.Join(", ", screens.Select(s => $"{s.DeviceName} {s.Bounds} Primary={s.Primary}")));

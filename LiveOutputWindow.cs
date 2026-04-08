@@ -22,8 +22,8 @@ public class LiveOutputWindow : Window, IDisposable
     private readonly VideoView _videoView;
     private readonly LibVLC _libVLC;
     private readonly LibVLCSharp.Shared.MediaPlayer _mediaPlayer;
-    private readonly System.Windows.Controls.Image _imageDisplay;
-    private readonly System.Windows.Controls.ProgressBar _progressBar;
+    private readonly Image _imageDisplay;
+    private readonly ProgressBar _progressBar;
     private readonly Grid _contentGrid;
     private readonly DispatcherTimer _timer;
     private bool _isPlaying = false;
