@@ -35,52 +35,24 @@ begin
             RegKeyExists(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64');
 end;
 
-// Download and install VC++ Redistributable if missing.
-// Called from CurStepChanged so it runs AFTER files are extracted.
+// Prompt user to install VC++ Redistributable if missing.
+// Uses ShellExecute to open the browser download page (no third-party plugin needed).
 procedure InstallVCRedistIfNeeded();
 var
-  ResultCode: Integer;
-  TempPath: String;
   Url: String;
 begin
   if IsVCRedistInstalled() then
     Exit;
 
   Url := 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
-  TempPath := ExpandConstant('{tmp}\vc_redist.x64.exe');
 
   if MsgBox('Church Display App requires the Microsoft Visual C++ Redistributable (x64), which is not detected on this system.' + #13#10 + #13#10 +
-            'Click OK to download and install it now (internet connection required).' + #13#10 +
+            'Click OK to open the download page in your web browser.' + #13#10 +
+            'After downloading, run the installer and restart Church Display App.' + #13#10 + #13#10 +
             'Click Cancel to skip (the app may not work correctly).',
-            mbConfirmation, MB_OKCANCEL) <> IDOK then
-    Exit;
-
-  WizardForm.StatusLabel.Caption := 'Downloading Visual C++ Redistributable...';
-  try
-    if not DownloadFile(Url, TempPath) then
-    begin
-      MsgBox('Failed to download the Visual C++ Redistributable. Please install it manually from:' + #13#10 + Url,
-             mbError, MB_OK);
-      Exit;
-    end;
-  except
-    MsgBox('Failed to download the Visual C++ Redistributable. Please install it manually from:' + #13#10 + Url,
-           mbError, MB_OK);
-    Exit;
-  end;
-
-  WizardForm.StatusLabel.Caption := 'Installing Visual C++ Redistributable...';
-  try
-    if Exec(TempPath, '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-    begin
-      if (ResultCode <> 0) and (ResultCode <> 3010) then
-        MsgBox('Visual C++ Redistributable installer returned error code ' + IntToStr(ResultCode) + '.' + #13#10 +
-               'You may need to install it manually from: ' + #13#10 + Url,
-               mbError, MB_OK);
-    end;
-  except
-    MsgBox('Failed to run the Visual C++ Redistributable installer. Please install it manually from:' + #13#10 + Url,
-           mbError, MB_OK);
+            mbConfirmation, MB_OKCANCEL) = IDOK then
+  begin
+    ShellExec('open', Url, '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
 end;
 
