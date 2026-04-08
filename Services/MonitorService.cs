@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Forms;
 using Serilog;
 
 namespace ChurchDisplayApp.Services;
@@ -55,6 +56,7 @@ public class MonitorService
     {
         var results = new List<MonitorBounds>();
 
+        // Primary method: Win32 EnumDisplayMonitors
         bool EnumCallback(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData)
         {
             MonitorInfoEx mi = new() { cbSize = (uint)Marshal.SizeOf(typeof(MonitorInfoEx)) };
@@ -77,6 +79,44 @@ public class MonitorService
         }
 
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, EnumCallback, IntPtr.Zero);
+
+        Log.Information("EnumDisplayMonitors found {Count} monitor(s): {Monitors}",
+            results.Count,
+            string.Join(", ", results.Select(m => m.ToString())));
+
+        // Fallback: If Win32 found fewer than 2, try System.Windows.Forms.Screen.AllScreens
+        // which uses a different enumeration method and can detect displays in "Duplicate" mode
+        if (results.Count < 2)
+        {
+            try
+            {
+                var screens = Screen.AllScreens;
+                Log.Information("Screen.AllScreens found {Count} screen(s): {Screens}",
+                    screens.Length,
+                    string.Join(", ", screens.Select(s => $"{s.DeviceName} {s.Bounds} Primary={s.Primary}")));
+
+                if (screens.Length > results.Count)
+                {
+                    results.Clear();
+                    foreach (var screen in screens)
+                    {
+                        results.Add(new MonitorBounds
+                        {
+                            Left = screen.Bounds.Left,
+                            Top = screen.Bounds.Top,
+                            Right = screen.Bounds.Right,
+                            Bottom = screen.Bounds.Bottom,
+                            IsPrimary = screen.Primary
+                        });
+                    }
+                    Log.Information("Using Screen.AllScreens fallback: {Count} monitor(s)", results.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Screen.AllScreens fallback failed");
+            }
+        }
 
         return results;
     }

@@ -65,8 +65,10 @@ public partial class MainWindow : Window, IDisplayController
                 "--quiet", 
                 "--no-osd", 
                 "--no-video-title-show", 
-                "--no-snapshot-preview"
-                // Note: --aout=wasapi removed to support RDP audio redirection
+                "--no-snapshot-preview",
+                "--aout=wasapi"
+                // WASAPI is the most reliable audio output on modern Windows.
+                // Falls back automatically if unavailable (e.g., over RDP).
             };
             _libVLC = new LibVLC(vlcOptions);
             _liveWindow = new LiveOutputWindow(_libVLC);

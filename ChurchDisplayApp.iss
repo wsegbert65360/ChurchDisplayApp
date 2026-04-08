@@ -28,8 +28,6 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 // Check whether the Visual C++ 2015-2022 Redistributable (x64) is installed.
 // Returns True if a matching version is found in the registry.
 function IsVCRedistInstalled(): Boolean;
-var
-  ResultCode: Integer;
 begin
   // The VC++ 2015-2022 redistributable all share the same major version (14).
   // Checking the latest minimum version covers all of them.
@@ -38,28 +36,22 @@ begin
 end;
 
 // Download and install VC++ Redistributable if missing.
-// Returns True on success or if already installed.
-function InstallVCRedist(): Boolean;
+// Called from CurStepChanged so it runs AFTER files are extracted.
+procedure InstallVCRedistIfNeeded();
 var
   ResultCode: Integer;
   TempPath: String;
   Url: String;
 begin
-  Result := False;
-
   if IsVCRedistInstalled() then
-  begin
-    Result := True;
     Exit;
-  end;
 
   Url := 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
   TempPath := ExpandConstant('{tmp}\vc_redist.x64.exe');
 
-  // Inform the user
   if MsgBox('Church Display App requires the Microsoft Visual C++ Redistributable (x64), which is not detected on this system.' + #13#10 + #13#10 +
             'Click OK to download and install it now (internet connection required).' + #13#10 +
-            'Click Cancel to abort the installation.',
+            'Click Cancel to skip (the app may not work correctly).',
             mbConfirmation, MB_OKCANCEL) <> IDOK then
     Exit;
 
@@ -81,14 +73,7 @@ begin
   try
     if Exec(TempPath, '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
-      if ResultCode = 0 then
-        Result := True
-      else if ResultCode = 3010 then
-      begin
-        // 3010 = success but reboot required
-        Result := True;
-      end
-      else
+      if (ResultCode <> 0) and (ResultCode <> 3010) then
         MsgBox('Visual C++ Redistributable installer returned error code ' + IntToStr(ResultCode) + '.' + #13#10 +
                'You may need to install it manually from: ' + #13#10 + Url,
                mbError, MB_OK);
@@ -99,9 +84,12 @@ begin
   end;
 end;
 
-function InitializeSetup(): Boolean;
+// Called automatically during the install process at each step.
+procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  Result := True;
+  // Run VC++ check AFTER files are installed (ssPostInstall)
+  if CurStep = ssPostInstall then
+    InstallVCRedistIfNeeded();
 end;
 
 [Files]
@@ -114,9 +102,6 @@ Name: "{commonprograms}\Church Display App\Church Display App"; Filename: "{app}
 Name: "{commondesktop}\Church Display App"; Filename: "{app}\ChurchDisplayApp.exe"
 
 [Run]
-; Install VC++ Redistributable if missing (installer is elevated)
-Filename: "code:InstallVCRedist"; Flags: runhidden
-
 ; Create firewall rules during install (installer is elevated)
 ; Ports must match AppConstants.Network.RemoteControlPortPreferred (8088) and Fallback (8090)
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""ChurchDisplayApp Remote"" dir=in action=allow protocol=TCP localport=8088 profile=any"; Flags: runhidden
