@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using System.IO;
 using ChurchDisplayApp.Services;
@@ -45,41 +46,61 @@ public sealed class RemoteControlServer
 
         var app = builder.Build();
 
-        app.UseSerilogRequestLogging();
-
-        // Serve static files (lucide.min.js, etc.) from the RemoteControl folder
+        // Serve the embedded index.html from the RemoteControl folder
         var remoteControlDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteControl");
-        if (Directory.Exists(remoteControlDir))
+
+        if (!Directory.Exists(remoteControlDir))
         {
+            Log.Warning("RemoteControl directory not found at {Path}. Web remote control will not work.", remoteControlDir);
+        }
+        else
+        {
+            Log.Information("RemoteControl directory found at {Path}", remoteControlDir);
+
+            // Serve static files (lucide.min.js, etc.) from the RemoteControl folder
             app.UseStaticFiles(new StaticFileOptions
             {
-                FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(remoteControlDir),
-                RequestPath = ""
+                FileProvider = new PhysicalFileProvider(remoteControlDir),
+                RequestPath = "",
+                ServeUnknownFileTypes = true
             });
         }
 
-        app.UseExceptionHandler("/error");
-        app.MapGet("/error", (HttpContext context) =>
+        // Root page — serve index.html directly
+        app.MapGet("/", async (HttpContext context) =>
         {
-            Log.Error("Unhandled exception in remote control API");
-            return Results.Problem("An internal error occurred");
+            var htmlPath = Path.Combine(remoteControlDir, "index.html");
+
+            if (!File.Exists(htmlPath))
+            {
+                Log.Error("index.html not found at {Path}", htmlPath);
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync(
+                    "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>" +
+                    "<h1>Church Display Remote</h1>" +
+                    "<p style='color:red'>Remote control files not found.</p>" +
+                    "<p>Please reinstall the application.</p></body></html>");
+                return;
+            }
+
+            try
+            {
+                var html = await File.ReadAllTextAsync(htmlPath);
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync(html);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to read index.html from {Path}", htmlPath);
+                context.Response.StatusCode = 500;
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync("<html><body><h1>Error loading remote control</h1></body></html>");
+            }
         });
 
-        app.MapGet("/", async context =>
-        {
-            context.Response.Headers["Cache-Control"] = "public, max-age=3600";
-            context.Response.ContentType = "text/html; charset=utf-8";
-            var htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteControl", "index.html");
-            if (File.Exists(htmlPath))
-            {
-                await context.Response.WriteAsync(await File.ReadAllTextAsync(htmlPath));
-            }
-            else
-            {
-                await context.Response.WriteAsync("<h1>Remote Control File Not Found</h1>");
-            }
-        });
-
+        // API endpoints
         app.MapGet("/api/playlist", async () =>
         {
             if (_isShuttingDown) return Results.StatusCode(503);
