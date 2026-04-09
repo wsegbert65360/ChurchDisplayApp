@@ -46,7 +46,7 @@ public sealed class RemoteControlServer
 
         var app = builder.Build();
 
-        // Serve the embedded index.html from the RemoteControl folder
+        // Serve static files (lucide.min.js, etc.) from the RemoteControl folder
         var remoteControlDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteControl");
 
         if (!Directory.Exists(remoteControlDir))
@@ -66,12 +66,14 @@ public sealed class RemoteControlServer
             });
         }
 
-        // Root page — serve index.html directly
         app.MapGet("/", async (HttpContext context) =>
         {
             var htmlPath = Path.Combine(remoteControlDir, "index.html");
+            context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            context.Response.ContentType = "text/html; charset=utf-8";
 
             if (!File.Exists(htmlPath))
+
             {
                 Log.Error("index.html not found at {Path}", htmlPath);
                 context.Response.StatusCode = 200;
@@ -179,9 +181,16 @@ public sealed class RemoteControlServer
             return Results.Ok(new { ok = true });
         });
 
-        _host = app;
-
-        await app.StartAsync(cancellationToken);
+        try
+        {
+            _host = app;
+            await app.StartAsync(cancellationToken);
+        }
+        catch
+        {
+            _host = null;
+            throw;
+        }
     }
 
     /// <summary>

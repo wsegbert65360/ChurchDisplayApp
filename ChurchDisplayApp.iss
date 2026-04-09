@@ -25,6 +25,32 @@ UninstallDisplayIcon={app}\ChurchDisplayApp.exe
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Code]
+// Custom download function using WinHttp API
+function DownloadFile(Url, FilePath: String): Boolean;
+var
+  WinHttpReq: Variant;
+  WinHttp: Variant;
+begin
+  Result := False;
+  try
+    WinHttpReq := CreateOleObject('WinHttp.WinHttpRequest.5.1');
+    WinHttpReq.Open('GET', Url, False);
+    WinHttpReq.Send('');
+    if WinHttpReq.Status = 200 then
+    begin
+      WinHttpReq.SetRequestHeader('User-Agent', 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)');
+      WinHttpReq.Send('');
+      if WinHttpReq.Status = 200 then
+      begin
+        SaveStringToFile(FilePath, WinHttpReq.ResponseBody, False);
+        Result := True;
+      end;
+    end;
+  except
+    Result := False;
+  end;
+end;
+
 // Check whether the Visual C++ 2015-2022 Redistributable (x64) is installed.
 // Returns True if a matching version is found in the registry.
 function IsVCRedistInstalled(): Boolean;

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Serilog;
+using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp;
 
@@ -35,6 +36,8 @@ public partial class App : Application
         }
 
         Log.Information("Application starting...");
+
+        CleanupOrphanedSnapshots();
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
@@ -82,6 +85,24 @@ public partial class App : Application
 
         // Ensure the process actually terminates, even if background threads (VLC, ASP.NET Core) are lingering.
         Environment.Exit(e.ApplicationExitCode);
+    }
+
+    private static void CleanupOrphanedSnapshots()
+    {
+        try
+        {
+            var tempPath = Path.GetTempPath();
+            var pattern = $"{AppConstants.Media.SnapshotPrefix}*{AppConstants.Media.SnapshotExtension}";
+            foreach (var file in Directory.GetFiles(tempPath, pattern))
+            {
+                try { File.Delete(file); }
+                catch { /* File may be in use or locked */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to clean up orphaned snapshots");
+        }
     }
 }
 

@@ -105,7 +105,7 @@ public class LiveOutputWindow : Window, IDisposable
         {
             if (tempPath != null)
             {
-                try { File.Delete(tempPath); } catch { }
+                try { File.Delete(tempPath); } catch (Exception ex) { Serilog.Log.Warning(ex, "Failed to delete temp snapshot: {Path}", tempPath); }
             }
         }
 
