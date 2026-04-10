@@ -57,6 +57,14 @@ public class AppSettings
     /// <summary>Gets or sets the last directory used to search for media files.</summary>
     public string? LastMediaDirectory { get; set; }
 
+    /// <summary>
+    /// Optional VLC audio output device name to override auto-detection.
+    /// When null or empty, VLC selects the default Windows audio device.
+    /// Set this to the device name shown in the log file if VLC picks the
+    /// wrong output on this machine (e.g. "Realtek HD Audio").
+    /// </summary>
+    public string? VlcAudioDevice { get; set; }
+
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         AppConstants.Storage.AppDataFolderName,

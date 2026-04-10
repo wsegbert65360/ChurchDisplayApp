@@ -60,16 +60,38 @@ public partial class MainWindow : Window, IDisplayController
         {
             LibVLCSharp.Shared.Core.Initialize();
 
-            var vlcOptions = new[] 
-            { 
-                "--quiet", 
-                "--no-osd", 
-                "--no-video-title-show", 
+            var vlcOptionsList = new List<string>
+            {
+                "--no-osd",
+                "--no-video-title-show",
                 "--no-snapshot-preview"
-                // No --aout specified: VLC auto-selects the best audio output
-                // for the current machine (WASAPI, DirectSound, etc.).
+                // Remove --quiet so VLC audio device selection is visible in logs.
+                // No --aout specified: VLC auto-selects the best audio output.
             };
-            _libVLC = new LibVLC(vlcOptions);
+
+            // If a specific audio device is configured, tell VLC to use it.
+            // The device name comes from the log file (e.g. "[VLC/main] using device: X")
+            if (!string.IsNullOrWhiteSpace(_settings.VlcAudioDevice))
+            {
+                vlcOptionsList.Add($"--mmdevice-audio-device={_settings.VlcAudioDevice}");
+                Log.Information("VLC audio device override: {Device}", _settings.VlcAudioDevice);
+            }
+
+            _libVLC = new LibVLC(vlcOptionsList.ToArray());
+
+            // Forward VLC's internal log to Serilog so audio device selection and
+            // any playback errors are visible in %APPDATA%\ChurchDisplayApp\logs\.
+            _libVLC.Log += (sender, e) =>
+            {
+                var message = $"[VLC/{e.Module}] {e.Message}";
+                switch (e.Level)
+                {
+                    case LogLevel.Error:   Log.Error(message);   break;
+                    case LogLevel.Warning: Log.Warning(message); break;
+                    default:               Log.Debug(message);   break;
+                }
+            };
+
             _liveWindow = new LiveOutputWindow(_libVLC);
         }
         catch (Exception ex)
