@@ -65,10 +65,9 @@ public partial class MainWindow : Window, IDisplayController
                 "--quiet", 
                 "--no-osd", 
                 "--no-video-title-show", 
-                "--no-snapshot-preview",
-                "--aout=wasapi"
-                // WASAPI is the most reliable audio output on modern Windows.
-                // Falls back automatically if unavailable (e.g., over RDP).
+                "--no-snapshot-preview"
+                // No --aout specified: VLC auto-selects the best audio output
+                // for the current machine (WASAPI, DirectSound, etc.).
             };
             _libVLC = new LibVLC(vlcOptions);
             _liveWindow = new LiveOutputWindow(_libVLC);
