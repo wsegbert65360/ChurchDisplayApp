@@ -33,15 +33,21 @@ if not exist "%INSTALL_DIR%" (
     )
 )
 
-REM Copy all files using xcopy to ensure subdirectories and all assets are included
+REM Check for published files
+if not exist "bin\Publish\win-x64\ChurchDisplayApp.exe" (
+    echo [ERROR] Published files not found. Please run build-release.bat first.
+    pause
+    exit /b 1
+)
+
+REM Copy published output using xcopy to ensure subdirectories and all assets are included
 echo Copying application files and dependencies...
 echo (This may take a moment)
 
-REM We use xcopy to copy everything in the current folder to the installation folder
 REM /E copies directories and subdirectories, including empty ones.
 REM /I If destination does not exist and copying more than one file, assumes that destination must be a directory.
 REM /Y Suppresses prompting to confirm you want to overwrite an existing destination file.
-xcopy "*.*" "%INSTALL_DIR%\" /E /I /Y
+xcopy "bin\Publish\win-x64\*" "%INSTALL_DIR%\" /E /I /Y
 if !errorLevel! gtr 4 (
     echo [ERROR] Failed to copy files. Error code: !errorLevel!
     pause

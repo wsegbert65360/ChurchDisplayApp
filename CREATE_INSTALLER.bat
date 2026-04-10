@@ -58,29 +58,16 @@ REM Add to Windows Registry for uninstall
 echo Adding uninstall information...
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ChurchDisplayApp" /v DisplayName /t REG_SZ /d "Church Display App" /f
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ChurchDisplayApp" /v InstallLocation /t REG_SZ /d "%INSTALL_DIR%" /f
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ChurchDisplayApp" /v UninstallString /t REG_SZ /d "\"%INSTALL_DIR%\UNINSTALL.bat\"" /f
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ChurchDisplayApp" /v UninstallString /t REG_SZ /d "cmd.exe /c \"%INSTALL_DIR%\UNINSTALL.bat\"" /f
 
-REM Create uninstall script
+REM Copy the static uninstall script to the installation directory
 echo Creating uninstall script...
-echo @echo off > "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo Church Display App Uninstaller >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo ============================== >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo. >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo Removing desktop shortcut... >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo del "%PUBLIC%\Desktop\Church Display App.lnk" /f >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo. >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo Removing Start Menu shortcuts... >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo rmdir "%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs\Church Display App" /s /q >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo. >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo Removing application files... >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo cd /d %%PROGRAMFILES%% >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo rmdir "ChurchDisplayApp" /s /q >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo. >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo Removing registry entries... >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ChurchDisplayApp" /f >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo. >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo echo Uninstallation Complete! >> "%INSTALL_DIR%\UNINSTALL.bat"
-echo pause >> "%INSTALL_DIR%\UNINSTALL.bat"
+copy "%~dp0UNINSTALL.bat" "%INSTALL_DIR%\UNINSTALL.bat" >nul
+if %errorLevel% neq 0 (
+    echo ERROR: Failed to copy uninstall script.
+    pause
+    exit /b 1
+)
 
 echo.
 echo =====================================
@@ -96,6 +83,6 @@ echo You can now run the app from:
 echo - Desktop shortcut "Church Display App"
 echo - Start Menu ^> Programs ^> Church Display App
 echo.
-echo To uninstall, run: %INSTALL_DIR%\UNINSTALL.bat
+echo To uninstall, use Add/Remove Programs or run: %INSTALL_DIR%\UNINSTALL.bat
 echo.
 pause
