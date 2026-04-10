@@ -1,11 +1,13 @@
 @echo off
+setlocal enabledelayedexpansion
+
 echo Creating Church Display App Installer
 echo =====================================
 echo.
 
 REM Check if running as administrator
 net session >nul 2>&1
-if %errorLevel% neq 0 (
+if !errorLevel! neq 0 (
     echo This script requires administrator privileges.
     echo Please right-click this file and select "Run as administrator".
     echo.
@@ -37,7 +39,7 @@ if not exist "bin\Publish\win-x64\ChurchDisplayApp.exe" (
 REM Copy application files
 echo Copying application files...
 xcopy "bin\Publish\win-x64\*.*" "%INSTALL_DIR%\" /E /I /Y
-if %errorLevel% neq 0 (
+if !errorLevel! neq 0 (
     echo ERROR: Failed to copy application files.
     pause
     exit /b 1
@@ -63,7 +65,7 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ChurchDisplayA
 REM Copy the static uninstall script to the installation directory
 echo Creating uninstall script...
 copy "%~dp0UNINSTALL.bat" "%INSTALL_DIR%\UNINSTALL.bat" >nul
-if %errorLevel% neq 0 (
+if !errorLevel! neq 0 (
     echo ERROR: Failed to copy uninstall script.
     pause
     exit /b 1

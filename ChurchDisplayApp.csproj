@@ -38,6 +38,7 @@
     </Content>
     <None Update="Sounds\SalC5Light2.sf2">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
 
