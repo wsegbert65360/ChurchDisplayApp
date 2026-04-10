@@ -503,31 +503,26 @@ public partial class MainWindow : Window, IDisplayController
 
     private void ToggleDisplay_Click(object sender, RoutedEventArgs e)
     {
-        if (_liveWindow != null)
+        // If the window was closed by the user clicking X on it directly,
+        // IsDisposed will be true even though _liveWindow is not null.
+        // Recreate it rather than attempting Show() on a closed window.
+        if (_liveWindow == null || _liveWindow.IsDisposed)
         {
-            try
-            {
-                if (_liveWindow.IsVisible)
-                {
-                    _liveWindow.Hide();
-                }
-                else
-                {
-                    PositionDisplayWindow();
-                    _liveWindow.Show();
-                    _liveWindow.WindowState = WindowState.Maximized; 
-                    _liveWindow.Topmost = true;
-                }
-            }
-            catch (InvalidOperationException)
-            {
-                Log.Information("LiveOutputWindow was closed, recreating it");
-                RecreateLiveOutputWindow();
-            }
+            Log.Information("LiveOutputWindow is null or disposed, recreating it");
+            RecreateLiveOutputWindow();
+            return;
+        }
+
+        if (_liveWindow.IsVisible)
+        {
+            _liveWindow.Hide();
         }
         else
         {
-            RecreateLiveOutputWindow();
+            PositionDisplayWindow();
+            _liveWindow.Show();
+            _liveWindow.WindowState = WindowState.Maximized;
+            _liveWindow.Topmost = true;
         }
     }
 

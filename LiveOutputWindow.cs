@@ -250,6 +250,15 @@ public class LiveOutputWindow : Window, IDisposable
 
         Closing += (s, e) =>
         {
+            // Only allow the window to close if it has been explicitly disposed
+            // (e.g. when the main app is shutting down). This prevents the operator
+            // from accidentally closing the projection display by clicking X.
+            if (!IsDisposed)
+            {
+                e.Cancel = true;
+                Hide();  // Hide instead of close — operator can bring it back via Toggle Display
+                return;
+            }
             Dispose();
         };
     }
