@@ -103,10 +103,16 @@ public partial class MainWindow : Window, IDisplayController
     protected override void OnContentRendered(EventArgs e)
     {
         base.OnContentRendered(e);
-        
+
+        // If VLC failed to initialize, the constructor returned early and
+        // _liveWindow is null. Shutdown has already been requested — bail out
+        // here to avoid a secondary NullReferenceException crash dialog.
+        if (_liveWindow == null)
+            return;
+
         // Restore saved sidebar width from settings
         ApplySavedSidebarWidth();
-        
+
         _liveWindow.Owner = this;
 
         // Subscribe to MediaEnded event to stop media state

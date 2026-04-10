@@ -92,8 +92,9 @@ end;
 // Called automatically during the install process at each step.
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  // Run VC++ check AFTER files are installed (ssPostInstall)
-  if CurStep = ssPostInstall then
+  // Run VC++ check at ssInstall (before files are copied) so the runtime
+  // is guaranteed to be present before the app is launched for the first time.
+  if CurStep = ssInstall then
     InstallVCRedistIfNeeded();
 end;
 
