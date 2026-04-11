@@ -7,7 +7,7 @@ echo ===================================================
 
 REM 1. Clean and Publish
 echo Publishing ChurchDisplayApp...
-dotnet publish -c Release --self-contained true --runtime win-x64 -p:PublishSingleFile=true -p:PublishReadyToRun=true -p:IncludeNativeLibrariesForSelfExtract=true -o bin\Publish\win-x64
+dotnet publish -c Release --self-contained true --runtime win-x64 -p:PublishSingleFile=false -p:PublishReadyToRun=false -o bin\Publish\win-x64
 if !errorLevel! neq 0 (
     echo [ERROR] Publish failed.
     exit /b 1
@@ -31,9 +31,17 @@ set "SYNC_DIR=D:\FCC Sync Folder"
 if exist "!SYNC_DIR!" (
     echo Syncing to !SYNC_DIR!...
     
-    if exist "bin\Installer\ChurchDisplayApp-1.2-Setup.exe" (
-        echo Copying Installer...
-        copy /Y "bin\Installer\ChurchDisplayApp-1.2-Setup.exe" "!SYNC_DIR!\ChurchDisplayApp-Setup.exe"
+    REM Find the latest setup file in bin\Installer
+    set "LATEST_SETUP="
+    for /f "delims=" %%F in ('dir /b /o-d "bin\Installer\ChurchDisplayApp-*-Setup.exe" 2^>nul') do (
+        if not defined LATEST_SETUP set "LATEST_SETUP=%%F"
+    )
+    
+    if defined LATEST_SETUP (
+        echo Copying Latest Installer: !LATEST_SETUP!...
+        copy /Y "bin\Installer\!LATEST_SETUP!" "!SYNC_DIR!\ChurchDisplayApp-Setup.exe"
+    ) else (
+        echo [ERROR] No installer found in bin\Installer\
     )
     
     echo.

@@ -64,16 +64,15 @@ public partial class MainWindow : Window, IDisplayController
             {
                 "--no-osd",
                 "--no-video-title-show",
-                "--no-snapshot-preview"
-                // Remove --quiet so VLC audio device selection is visible in logs.
-                // No --aout specified: VLC auto-selects the best audio output.
+                "--no-snapshot-preview",
+                "--aout=directsound"
             };
 
             // If a specific audio device is configured, tell VLC to use it.
             // The device name comes from the log file (e.g. "[VLC/main] using device: X")
             if (!string.IsNullOrWhiteSpace(_settings.VlcAudioDevice))
             {
-                vlcOptionsList.Add($"--mmdevice-audio-device={_settings.VlcAudioDevice}");
+                vlcOptionsList.Add($"--directx-audio-device={_settings.VlcAudioDevice}");
                 Log.Information("VLC audio device override: {Device}", _settings.VlcAudioDevice);
             }
 
@@ -88,7 +87,7 @@ public partial class MainWindow : Window, IDisplayController
                 {
                     case LogLevel.Error:   Log.Error(message);   break;
                     case LogLevel.Warning: Log.Warning(message); break;
-                    default:               Log.Debug(message);   break;
+                    default:               Log.Information(message); break;
                 }
             };
 
