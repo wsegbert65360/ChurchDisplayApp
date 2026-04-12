@@ -106,26 +106,23 @@
                     <StackPanel>
                         <TextBlock Text="📂 PLAYLIST" FontSize="8" FontWeight="Bold"
                                    Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,4" />
-                        <UniformGrid Columns="3">
+                        <UniformGrid Columns="2">
                             <Button Style="{StaticResource ModernButtonStyle}" Click="LoadPlaylist_Click"
-                                    Content="LOAD"    ToolTip="Load Saved Playlist"
+                                    Content="LOAD PLAYLIST" ToolTip="Load Saved Playlist"
                                     MinWidth="0" Margin="0,0,2,2" Height="20" FontSize="7" Padding="4,0" />
                             <Button Style="{StaticResource ModernButtonStyle}" Click="SavePlaylist_Click"
-                                    Content="SAVE"    ToolTip="Save Current Playlist"
-                                    MinWidth="0" Margin="0,0,2,2" Height="20" FontSize="7" Padding="4,0" />
+                                    Content="SAVE PLAYLIST" ToolTip="Save Current Playlist"
+                                    MinWidth="0" Margin="2,0,0,2" Height="20" FontSize="7" Padding="4,0" />
                             <Button Style="{StaticResource ModernButtonStyle}" Click="CreatePlaylist_Click"
-                                    Content="NEW"     ToolTip="Create Service Plan"
-                                    MinWidth="0" Margin="0,0,0,2" Height="20" FontSize="7" Padding="4,0" />
-                            <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding BlankCommand}"
-                                    Content="BLANK"
-                                    MinWidth="0" Margin="0,0,2,0" Height="20" FontSize="7" Padding="4,0" />
-                            <Button Style="{StaticResource PrimaryButtonStyle}" Click="ToggleDisplay_Click"
-                                    Content="DISPLAY"
-                                    MinWidth="0" Height="20" FontSize="7" Padding="4,0" />
+                                    Content="NEW PLAYLIST"  ToolTip="Create Service Plan"
+                                    MinWidth="0" Margin="0,0,2,2" Height="20" FontSize="7" Padding="4,0" />
                             <Button Style="{StaticResource ModernButtonStyle}" Click="ClosePlaylist_Click"
                                     Content="CLOSE PLAYLIST" ToolTip="Close Current Playlist"
-                                    MinWidth="0" Grid.ColumnSpan="3" Height="20" FontSize="7" Padding="4,0" Margin="0,2,0,0" />
+                                    MinWidth="0" Margin="2,0,0,2" Height="20" FontSize="7" Padding="4,0" />
                         </UniformGrid>
+                        <Button Style="{StaticResource PrimaryButtonStyle}" Click="ToggleDisplay_Click"
+                                Content="DISPLAY"
+                                MinWidth="0" Height="20" FontSize="7" Padding="4,0" Margin="0,2,0,0" />
                     </StackPanel>
                 </Border>
             </Grid>

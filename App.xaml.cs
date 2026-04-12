@@ -10,8 +10,24 @@ namespace ChurchDisplayApp;
 /// </summary>
 public partial class App : Application
 {
+    // PHASE 1: Hold splash reference for dismissal
+    private SplashScreen? _splash;
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        // PHASE 1: Show splash screen FIRST (before any init)
+        try
+        {
+            _splash = new SplashScreen("splash.png");
+            _splash.Show(autoClose: false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.WriteLine(
+                $"Splash screen failed: {ex.Message}");
+            _splash = null;
+        }
+
         // Set up logging and exception handlers BEFORE base.OnStartup so they
         // are active when StartupUri (MainWindow) is constructed.
         var logPath = Path.Combine(
@@ -73,8 +89,32 @@ public partial class App : Application
             args.Handled = true; // Attempt to recover/continue
         };
 
-        // Process StartupUri (creates MainWindow) — now protected by handlers above.
-        base.OnStartup(e);
+        // PHASE 1: Create MainWindow manually
+        // (replaces the removed StartupUri)
+        var mainWindow = new MainWindow();
+
+        // PHASE 1: Close splash when MainWindow renders
+        mainWindow.ContentRendered += (s, args) =>
+        {
+            _splash?.Close(TimeSpan.FromSeconds(0.5));
+            _splash = null;
+        };
+
+        mainWindow.Show();
+
+        // PHASE 1: Safety timeout - close splash after 15s
+        // even if ContentRendered never fires
+        var splashTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(15)
+        };
+        splashTimer.Tick += (s, args) =>
+        {
+            splashTimer.Stop();
+            _splash?.Close(TimeSpan.FromSeconds(0.3));
+            _splash = null;
+        };
+        splashTimer.Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
