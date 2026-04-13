@@ -30,6 +30,7 @@ public class LiveOutputWindow : Window, IDisposable
     private string? _currentMediaPath;
     private int _targetVolume = 100; // Stored volume to apply when VLC starts playing
     private Media? _currentMedia; // Track current media for proper disposal
+    private readonly string _snapshotTempPath;
     public bool IsDisposed { get; private set; }
 
     /// <summary>Occurs when a media file finishes playing.</summary>
@@ -65,51 +66,69 @@ public class LiveOutputWindow : Window, IDisposable
         if (_mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero || !_mediaPlayer.IsPlaying)
             return null;
 
-        string? tempPath = null;
         try
         {
-            tempPath = Path.Combine(Path.GetTempPath(), $"{AppConstants.Media.SnapshotPrefix}{Guid.NewGuid()}{AppConstants.Media.SnapshotExtension}");
-
-            if (_mediaPlayer.TakeSnapshot(0, tempPath, 0, 0))
+            // Use explicit small dimensions — a 640x360 PNG is ~50-100KB
+            // vs a 1080p PNG at ~2-4MB. Massive reduction in encode+decode time.
+            if (!_mediaPlayer.TakeSnapshot(0, _snapshotTempPath,
+                    AppConstants.UI.PreviewSnapshotWidth,
+                    AppConstants.UI.PreviewSnapshotHeight))
             {
-                // Wait for VLC to finish writing the file (non-blocking)
-                for (int i = 0; i < 5; i++)
-                {
-                    if (File.Exists(tempPath)) break;
-                    await Task.Delay(10);
-                }
-
-                if (File.Exists(tempPath))
-                {
-                    // Decode bitmap off-thread to avoid UI freeze from large images
-                    var bitmap = await Task.Run(() =>
-                    {
-                        var bmp = new BitmapImage();
-                        bmp.BeginInit();
-                        bmp.CacheOption = BitmapCacheOption.OnLoad;
-                        bmp.UriSource = new Uri(tempPath);
-                        bmp.EndInit();
-                        bmp.Freeze();
-                        return bmp;
-                    });
-
-                    return bitmap;
-                }
+                return null;
             }
+
+            // Wait for VLC to finish writing (non-blocking, same file reused)
+            for (int i = 0; i < 10; i++)
+            {
+                if (File.Exists(_snapshotTempPath))
+                {
+                    // Check file is not still being written by VLC
+                    try
+                    {
+                        using (var fs = File.OpenRead(_snapshotTempPath))
+                        {
+                            if (fs.Length > 0) break;
+                        }
+                    }
+                    catch (IOException)
+                    {
+                        await Task.Delay(5);
+                        continue;
+                    }
+                }
+                await Task.Delay(5);
+            }
+
+            if (!File.Exists(_snapshotTempPath))
+                return null;
+
+            // Read file bytes into memory, then decode from MemoryStream.
+            // This avoids WPF's URI parsing overhead when using UriSource.
+            var bitmap = await Task.Run(() =>
+            {
+                byte[] fileBytes = File.ReadAllBytes(_snapshotTempPath);
+                var bmp = new BitmapImage();
+                using (var ms = new System.IO.MemoryStream(fileBytes))
+                {
+                    bmp.BeginInit();
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.StreamSource = ms;
+                    bmp.DecodePixelWidth = AppConstants.UI.PreviewSnapshotWidth;
+                    bmp.EndInit();
+                }
+                bmp.Freeze();
+                return bmp;
+            });
+
+            return bitmap;
         }
         catch (Exception ex)
         {
             Serilog.Log.Warning(ex, "Video snapshot failed");
+            return null;
         }
-        finally
-        {
-            if (tempPath != null)
-            {
-                try { File.Delete(tempPath); } catch (Exception ex) { Serilog.Log.Warning(ex, "Failed to delete temp snapshot: {Path}", tempPath); }
-            }
-        }
-
-        return null;
+        // NOTE: No file deletion — we reuse _snapshotTempPath across frames.
+        // It gets cleaned up in Dispose().
     }
 
     public LiveOutputWindow(LibVLC libVLC)
@@ -128,6 +147,7 @@ public class LiveOutputWindow : Window, IDisposable
         {
             Background = Brushes.Black
         };
+        _snapshotTempPath = Path.Combine(Path.GetTempPath(), $"{AppConstants.Media.SnapshotPrefix}preview{AppConstants.Media.SnapshotExtension}");
         
         // Create outer grid with rows for content and progress bar
         var mainGrid = new Grid();
@@ -266,6 +286,8 @@ public class LiveOutputWindow : Window, IDisposable
     public void Dispose()
     {
         if (IsDisposed) return;
+        // Clean up the reusable snapshot temp file
+        try { File.Delete(_snapshotTempPath); } catch { }
         IsDisposed = true;
 
         _timer?.Stop();
@@ -528,6 +550,8 @@ public class LiveOutputWindow : Window, IDisposable
 
     /// <summary>Gets a value indicating whether media is currently playing.</summary>
     public bool IsPlaying => _isPlaying;
+
+    public string? CurrentMediaPath => _currentMediaPath;
 
     /// <summary>
     /// Toggles the window between maximized and normal state.

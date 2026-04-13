@@ -47,6 +47,11 @@ public partial class MainWindow : Window, IDisplayController
     private bool _isClosing = false;
     private Task? _amenTask;
 
+    // Adaptive preview tracking
+    private string? _lastPreviewMediaPath;
+    private string? _lastPreviewMediaType;  // "image" or "video" or null
+    private long _previewDroppedFrames;
+
     // PHASE 2: VLC readiness tracking
     private volatile bool _vlcReady = false;
     private bool _vlcInitFailed = false;
@@ -580,6 +585,8 @@ public partial class MainWindow : Window, IDisplayController
             }
 
             // 3. Stop background services
+            if (_previewDroppedFrames > 0)
+                Log.Information("Live preview dropped {Count} frames during this session", _previewDroppedFrames);
             _livePreviewTimer?.Stop();
             _progressUpdateTimer?.Stop();
 
@@ -790,36 +797,107 @@ public partial class MainWindow : Window, IDisplayController
 
     private async void UpdateLivePreview(object? sender, EventArgs e)
     {
-        if (_previewUpdateInProgress) return;
+        // Reentrancy guard — drop frame if previous snapshot still in flight
+        if (_previewUpdateInProgress)
+        {
+            _previewDroppedFrames++;
+            return;
+        }
         _previewUpdateInProgress = true;
         try
         {
-            if (_liveWindow != null && _liveWindow.IsLoaded)
+            if (_liveWindow == null || !_liveWindow.IsLoaded)
             {
-                var snapshot = await _liveWindow.GetCurrentSnapshotAsync();
-                
-                if (snapshot != null)
+                PreviewImage.Source = null;
+                PreviewLabel.Text = "Live Output (Loading...)";
+                return;
+            }
+
+            var currentPath = _liveWindow.CurrentMediaPath;
+
+            // --- Adaptive timer: detect what changed and adjust frequency ---
+            if (currentPath != _lastPreviewMediaPath)
+            {
+                // New media loaded — determine type and set timer speed
+                _lastPreviewMediaPath = currentPath;
+                _lastPreviewMediaType = null; // force re-detect below
+            }
+
+            // Detect media type from path
+            bool isImage = currentPath != null && MediaConstants.IsImage(currentPath);
+            bool isVideo = currentPath != null && MediaConstants.IsVideo(currentPath);
+            string mediaType = isImage ? "image" : isVideo ? "video" : "none";
+
+            if (mediaType != _lastPreviewMediaType)
+            {
+                _lastPreviewMediaType = mediaType;
+
+                if (mediaType == "image")
                 {
-                    PreviewImage.Source = snapshot;
-                    PreviewLabel.Text = "Live Output Preview";
+                    // Static image — no need for fast updates.
+                    // Timer just keeps the preview alive.
+                    _livePreviewTimer.Interval = TimeSpan.FromMilliseconds(
+                        AppConstants.UI.LivePreviewImageIntervalMs);
+                }
+                else if (mediaType == "video")
+                {
+                    // Playing video — full speed for smooth preview
+                    _livePreviewTimer.Interval = TimeSpan.FromMilliseconds(
+                        AppConstants.UI.LivePreviewIntervalMs);
                 }
                 else
+                {
+                    // No media or blank — slow idle
+                    _livePreviewTimer.Interval = TimeSpan.FromMilliseconds(
+                        AppConstants.UI.LivePreviewIdleIntervalMs);
+                }
+            }
+
+            // --- Skip snapshot for unchanged images ---
+            // For static images, the BitmapSource doesn't change between frames.
+            // Only grab a new snapshot when the file path changes.
+            if (isImage && PreviewImage.Source != null)
+            {
+                return;
+            }
+
+            // --- Skip snapshot for paused video ---
+            // VLC snapshot returns null when paused, no point trying every 42ms
+            if (isVideo && PreviewImage.Source != null && !_liveWindow.IsPlaying)
+            {
+                return;
+            }
+
+            // --- Capture snapshot ---
+            var snapshot = await _liveWindow.GetCurrentSnapshotAsync();
+
+            if (snapshot != null)
+            {
+                // Dispose old bitmap if it's a different object (prevent memory accumulation)
+                var oldSource = PreviewImage.Source as BitmapSource;
+                if (oldSource != null && !ReferenceEquals(oldSource, snapshot)
+                    && !oldSource.IsFrozen)
+                {
+                    oldSource = null; // Let GC collect; BitmapImage doesn't implement IDisposable
+                }
+
+                PreviewImage.Source = snapshot;
+                PreviewLabel.Text = "Live Output Preview";
+            }
+            else
+            {
+                // No snapshot available (blank, loading, paused video)
+                // Don't clear the preview if we already have content — keeps last frame visible
+                if (string.IsNullOrEmpty(currentPath) || currentPath == null)
                 {
                     PreviewImage.Source = null;
                     PreviewLabel.Text = "Live Output (No Media)";
                 }
             }
-            else
-            {
-                PreviewImage.Source = null;
-                PreviewLabel.Text = "Live Output (Loading...)";
-            }
         }
         catch (Exception ex)
         {
-            PreviewImage.Source = null;
-            PreviewLabel.Text = "Live Output (Preview Error)";
-            Serilog.Log.Warning(ex, "Live preview snapshot failed");
+            Serilog.Log.Warning(ex, "Live preview snapshot failed (dropped frame #{Count})", _previewDroppedFrames);
         }
         finally
         {

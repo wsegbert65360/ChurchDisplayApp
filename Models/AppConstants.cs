@@ -14,13 +14,17 @@ public static class AppConstants
 
     public static class UI
     {
-        public const int LivePreviewIntervalMs = 67;
+        public const int LivePreviewIntervalMs = 42;
+        public const int LivePreviewIdleIntervalMs = 500;
+        public const int LivePreviewImageIntervalMs = 2000;
         public const int ProgressUpdateIntervalMs = 200;
         public const int LiveWindowSeekDelayMs = 300;
         public const int LiveWindowTimerIntervalMs = 100;
         public const int DefaultLiveWindowWidth = 800;
         public const int DefaultLiveWindowHeight = 450;
         public const int ProgressBarHeight = 7;
+        public const int PreviewSnapshotWidth = 640;
+        public const int PreviewSnapshotHeight = 360;
     }
 
     public static class Media

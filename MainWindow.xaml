@@ -184,7 +184,7 @@
                         </Border.Style>
                     </Border>
                     
-                    <Image x:Name="PreviewImage" Stretch="Uniform" />
+                    <Image x:Name="PreviewImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                     
                     <!-- Content Type Label -->
                     <Border Background="#44000000" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="15" Padding="8,4" CornerRadius="15">
