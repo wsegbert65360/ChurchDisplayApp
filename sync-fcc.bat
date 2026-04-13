@@ -27,7 +27,8 @@ if exist "!ISCC!" (
 )
 
 REM 3. Sync to D:\FCC Sync Folder
-set "SYNC_DIR=D:\FCC Sync Folder"
+set "SYNC_DIR=%FCC_SYNC_DIR%"
+if not defined SYNC_DIR set "SYNC_DIR=D:\FCC Sync Folder"
 if exist "!SYNC_DIR!" (
     echo Syncing to !SYNC_DIR!...
     

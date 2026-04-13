@@ -1,35 +1,22 @@
-# Church Display App - Installation Instructions
+# Installation & Build Guide
 
-## Quick Install (Recommended)
+The only supported method for creating the Church Display App installer is using `build-release.bat` (which calls Inno Setup 6).
 
-1. **Download** the `ChurchDisplayApp-Setup.exe` installer.
-2. **Run** the installer.
-3. **Follow** the on-screen wizard to complete the installation.
-4. **Launch** the application from your Desktop or Start Menu.
+## Prerequisites
+* **.NET 8.0 SDK** (required for building the application)
+* **Inno Setup 6** (required for compiling the installer executable)
 
-## System Requirements
+## Building the Installer
+1. Run `build-release.bat` from the repository root.
+2. The script will automatically clean, build, publish the self-contained app, and invoke Inno Setup.
+3. The generated installer executable will be output to the `bin\Installer\` directory.
 
-- **OS**: Windows 10 or Windows 11 (64-bit)
-- **Runtime**: .NET 8.0/10.0 Runtime (packaged in the installer)
-- **Media Support**: Visual C++ 2015-2022 Redistributable (x64) - **Required for video playback**
-  Download: [aka.ms/vs/17/release/vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- **Hardware**: Graphics card with DirectX support, second monitor or projector recommended.
+**Note:** The generated installer automatically handles:
+* **VC++ Redistributable:** Downloads and installs it if missing on the target system.
+* **Firewall Rules:** Automatically configures Windows Defender Firewall to allow inbound traffic on ports 8088 (Primary) and 8090 (Fallback).
+* **Shortcuts:** Creates Desktop and Start Menu shortcuts.
 
-## First Time Setup
-
-1. **Launch** the application.
-2. **Select Background Music**: When prompted, choose the folder containing your church's background music.
-3. **Configure Display**: Go to Settings to select which monitor/projector should be used for the live output.
-4. **Add Media**: Use the "Add Files" button or drag-and-drop media onto the playlist.
-5. **Go Live**: Double-click an item in the playlist to start the projection.
-
-## Building from Source (Developers)
-
-If you are a developer and want to build the installer yourself:
-1. Ensure **Inno Setup 6** is installed on your Windows machine.
-2. Open the solution in **Visual Studio 2022**.
-3. Run **`sync-fcc.bat`** from the command line. This script will build the release, generate the installer, and copy it to the deployment folder.
-
-## Support
-
-For technical assistance, please refer to the [DOCS.md](DOCS.md) file or contact your church's IT support team.
+## Portable Build
+To build a portable version without creating an installer:
+1. Run `publish.bat`.
+2. The self-contained portable output will be available in `bin\Publish\win-x64\`.

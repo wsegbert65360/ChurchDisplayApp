@@ -1,6 +1,8 @@
 #define MyAppVersion GetFileVersion("bin\Publish\win-x64\ChurchDisplayApp.exe")
 
 [Setup]
+MinVersion=10.0
+PrivilegesRequiredOverridesAllowed=dialog
 AppName=Church Display App
 AppVersion={#MyAppVersion}
 AppPublisher=Church Media Ministry

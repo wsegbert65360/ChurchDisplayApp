@@ -69,6 +69,7 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - Disposes VLC `Media` objects properly after each playback to prevent memory leaks.
 - Applies volume on the `Playing` event with a delayed re-application for reliability.
 - Progress bar (7px) at the bottom of the display window.
+- **Live Preview Architecture**: Highly optimized 24 FPS snapshot loop. Uses a single, reusable `vlc_snapshot_preview.png` to eliminate disk allocation overhead. Fetches direct `640x360` scaled snapshots loaded via synchronous `MemoryStream` bypassing standard WPF URI locks. Polling is dynamically adaptive (42ms video, 2000ms image, 500ms idle) and seamlessly drops overlapping frames via reentrancy guards.
 
 ### 4. Playlist Management (`PlaylistManager.cs`)
 - `ObservableCollection<PlaylistItem>` with drag-and-drop reordering support.
@@ -121,19 +122,19 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 
 ## 📦 Deployment & Maintenance
 
-See [BUILD-INSTALLER.md](BUILD-INSTALLER.md) for complete step-by-step build and install instructions.
+See [INSTALL.md](INSTALL.md) for complete step-by-step build and install instructions.
 
-### Build Pipeline (`sync-fcc.bat`)
-A professional automation script that:
-1. Performs a **Self-Contained** publish (no external .NET needed on target).
-2. Triggers **Inno Setup** to compile the Windows Installer.
-3. Automatically synchronizes the installer to deployment folders.
+### Build Pipeline
+- `build-release.bat`: The canonical build script. Automatically cleans, publishes a self-contained `.exe`, and compiles the Windows Installer using Inno Setup.
+- `publish.bat`: A lightweight script for generating portable versions without compiling an installer.
+- `sync-fcc.bat`: A professional automation script that triggers a full build and synchronizes the installer to deployment folders (configurable via `FCC_SYNC_DIR` environment variable).
 
 ### Installer Logic (`ChurchDisplayApp.iss`)
-- Standard Windows Installer focusing on `Program Files` installation.
-- Clean uninstallation process.
-- Desktop and Start Menu shortcut management.
+- **Windows 11 Ready**: Enforces standard Windows 10+ environments with adaptive user-privilege fallbacks.
+- **Dependency Management**: Automatically downloads and installs the required Visual C++ Redistributable if missing.
+- **Firewall Rules**: Automatically manages inbound network rules for the remote control server ports.
+- **Clean Execution**: Dedicated logic handles Start Menu/Desktop shortcuts and rigorous uninstallation sweeps.
 - Sources from `bin\Publish\win-x64\`.
 
 ---
-*Last Updated: April 3, 2026*
+*Last Updated: April 13, 2026*

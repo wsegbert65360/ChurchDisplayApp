@@ -39,7 +39,9 @@ if !errorLevel! neq 0 (
 echo.
 
 REM 4. Check for Inno Setup 6
-set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+set "ISCC="
+for %%I in (ISCC.exe) do set "ISCC=%%~$PATH:I"
+if not defined ISCC set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 if not exist "!ISCC!" (
     echo [WARNING] Inno Setup 6 not found at "!ISCC!".
     echo Skipping installer creation. 
