@@ -23,6 +23,7 @@
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource PlaybackColor}" />
     <SolidColorBrush x:Key="SecondaryAccentBrush" Color="{StaticResource ActionColor}" />
+    <SolidColorBrush x:Key="PrimaryAccentBrush" Color="{StaticResource PrimaryAccentColor}" />
     <SolidColorBrush x:Key="PlaybackBrush" Color="{StaticResource PlaybackColor}" />
     <SolidColorBrush x:Key="ActionBrush" Color="{StaticResource ActionColor}" />
     <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="{StaticResource SidebarBackgroundColor}" />

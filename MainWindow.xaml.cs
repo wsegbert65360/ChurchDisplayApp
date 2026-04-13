@@ -23,7 +23,7 @@ namespace ChurchDisplayApp;
 
 public partial class MainWindow : Window, IDisplayController
 {
-    private AppSettings _settings = AppSettings.Current;
+    private AppSettings _settings;
     private readonly DispatcherTimer _livePreviewTimer;
     private readonly RemoteControlServer _remoteControlServer = new();
     private const int RemoteControlPortPreferred = AppConstants.Network.RemoteControlPortPreferred;
@@ -63,7 +63,13 @@ public partial class MainWindow : Window, IDisplayController
 
     public MainWindow()
     {
+        try { StartupProfiler.Instance.StartPhase("MainWindowInit"); } catch { }
+        try { StartupProfiler.Instance.StartPhase("AppSettingsLoad"); } catch { }
+        _settings = AppSettings.Current;
+        try { StartupProfiler.Instance.EndPhase("AppSettingsLoad"); } catch { }
+
         InitializeComponent();
+        LoadingStatusText.Text = "Initializing application...";
 
         // Bind playlist (works immediately — no VLC dependency)
         PlaylistListBox.ItemsSource = _playlistManager.Items;
@@ -89,6 +95,8 @@ public partial class MainWindow : Window, IDisplayController
         // Store the task and CTS so we can cancel it during shutdown.
         _vlcInitCts = new CancellationTokenSource();
         _vlcInitTask = InitializeVlcAsync(_vlcInitCts.Token);
+        
+        try { StartupProfiler.Instance.EndPhase("MainWindowInit"); } catch { }
     }
 
     protected override void OnContentRendered(EventArgs e)
@@ -123,6 +131,21 @@ public partial class MainWindow : Window, IDisplayController
             var libVLC = await Task.Run(() =>
             {
                 ct.ThrowIfCancellationRequested();
+
+                try { StartupProfiler.Instance.StartPhase("AssemblyLoad"); } catch { }
+                try
+                {
+                    var vlcAssembly = System.Runtime.Loader.AssemblyLoadContext.Default
+                        .LoadFromAssemblyName(new System.Reflection.AssemblyName("LibVLCSharp"));
+                }
+                catch
+                {
+                    System.Diagnostics.Debug.WriteLine("[VLC] Explicit assembly load failed, using default");
+                }
+                try { StartupProfiler.Instance.EndPhase("AssemblyLoad"); } catch { }
+
+                try { StartupProfiler.Instance.StartPhase("VlcInitialization"); } catch { }
+                System.Windows.Application.Current.Dispatcher.Invoke(() => LoadingStatusText.Text = "Loading media engine...");
 
                 LibVLCSharp.Shared.Core.Initialize();
 
@@ -182,8 +205,11 @@ public partial class MainWindow : Window, IDisplayController
                 }
 
                 // Create LiveOutputWindow (must be on UI thread — it's a WPF Window)
+                try { StartupProfiler.Instance.StartPhase("LiveOutputWindow"); } catch { }
+                LoadingStatusText.Text = "Configuring display output...";
                 _liveWindow = new LiveOutputWindow(_libVLC);
                 _liveWindow.Owner = this;
+                try { StartupProfiler.Instance.EndPhase("LiveOutputWindow"); } catch { }
 
                 // Create MediaControlService and ViewModel
                 _mediaControlService = new MediaControlService(_liveWindow, _settings);
@@ -195,6 +221,8 @@ public partial class MainWindow : Window, IDisplayController
 
                 ViewModel = new MainViewModel(_playlistManager, _mediaControlService, _settings);
                 DataContext = ViewModel;
+
+                try { StartupProfiler.Instance.EndPhase("VlcInitialization"); } catch { }
 
                 // Subscribe to MediaEnded
                 _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
@@ -238,6 +266,7 @@ public partial class MainWindow : Window, IDisplayController
                 _progressUpdateTimer.Tick += (s, args) => ViewModel.UpdateProgress();
                 _progressUpdateTimer.Start();
 
+                LoadingStatusText.Text = "Starting remote control...";
                 // Start remote control server
                 _ = StartRemoteControlAsync();
 
@@ -259,6 +288,7 @@ public partial class MainWindow : Window, IDisplayController
                 // is complete. This ensures no code path can observe "VLC is ready"
                 // before the remote control server, amen service, timers, etc. are running.
                 _vlcReady = true;
+                LoadingStatusText.Text = "Ready!";
                 LoadingOverlay.Visibility = Visibility.Collapsed;
 
                 // Signal App.xaml.cs to close splash (if still visible)
@@ -330,6 +360,7 @@ public partial class MainWindow : Window, IDisplayController
 
     private async Task StartRemoteControlAsync()
     {
+        try { StartupProfiler.Instance.StartPhase("KestrelStart"); } catch { }
         int successfulPort = 0;
 
         try
@@ -372,6 +403,9 @@ public partial class MainWindow : Window, IDisplayController
             });
             Log.Error("Remote control server failed to start on any port");
         }
+        
+        try { StartupProfiler.Instance.EndPhase("KestrelStart"); } catch { }
+        StartupProfiler.Instance.DumpSummary();
     }
 
     private static void VerifyFirewallRule(int port)

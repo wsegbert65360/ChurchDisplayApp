@@ -15,6 +15,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        try { ChurchDisplayApp.Services.StartupProfiler.Instance.StartPhase("WpfStartup"); } catch { }
         // PHASE 1: Show splash screen FIRST (before any init)
         try
         {
@@ -116,6 +117,7 @@ public partial class App : Application
             });
         };
 
+        try { ChurchDisplayApp.Services.StartupProfiler.Instance.EndPhase("WpfStartup"); } catch { }
         mainWindow.Show();
 
         // PHASE 1: Safety timeout - close splash after 15s
