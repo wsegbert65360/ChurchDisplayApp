@@ -680,9 +680,14 @@ public partial class MainWindow : Window, IDisplayController
             Multiselect = true
         };
 
+        if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
+            dlg.InitialDirectory = _settings.LastMediaDirectory;
+
         if (dlg.ShowDialog() == true)
         {
             _playlistManager.AddFiles(dlg.FileNames);
+            _settings.LastMediaDirectory = Path.GetDirectoryName(dlg.FileNames[0]);
+            _settings.Save();
             
             if (_playlistManager.Items.Count > 0)
             {
@@ -1029,16 +1034,21 @@ public partial class MainWindow : Window, IDisplayController
             DefaultExt = ".pls"
         };
 
-        var startDir = _settings.LastPlaylistSaveDirectory ?? _settings.LastMediaDirectory;
-        if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
-            dlg.InitialDirectory = startDir;
+        if (!string.IsNullOrEmpty(_settings.LastPlaylistDirectory) && Directory.Exists(_settings.LastPlaylistDirectory))
+        {
+            dlg.InitialDirectory = _settings.LastPlaylistDirectory;
+        }
+        else if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
+        {
+            dlg.InitialDirectory = _settings.LastMediaDirectory;
+        }
 
         if (dlg.ShowDialog() == true)
         {
             try
             {
                 _playlistManager.SavePlaylist(dlg.FileName);
-                _settings.LastPlaylistSaveDirectory = Path.GetDirectoryName(dlg.FileName);
+                _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
                 _settings.Save();
                 MessageBox.Show("Playlist saved successfully.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1058,7 +1068,11 @@ public partial class MainWindow : Window, IDisplayController
             Filter = MediaConstants.GetPlaylistFilter()
         };
 
-        if (!string.IsNullOrEmpty(_settings.LastMediaDirectory))
+        if (!string.IsNullOrEmpty(_settings.LastPlaylistDirectory) && Directory.Exists(_settings.LastPlaylistDirectory))
+        {
+            dlg.InitialDirectory = _settings.LastPlaylistDirectory;
+        }
+        else if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
         {
             dlg.InitialDirectory = _settings.LastMediaDirectory;
         }
@@ -1068,6 +1082,8 @@ public partial class MainWindow : Window, IDisplayController
             try
             {
                 _playlistManager.LoadPlaylist(dlg.FileName);
+                _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
+                _settings.Save();
                 MessageBox.Show($"Playlist loaded successfully. {_playlistManager.Items.Count} files added.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -1112,16 +1128,21 @@ public partial class MainWindow : Window, IDisplayController
                 Title = "Save Playlist Before Closing"
             };
 
-            var startDir = _settings.LastPlaylistSaveDirectory ?? _settings.LastMediaDirectory;
-            if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
-                dlg.InitialDirectory = startDir;
+            if (!string.IsNullOrEmpty(_settings.LastPlaylistDirectory) && Directory.Exists(_settings.LastPlaylistDirectory))
+            {
+                dlg.InitialDirectory = _settings.LastPlaylistDirectory;
+            }
+            else if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
+            {
+                dlg.InitialDirectory = _settings.LastMediaDirectory;
+            }
 
             if (dlg.ShowDialog() == true)
             {
                 try
                 {
                     _playlistManager.SavePlaylist(dlg.FileName);
-                    _settings.LastPlaylistSaveDirectory = Path.GetDirectoryName(dlg.FileName);
+                    _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
                     _settings.Save();
                 }
                 catch (Exception ex)

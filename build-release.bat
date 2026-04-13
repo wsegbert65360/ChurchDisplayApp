@@ -30,7 +30,7 @@ REM 3. Publish self-contained executable folder
 echo Publishing self-contained executable for win-x64...
 REM We use --self-contained true to include the .NET runtime
 REM We use win-x64 to target 64-bit Windows
-dotnet publish -c Release --self-contained true --runtime win-x64 -p:PublishSingleFile=false -p:PublishReadyToRun=false -o bin\Publish\win-x64
+dotnet publish -c Release --self-contained true --runtime win-x64 -p:PublishSingleFile=false -p:PublishReadyToRun=false -p:DebugType=none -p:DebugSymbols=false -o bin\Publish\win-x64
 if !errorLevel! neq 0 (
     echo [ERROR] Publish failed.
     pause
