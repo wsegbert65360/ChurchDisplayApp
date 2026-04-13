@@ -28,12 +28,14 @@ public partial class MainWindow : Window, IDisplayController
     private readonly RemoteControlServer _remoteControlServer = new();
     private const int RemoteControlPortPreferred = AppConstants.Network.RemoteControlPortPreferred;
     private const int RemoteControlPortFallback = AppConstants.Network.RemoteControlPortFallback;
-    private readonly LibVLC _libVLC;
+    // PHASE 2: Nullable — set asynchronously when VLC init completes
+    private LibVLC? _libVLC;
+    private LiveOutputWindow? _liveWindow;
+    private MediaControlService? _mediaControlService;
+
     private readonly PlaylistManager _playlistManager = new();
     public PlaylistManager PlaylistManager => _playlistManager;
-    private MediaControlService _mediaControlService = null!;
-    private LiveOutputWindow _liveWindow = null!;
-    public MainViewModel ViewModel { get; private set; } = null!;
+    public MainViewModel? ViewModel { get; private set; }
     private readonly MonitorService _monitorService = new();
     private System.Windows.Threading.DispatcherTimer? _progressUpdateTimer;
     private AmenResolveService? _amenResolveService;
@@ -45,151 +47,284 @@ public partial class MainWindow : Window, IDisplayController
     private bool _isClosing = false;
     private Task? _amenTask;
 
+    // PHASE 2: VLC readiness tracking
+    private volatile bool _vlcReady = false;
+    private bool _vlcInitFailed = false;
+    private string? _vlcInitError;
+
+    // PHASE 2: Cancellation support — prevents native resource leaks if app
+    // is closed while VLC is still initializing on the background thread.
+    private CancellationTokenSource? _vlcInitCts;
+    private Task? _vlcInitTask;
+
+    // PHASE 2: Event to signal App.xaml.cs that init is complete (success OR failure).
+    // Named "InitializationComplete" (not "VlcReady") because it fires on both paths.
+    public event EventHandler? InitializationComplete;
+
     public MainWindow()
     {
         InitializeComponent();
 
-        // Bind playlist
+        // Bind playlist (works immediately — no VLC dependency)
         PlaylistListBox.ItemsSource = _playlistManager.Items;
 
         Closing += MainWindow_Closing;
         SizeChanged += MainWindow_SizeChanged;
-        
-        // Initialize VLC media engine (all native init in one try-catch)
-        try
-        {
-            LibVLCSharp.Shared.Core.Initialize();
 
-            var vlcOptionsList = new List<string>
-            {
-                "--no-osd",
-                "--no-video-title-show",
-                "--no-snapshot-preview",
-                "--aout=directsound"
-            };
-
-            // If a specific audio device is configured, tell VLC to use it.
-            // The device name comes from the log file (e.g. "[VLC/main] using device: X")
-            if (!string.IsNullOrWhiteSpace(_settings.VlcAudioDevice))
-            {
-                vlcOptionsList.Add($"--directx-audio-device={_settings.VlcAudioDevice}");
-                Log.Information("VLC audio device override: {Device}", _settings.VlcAudioDevice);
-            }
-
-            _libVLC = new LibVLC(vlcOptionsList.ToArray());
-
-            // Forward VLC's internal log to Serilog so audio device selection and
-            // any playback errors are visible in %APPDATA%\ChurchDisplayApp\logs\.
-            _libVLC.Log += (sender, e) =>
-            {
-                var message = $"[VLC/{e.Module}] {e.Message}";
-                switch (e.Level)
-                {
-                    case LogLevel.Error:   Log.Error(message);   break;
-                    case LogLevel.Warning: Log.Warning(message); break;
-                    default:               Log.Information(message); break;
-                }
-            };
-
-            _liveWindow = new LiveOutputWindow(_libVLC);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to initialize VLC media engine");
-            MessageBox.Show(
-                $"Failed to initialize media engine.\n\nError: {ex.Message}\n\n" +
-                "Please ensure the Microsoft Visual C++ Redistributable (x64) is installed\n" +
-                "and restart the application.\n\n" +
-                "Download: https://aka.ms/vs/17/release/vc_redist.x64.exe",
-                "Church Display App - Startup Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error
-            );
-            Application.Current.Shutdown();
-            return;
-        }
+        // PHASE 2: Set a minimal DataContext so XAML bindings don't throw.
+        // This is a temporary placeholder until the real ViewModel is created.
+        DataContext = new LoadingPlaceholderViewModel();
 
         _playlistDragDropManager = new PlaylistDragDropManager(PlaylistListBox, _playlistManager, () => { });
-        
-        // Set up live preview timer
+
+        // Set up live preview timer (safe — checks _liveWindow for null)
         _livePreviewTimer = new DispatcherTimer 
         { 
             Interval = TimeSpan.FromMilliseconds(AppConstants.UI.LivePreviewIntervalMs) 
         };
         _livePreviewTimer.Tick += UpdateLivePreview;
         _livePreviewTimer.Start();
+
+        // PHASE 2: Start VLC initialization on a background thread.
+        // Store the task and CTS so we can cancel it during shutdown.
+        _vlcInitCts = new CancellationTokenSource();
+        _vlcInitTask = InitializeVlcAsync(_vlcInitCts.Token);
     }
 
     protected override void OnContentRendered(EventArgs e)
     {
         base.OnContentRendered(e);
 
-        // If VLC failed to initialize, the constructor returned early and
-        // _liveWindow is null. Shutdown has already been requested — bail out
-        // here to avoid a secondary NullReferenceException crash dialog.
-        if (_liveWindow == null)
-            return;
-
-        // Restore saved sidebar width from settings
-        ApplySavedSidebarWidth();
-
-        _liveWindow.Owner = this;
-
-        // Subscribe to MediaEnded event to stop media state
-        _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
-
-        // Initialize media control service and ViewModel
-        _mediaControlService = new MediaControlService(_liveWindow, _settings);
-        _mediaControlService.MediaStateChanged += (s, e) => {
-            if (_mediaControlService.IsPlaying()) StartMediaPulseAnimation();
-            else StopMediaPulseAnimation();
-        };
-        ViewModel = new MainViewModel(_playlistManager, _mediaControlService, _settings);
-        DataContext = ViewModel;
-
-        // Detect monitors using the service
-        var monitors = _monitorService.GetMonitors();
-        
-        if (monitors.Count >= 2)
+        // PHASE 2: If VLC is already ready (fast path — initialized before window rendered),
+        // this shouldn't normally happen, but handle it for safety.
+        if (_vlcReady && _liveWindow != null)
         {
-            var liveMonitor = _monitorService.SelectDisplayMonitor(monitors);
+            return; // InitializeVlcAsync already handled everything
+        }
 
-            if (liveMonitor != null)
+        // If VLC failed, the loading overlay shows the error — nothing to do here.
+        // If VLC is still initializing, the loading overlay is visible and the
+        // InitializeVlcAsync callback will handle everything when it completes.
+    }
+
+    /// <summary>
+    /// PHASE 2: Initializes VLC on a background thread, then dispatches back
+    /// to the UI thread to create the ViewModel and LiveOutputWindow.
+    /// </summary>
+    /// <param name="ct">Cancellation token — set when app is closing to prevent resource leaks.</param>
+    private async Task InitializeVlcAsync(CancellationToken ct)
+    {
+        try
+        {
+            // --- Step A: Heavy VLC init on background thread ---
+            // Core.Initialize() loads native libraries and can take 1-3 seconds.
+            // new LibVLC() creates the engine instance.
+            // These MUST run on the same thread (VLC thread affinity requirement).
+            var libVLC = await Task.Run(() =>
             {
-                _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-                _liveWindow.Show();
-                _monitorService.PositionWindowOnMonitor(_liveWindow, liveMonitor);
-                _liveWindow.Topmost = true;
-            }
-        }
-        else
-        {
-            _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            _liveWindow.Show();
-        }
+                ct.ThrowIfCancellationRequested();
 
-        _liveWindow.ShowBlank();
+                LibVLCSharp.Shared.Core.Initialize();
 
-        // Setup progress update timer
-        _progressUpdateTimer = new System.Windows.Threading.DispatcherTimer 
-        { 
-            Interval = TimeSpan.FromMilliseconds(AppConstants.UI.ProgressUpdateIntervalMs) 
-        };
-        _progressUpdateTimer.Tick += (s, args) => ViewModel.UpdateProgress();
-        _progressUpdateTimer.Start();
-        
-        _ = StartRemoteControlAsync();
+                ct.ThrowIfCancellationRequested();
 
-        // Initialize AmenResolveService
-        var soundFontPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppConstants.Media.SoundsDirectory, AppConstants.Media.SoundFontFileName);
-        if (System.IO.File.Exists(soundFontPath))
-        {
-            _amenResolveService = new AmenResolveService(soundFontPath);
+                var vlcOptionsList = new List<string>
+                {
+                    "--no-osd",
+                    "--no-video-title-show",
+                    "--no-snapshot-preview",
+                    "--aout=directsound"
+                };
+
+                if (!string.IsNullOrWhiteSpace(_settings.VlcAudioDevice))
+                {
+                    vlcOptionsList.Add($"--directx-audio-device={_settings.VlcAudioDevice}");
+                }
+
+                var libVlc = new LibVLC(vlcOptionsList.ToArray());
+
+                // Subscribe to VLC log on background thread (logging is thread-safe)
+                libVlc.Log += (sender, e) =>
+                {
+                    var message = $"[VLC/{e.Module}] {e.Message}";
+                    switch (e.Level)
+                    {
+                        case LogLevel.Error:   Log.Error(message);   break;
+                        case LogLevel.Warning: Log.Warning(message); break;
+                        default:               Log.Information(message); break;
+                    }
+                };
+
+                return libVlc;
+            }, ct);
+
+            // Check cancellation before dispatching to UI thread
+            ct.ThrowIfCancellationRequested();
+
+            // --- Step B: Dispatch back to UI thread for WPF object creation ---
+            await Dispatcher.BeginInvoke(() =>
+            {
+                // RELIABILITY FIX #1: If the app is shutting down after
+                // VLC was created on the background thread but before we got here,
+                // we MUST dispose the newly-created LibVLC instance to prevent
+                // a native resource leak.
+                if (_isClosing || ct.IsCancellationRequested)
+                {
+                    libVLC.Dispose();
+                    return;
+                }
+
+                _libVLC = libVLC;
+
+                if (!string.IsNullOrWhiteSpace(_settings.VlcAudioDevice))
+                {
+                    Log.Information("VLC audio device override: {Device}", _settings.VlcAudioDevice);
+                }
+
+                // Create LiveOutputWindow (must be on UI thread — it's a WPF Window)
+                _liveWindow = new LiveOutputWindow(_libVLC);
+                _liveWindow.Owner = this;
+
+                // Create MediaControlService and ViewModel
+                _mediaControlService = new MediaControlService(_liveWindow, _settings);
+                _mediaControlService.MediaStateChanged += (s, e) =>
+                {
+                    if (_mediaControlService.IsPlaying()) StartMediaPulseAnimation();
+                    else StopMediaPulseAnimation();
+                };
+
+                ViewModel = new MainViewModel(_playlistManager, _mediaControlService, _settings);
+                DataContext = ViewModel;
+
+                // Subscribe to MediaEnded
+                _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
+
+                // RELIABILITY FIX #4: Update the drag-drop replay callback now that
+                // we have a real ViewModel. The no-op callback set in the constructor
+                // is replaced with one that actually triggers playback.
+                _playlistDragDropManager = new PlaylistDragDropManager(
+                    PlaylistListBox,
+                    _playlistManager,
+                    () => ViewModel.PlayCommand.Execute(null));
+
+                // Restore sidebar width
+                ApplySavedSidebarWidth();
+
+                // Detect monitors and show live output window
+                var monitors = _monitorService.GetMonitors();
+                if (monitors.Count >= 2)
+                {
+                    var liveMonitor = _monitorService.SelectDisplayMonitor(monitors);
+                    if (liveMonitor != null)
+                    {
+                        _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                        _liveWindow.Show();
+                        _monitorService.PositionWindowOnMonitor(_liveWindow, liveMonitor);
+                        _liveWindow.Topmost = true;
+                    }
+                }
+                else
+                {
+                    _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                    _liveWindow.Show();
+                }
+                _liveWindow.ShowBlank();
+
+                // Start progress update timer
+                _progressUpdateTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(AppConstants.UI.ProgressUpdateIntervalMs)
+                };
+                _progressUpdateTimer.Tick += (s, args) => ViewModel.UpdateProgress();
+                _progressUpdateTimer.Start();
+
+                // Start remote control server
+                _ = StartRemoteControlAsync();
+
+                // Initialize AmenResolveService
+                var soundFontPath = System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    AppConstants.Media.SoundsDirectory,
+                    AppConstants.Media.SoundFontFileName);
+                if (System.IO.File.Exists(soundFontPath))
+                {
+                    _amenResolveService = new AmenResolveService(soundFontPath);
+                }
+                else
+                {
+                    Log.Warning("SoundFont file not found at {Path}. Amen resolve feature will be unavailable.", soundFontPath);
+                }
+
+                // RELIABILITY FIX #6: Set _vlcReady LAST, after ALL post-init work
+                // is complete. This ensures no code path can observe "VLC is ready"
+                // before the remote control server, amen service, timers, etc. are running.
+                _vlcReady = true;
+                LoadingOverlay.Visibility = Visibility.Collapsed;
+
+                // Signal App.xaml.cs to close splash (if still visible)
+                InitializationComplete?.Invoke(this, EventArgs.Empty);
+
+                Log.Information("VLC initialization complete — media engine ready.");
+            });
         }
-        else
+        catch (OperationCanceledException)
         {
-            Log.Warning("SoundFont file not found at {Path}. Amen resolve feature will be unavailable.", soundFontPath);
+            // RELIABILITY FIX #1: App is shutting down during VLC init.
+            // This is expected — silently exit. Any LibVLC instance created
+            // in Task.Run has been disposed above.
+            Log.Information("VLC initialization cancelled — app is shutting down.");
         }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to initialize VLC media engine");
+
+            await Dispatcher.BeginInvoke(() =>
+            {
+                // RELIABILITY FIX #5: Check _isClosing here too.
+                if (_isClosing)
+                {
+                    InitializationComplete?.Invoke(this, EventArgs.Empty);
+                    return;
+                }
+
+                _vlcInitFailed = true;
+                _vlcInitError = ex.Message;
+
+                // Show error state in the loading overlay
+                LoadingStatusText.Text = $"Media engine failed to load.\n\n{ex.Message}\n\nCheck that the Microsoft Visual C++ Redistributable (x64) is installed.";
+
+                // Hide progress bar, show the pre-declared retry button
+                LoadingProgressBar.Visibility = Visibility.Collapsed;
+                LoadingRetryButton.Visibility = Visibility.Visible;
+
+                // Signal splash to close even on failure
+                InitializationComplete?.Invoke(this, EventArgs.Empty);
+            });
+        }
+    }
+
+    /// <summary>
+    /// PHASE 2: Handles the Retry button click when VLC init fails.
+    /// Re-triggers VLC initialization with a fresh CancellationToken.
+    /// </summary>
+    private void LoadingRetryButton_Click(object sender, RoutedEventArgs e)
+    {
+        // RELIABILITY FIX #2: Cancel any previous init attempt before retrying.
+        _vlcInitCts?.Cancel();
+        _vlcInitCts?.Dispose();
+
+        // Reset error state
+        _vlcInitFailed = false;
+        _vlcInitError = null;
+
+        // Restore loading overlay to its initial visual state
+        LoadingStatusText.Text = "Retrying...";
+        LoadingProgressBar.Visibility = Visibility.Visible;
+        LoadingRetryButton.Visibility = Visibility.Collapsed;
+
+        // Start a fresh VLC init attempt with a new CancellationToken
+        _vlcInitCts = new CancellationTokenSource();
+        _vlcInitTask = InitializeVlcAsync(_vlcInitCts.Token);
     }
 
 
@@ -371,6 +506,21 @@ public partial class MainWindow : Window, IDisplayController
         e.Cancel = true;
         _isClosing = true;
 
+        // PHASE 2 RELIABILITY FIX #1: Cancel VLC init if it's still running.
+        // This prevents a race where VLC is created on the background thread
+        // after the user closes the app, leaking native resources.
+        _vlcInitCts?.Cancel();
+
+        try
+        {
+            _vlcInitTask?.Wait(TimeSpan.FromSeconds(5));
+        }
+        catch (AggregateException ae)
+        {
+            // OperationCanceledException is expected — swallow it
+            ae.Handle(ex => ex is OperationCanceledException);
+        }
+
         try
         {
             Log.Information("Main window closing (Orderly Shutdown initiated)...");
@@ -502,6 +652,9 @@ public partial class MainWindow : Window, IDisplayController
 
     private void ToggleDisplay_Click(object sender, RoutedEventArgs e)
     {
+        // PHASE 2: Guard against VLC not ready
+        if (!EnsureVlcReady()) return;
+
         // If the window was closed by the user clicking X on it directly,
         // IsDisposed will be true even though _liveWindow is not null.
         // Recreate it rather than attempting Show() on a closed window.
@@ -549,19 +702,21 @@ public partial class MainWindow : Window, IDisplayController
     {
         _liveWindow?.Dispose();
         
+        if (_libVLC == null) return; // PHASE 2: Safety guard
+
         _liveWindow = new LiveOutputWindow(_libVLC)
         {
             Owner = this
         };
         
-        _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
-        
-        _mediaControlService?.UpdateLiveWindow(_liveWindow);
-        _mediaControlService?.SetVolume(ViewModel.Volume);
-        
-        // Reset playback state — old window was disposed, nothing is playing
-        ViewModel.IsPlaying = false;
-        ViewModel.CurrentMediaTitle = "Idle";
+        if (ViewModel != null)
+        {
+            _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
+            _mediaControlService?.UpdateLiveWindow(_liveWindow);
+            _mediaControlService?.SetVolume(ViewModel.Volume);
+            ViewModel.IsPlaying = false;
+            ViewModel.CurrentMediaTitle = "Idle";
+        }
         
         PositionDisplayWindow();
         
@@ -593,6 +748,7 @@ public partial class MainWindow : Window, IDisplayController
 
     private void PlaylistListBox_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
+        if (!EnsureVlcReady()) return;
         ViewModel.PlayCommand.Execute(null);
     }
 
@@ -722,6 +878,8 @@ public partial class MainWindow : Window, IDisplayController
 
     private async void AmenButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!EnsureVlcReady()) return;
+
         // Stop current media and clear all state (including _currentlyLoadedPath)
         ViewModel.StopCommand.Execute(null);
 
@@ -814,13 +972,13 @@ public partial class MainWindow : Window, IDisplayController
     {
         if (_playlistManager.Items.Count == 0)
         {
-            ViewModel.StopCommand.Execute(null);
+            ViewModel?.StopCommand.Execute(null);
             return;
         }
 
         if (!_playlistManager.IsDirty)
         {
-            ViewModel.StopCommand.Execute(null);
+            ViewModel?.StopCommand.Execute(null);
             _playlistManager.Clear();
             PlaylistListBox.SelectedIndex = -1;
             return;
@@ -868,24 +1026,61 @@ public partial class MainWindow : Window, IDisplayController
             }
         }
 
-        ViewModel.StopCommand.Execute(null);
+        ViewModel?.StopCommand.Execute(null);
         _playlistManager.Clear();
         PlaylistListBox.SelectedIndex = -1;
     }
 
     #region IDisplayController Implementation
 
-    public void Next() => ViewModel.NextCommand.Execute(null);
-    public void Previous() => ViewModel.PreviousCommand.Execute(null);
-    public void Play() => ViewModel.PlayCommand.Execute(null);
-    public void Pause() => ViewModel.PauseCommand.Execute(null);
-    public void Stop() => ViewModel.StopCommand.Execute(null);
-    public void Blank() => ViewModel.BlankCommand.Execute(null);
-    public void SetVolume(double volume) => ViewModel.Volume = volume;
-    public void VolumeUp() => ViewModel.Volume = Math.Clamp(ViewModel.Volume + 0.02, 0.0, 1.0);
-    public void VolumeDown() => ViewModel.Volume = Math.Clamp(ViewModel.Volume - 0.02, 0.0, 1.0);
+    public void Next()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.NextCommand.Execute(null);
+    }
+    public void Previous()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.PreviousCommand.Execute(null);
+    }
+    public void Play()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.PlayCommand.Execute(null);
+    }
+    public void Pause()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.PauseCommand.Execute(null);
+    }
+    public void Stop()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.StopCommand.Execute(null);
+    }
+    public void Blank()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.BlankCommand.Execute(null);
+    }
+    public void SetVolume(double volume)
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.Volume = volume;
+    }
+    public void VolumeUp()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.Volume = Math.Clamp(ViewModel.Volume + 0.02, 0.0, 1.0);
+    }
+    public void VolumeDown()
+    {
+        if (!EnsureVlcReady()) return;
+        ViewModel.Volume = Math.Clamp(ViewModel.Volume - 0.02, 0.0, 1.0);
+    }
     public void PlayIndex(int index)
     {
+        if (!EnsureVlcReady()) return;
         if (index >= 0 && index < _playlistManager.Items.Count)
         {
             ViewModel.SelectedItem = _playlistManager.Items[index];
@@ -895,31 +1090,38 @@ public partial class MainWindow : Window, IDisplayController
 
     public void Amen()
     {
+        if (!EnsureVlcReady()) return;
         Dispatcher.BeginInvoke(() => AmenButton_Click(this, new RoutedEventArgs()));
     }
 
     public RemoteStatus GetStatus()
     {
-        var progress = _mediaControlService.GetProgress();
-
-        if (progress == null)
+        if (ViewModel != null && _mediaControlService != null)
         {
+            var progress = _mediaControlService.GetProgress();
+
+            if (progress == null)
+            {
+                return new RemoteStatus(
+                    ViewModel.CurrentMediaTitle,
+                    0,
+                    "00:00",
+                    "00:00",
+                    ViewModel.Volume
+                );
+            }
+
             return new RemoteStatus(
                 ViewModel.CurrentMediaTitle,
-                0,
-                "00:00",
-                "00:00",
+                progress.ProgressPercent,
+                ViewModel.FormatTime(progress.CurrentTime),
+                ViewModel.FormatTime(progress.Duration),
                 ViewModel.Volume
             );
         }
 
-        return new RemoteStatus(
-            ViewModel.CurrentMediaTitle,
-            progress.ProgressPercent,
-            ViewModel.FormatTime(progress.CurrentTime),
-            ViewModel.FormatTime(progress.Duration),
-            ViewModel.Volume
-        );
+        // PHASE 2: Return idle status when VLC not ready
+        return new RemoteStatus("Loading...", 0, "00:00", "00:00", 0.5);
     }
 
     public List<RemotePlaylistItem> GetPlaylistItems()
@@ -931,6 +1133,26 @@ public partial class MainWindow : Window, IDisplayController
             result.Add(new RemotePlaylistItem(i, item.FileName));
         }
         return result;
+    }
+
+    /// <summary>
+    /// PHASE 2: Guards VLC-dependent actions. Returns true if VLC is ready.
+    /// If VLC is not ready, returns false and logs a warning.
+    /// </summary>
+    private bool EnsureVlcReady()
+    {
+        if (_vlcReady && ViewModel != null)
+            return true;
+
+        if (_vlcInitFailed)
+        {
+            Log.Warning("VLC action blocked: media engine initialization failed.");
+        }
+        else
+        {
+            Log.Information("VLC action blocked: media engine still initializing.");
+        }
+        return false;
     }
 
     #endregion

@@ -89,15 +89,31 @@ public partial class App : Application
             args.Handled = true; // Attempt to recover/continue
         };
 
-        // PHASE 1: Create MainWindow manually
+        // PHASE 1+2: Create MainWindow manually
         // (replaces the removed StartupUri)
         var mainWindow = new MainWindow();
 
-        // PHASE 1: Close splash when MainWindow renders
-        mainWindow.ContentRendered += (s, args) =>
+        // PHASE 2: Close splash when VLC init completes (success or failure).
+        // This is the PRIMARY signal — it provides the best visual transition.
+        mainWindow.InitializationComplete += (s, args) =>
         {
             _splash?.Close(TimeSpan.FromSeconds(0.5));
             _splash = null;
+        };
+
+        // PHASE 1: Fallback — close splash on ContentRendered with a delay.
+        // This handles the (unlikely) case where VLC init is extremely fast
+        // or the event fires before the subscriber is attached.
+        mainWindow.ContentRendered += (s, args) =>
+        {
+            Task.Delay(TimeSpan.FromSeconds(2)).ContinueWith(_ =>
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _splash?.Close(TimeSpan.FromSeconds(0.5));
+                    _splash = null;
+                });
+            });
         };
 
         mainWindow.Show();

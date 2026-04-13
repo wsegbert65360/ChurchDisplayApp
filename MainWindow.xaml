@@ -316,5 +316,43 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- ═══════════════════ PHASE 2: Loading Overlay ═══════════════════ -->
+        <Grid x:Name="LoadingOverlay"
+              Grid.Column="0" Grid.ColumnSpan="3"
+              Background="#E6FFFFFF"
+              Panel.ZIndex="999"
+              Visibility="Visible">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Orientation="Vertical">
+                <TextBlock Text="Church Display"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryAccentBrush}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,12" />
+                <TextBlock x:Name="LoadingStatusText"
+                           Text="Initializing media engine..."
+                           FontSize="12"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,20" />
+                <ProgressBar x:Name="LoadingProgressBar"
+                             IsIndeterminate="True"
+                             Width="200"
+                             Height="6"
+                             Foreground="{StaticResource ActionBrush}" />
+                <!-- Retry button: hidden by default, shown only on VLC init failure -->
+                <Button x:Name="LoadingRetryButton"
+                        Content="RETRY"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Visibility="Collapsed"
+                        Padding="20,8"
+                        FontSize="11"
+                        Margin="0,12,0,0"
+                        Click="LoadingRetryButton_Click" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
