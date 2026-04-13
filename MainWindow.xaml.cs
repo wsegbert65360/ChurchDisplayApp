@@ -854,10 +854,17 @@ public partial class MainWindow : Window, IDisplayController
             }
 
             // --- Skip snapshot for unchanged images ---
-            // For static images, the BitmapSource doesn't change between frames.
-            // Only grab a new snapshot when the file path changes.
-            if (isImage && PreviewImage.Source != null)
+            // For images, GetCurrentSnapshotAsync() returns _imageDisplay.Source
+            // which is a cheap property access (no disk I/O), so we can safely
+            // call it to check if the bitmap actually changed.
+            if (isImage)
             {
+                var imageSnapshot = _liveWindow.GetCurrentSnapshotAsync().Result;
+                if (imageSnapshot != null && !ReferenceEquals(imageSnapshot, PreviewImage.Source))
+                {
+                    PreviewImage.Source = imageSnapshot;
+                    PreviewLabel.Text = "Live Output Preview";
+                }
                 return;
             }
 
@@ -873,14 +880,6 @@ public partial class MainWindow : Window, IDisplayController
 
             if (snapshot != null)
             {
-                // Dispose old bitmap if it's a different object (prevent memory accumulation)
-                var oldSource = PreviewImage.Source as BitmapSource;
-                if (oldSource != null && !ReferenceEquals(oldSource, snapshot)
-                    && !oldSource.IsFrozen)
-                {
-                    oldSource = null; // Let GC collect; BitmapImage doesn't implement IDisposable
-                }
-
                 PreviewImage.Source = snapshot;
                 PreviewLabel.Text = "Live Output Preview";
             }
@@ -888,7 +887,7 @@ public partial class MainWindow : Window, IDisplayController
             {
                 // No snapshot available (blank, loading, paused video)
                 // Don't clear the preview if we already have content — keeps last frame visible
-                if (string.IsNullOrEmpty(currentPath) || currentPath == null)
+                if (string.IsNullOrEmpty(currentPath))
                 {
                     PreviewImage.Source = null;
                     PreviewLabel.Text = "Live Output (No Media)";
