@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
 using ChurchDisplayApp.Models;
 
 namespace ChurchDisplayApp;
@@ -24,7 +24,7 @@ public class AppSettings
     /// The last directory the user saved or loaded a playlist from.
     /// Used as the initial directory in the Save and Load Playlist dialogs.
     /// </summary>
-    [System.Text.Json.Serialization.JsonPropertyName("LastPlaylistSaveDirectory")]
+    [JsonPropertyName("LastPlaylistSaveDirectory")]
     public string? LastPlaylistDirectory { get; set; }
 
     /// <summary>Gets or sets the volume level for the main media (0.0 to 1.0).</summary>
@@ -168,6 +168,9 @@ public class AppSettings
         InvitationSongFile ??= string.Empty;
         EndingSongFile ??= string.Empty;
         LastMediaDirectory ??= string.Empty;
+
+        // Note: LastPlaylistDirectory is intentionally allowed to be null so that
+        // it can fall back to LastMediaDirectory on the first run of the app.
     }
 
     private CancellationTokenSource? _saveCts;
