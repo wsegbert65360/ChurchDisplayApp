@@ -564,10 +564,7 @@ public partial class MainWindow : Window, IDisplayController
         {
             Log.Information("Main window closing (Orderly Shutdown initiated)...");
 
-            // 1. Update UI to show shutdown state if possible (optional polish)
-            // if (ViewModel != null) ViewModel.StatusMessage = "Shutting down...";
-
-            // 2. Save settings (window state, etc.)
+            // 1. Save settings (window state, etc.)
             try
             {
                 if (ActualWidth > 0)
@@ -584,13 +581,13 @@ public partial class MainWindow : Window, IDisplayController
                 Log.Warning(ex, "Could not save settings during shutdown");
             }
 
-            // 3. Stop background services
+            // 2. Stop background services
             if (_previewDroppedFrames > 0)
                 Log.Information("Live preview dropped {Count} frames during this session", _previewDroppedFrames);
             _livePreviewTimer?.Stop();
             _progressUpdateTimer?.Stop();
 
-            // 4. Cancel Amen Resolve if running
+            // 3. Cancel Amen Resolve if running
             if (_amenTask != null)
             {
                 _amenResolveService?.Cancel();
@@ -598,14 +595,14 @@ public partial class MainWindow : Window, IDisplayController
             }
             _amenResolveService?.Dispose();
 
-            // 5. Stop Remote Control Server
+            // 4. Stop Remote Control Server
             if (_remoteControlServer != null && _remoteControlServer.IsRunning)
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
                 await _remoteControlServer.StopAsync(cts.Token);
             }
 
-            // 6. Stop and dispose VLC resources
+            // 5. Stop and dispose VLC resources
             if (_liveWindow != null)
             {
                 _liveWindow.Stop();
