@@ -55,7 +55,8 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - **Strategy**: Asynchronous, debounced auto-save.
 - **Mechanism**: Serializes to `settings.json`.
 - **Hardening**: Uses `CancellationTokenSource` to debounce rapid changes and a thread-safe `SaveImmediate()` for critical persistence.
-- **Backward Compatibility**: Old BGM-related settings fields are silently ignored during JSON deserialization (System.Text.Json default behavior).
+- **Directory Memory**: Centralizes folder context. `LastMediaDirectory` tracks the general media folder (used by "Add Media"). `LastPlaylistDirectory` tracks the playlist folder (shared by "Load" and "Save").
+- **Backward Compatibility**: `LastPlaylistDirectory` maps to the legacy `LastPlaylistSaveDirectory` key during serialization to preserve user settings. Old BGM-related settings fields are silently ignored.
 
 ### 2. Media Control (`MediaControlService.cs`)
 - Manages playback of all media elements through a single path.
@@ -78,6 +79,7 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - Save/Load via JSON serialization (`.pls` files).
 - **Playlist Format v2**: `{ "version": 2, "items": [{ "fullPath": "...", "volume": 1.0 }] }`.
 - **Backward Compatibility**: Old playlists (plain array of path strings) are automatically loaded with default volume.
+- **Load/Save Synchronicity**: Both "Load Playlist" and "Save Playlist" dialogs share the same last-used directory memory so they always open in the same context.
 - **Close Playlist**: Prompts user with Yes/No/Cancel dialog if unsaved changes exist before clearing.
 
 ### 5. Remote Control (`RemoteControlServer.cs`)
@@ -125,8 +127,8 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 See [INSTALL.md](INSTALL.md) for complete step-by-step build and install instructions.
 
 ### Build Pipeline
-- `build-release.bat`: The canonical build script. Automatically cleans, publishes a self-contained `.exe`, and compiles the Windows Installer using Inno Setup.
-- `publish.bat`: A lightweight script for generating portable versions without compiling an installer.
+- `build-release.bat`: The canonical build script. Automatically cleans, publishes a self-contained `.exe`, and compiles the Windows Installer using Inno Setup. Optimized to strip debug symbols (`.pdb`) and documentation (`.xml`) to reduce payload size.
+- `publish.bat`: A lightweight script for generating portable versions. Fixed to correctly output to `bin\Publish\win-x64` and optimized for minimal footprint.
 - `sync-fcc.bat`: A professional automation script that triggers a full build and synchronizes the installer to deployment folders (configurable via `FCC_SYNC_DIR` environment variable).
 
 ### Installer Logic (`ChurchDisplayApp.iss`)
@@ -134,6 +136,7 @@ See [INSTALL.md](INSTALL.md) for complete step-by-step build and install instruc
 - **Dependency Management**: Automatically downloads and installs the required Visual C++ Redistributable if missing.
 - **Firewall Rules**: Automatically manages inbound network rules for the remote control server ports.
 - **Clean Execution**: Dedicated logic handles Start Menu/Desktop shortcuts and rigorous uninstallation sweeps.
+- **Size Optimization**: Explicitly excludes `.pdb` and `.xml` files from the payload to minimize footprint.
 - Sources from `bin\Publish\win-x64\`.
 
 ---
