@@ -34,11 +34,11 @@
 
                 <!-- Add / Remove / Move buttons -->
                 <StackPanel DockPanel.Dock="Right" Margin="6,0,0,0" MinWidth="80">
-                    <Button Content="+ Add"    Padding="8,4" MinWidth="0" Margin="0,2" Click="AddSlot_Click"/>
-                    <Button Content="✕ Remove" Padding="8,4" MinWidth="0" Margin="0,2" Click="RemoveSlot_Click"/>
+                    <Button Content="+ Add"    Padding="8,4" MinWidth="0" Margin="0,2" Click="AddSlot_Click" ToolTip="Add a new service slot"/>
+                    <Button Content="✕ Remove" Padding="8,4" MinWidth="0" Margin="0,2" Click="RemoveSlot_Click" ToolTip="Remove the selected service slot"/>
                     <Separator Margin="0,6"/>
-                    <Button Content="▲ Up"     Padding="8,4" MinWidth="0" Margin="0,2" Click="MoveUp_Click"/>
-                    <Button Content="▼ Down"   Padding="8,4" MinWidth="0" Margin="0,2" Click="MoveDown_Click"/>
+                    <Button Content="▲ Up"     Padding="8,4" MinWidth="0" Margin="0,2" Click="MoveUp_Click" ToolTip="Move the selected slot up in the list"/>
+                    <Button Content="▼ Down"   Padding="8,4" MinWidth="0" Margin="0,2" Click="MoveDown_Click" ToolTip="Move the selected slot down in the list"/>
                 </StackPanel>
 
                 <DockPanel>

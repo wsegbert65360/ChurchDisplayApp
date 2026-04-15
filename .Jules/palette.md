@@ -1,0 +1,3 @@
+## 2025-04-15 - Improve WPF Accessibility with AutomationProperties and ToolTips
+**Learning:** Sliders, especially standalone ones like volume or progress indicators without explicit textual labels immediately adjacent to them, lack sufficient context for screen reader users. Additionally, icon-only buttons or interactive list modifiers (+ Add, ✕ Remove) greatly benefit from `ToolTip` properties for standard hover context and assistive tech.
+**Action:** Always add `AutomationProperties.Name` to WPF interactive components (like `Slider`) when a `<Label Target="..." />` isn't used, and explicitly set `ToolTip` for buttons whose function is primarily visual or terse.
