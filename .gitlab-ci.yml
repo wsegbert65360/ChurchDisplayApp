@@ -1,0 +1,24 @@
+# GitLab CI configuration for WPF .NET 8 project
+# Requires a Windows runner (SaaS Windows runners are available on GitLab.com)
+
+stages:
+  - build
+
+variables:
+  DOTNET_VERSION: '8.0.x'
+
+build_job:
+  stage: build
+  tags:
+    # Recommended tag for GitLab.com SaaS Windows runners
+    - saas-windows-medium-amd64
+  script:
+    # Ensure dependencies are restored
+    - dotnet restore
+    # Build the project in Release mode
+    - dotnet build --configuration Release --no-restore
+  artifacts:
+    name: "ChurchDisplayApp-Release-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - bin/Release/net8.0-windows/
+    expire_in: 1 week
