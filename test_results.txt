@@ -1,0 +1,12 @@
+﻿  Determining projects to restore...
+  Restored C:\Projects\ChurchDisplayApp.Tests\ChurchDisplayApp.Tests.csproj (in 1.02 sec).
+  1 of 2 projects are up-to-date for restore.
+  ChurchDisplayApp -> C:\Projects\ChurchDisplayApp\bin\Debug\net8.0-windows\ChurchDisplayApp.dll
+  ChurchDisplayApp.Tests -> C:\Projects\ChurchDisplayApp.Tests\bin\Debug\net8.0-windows\ChurchDisplayApp.Tests.dll
+Test run for C:\Projects\ChurchDisplayApp.Tests\bin\Debug\net8.0-windows\ChurchDisplayApp.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    25, Skipped:     0, Total:    25, Duration: 257 ms - ChurchDisplayApp.Tests.dll (net8.0)

@@ -1,0 +1,54 @@
+namespace ChurchDisplayApp.Models;
+
+/// <summary>
+/// Centralized location for application-wide constants.
+/// </summary>
+public static class AppConstants
+{
+    public static class Network
+    {
+        public const int RemoteControlPortPreferred = 8088;
+        public const int RemoteControlPortFallback = 8090;
+        public const int RemoteControlPortCustom = 0; // 0 = not set
+    }
+
+    public static class UI
+    {
+        public const int LivePreviewIntervalMs = 42;
+        public const int LivePreviewIdleIntervalMs = 500;
+        public const int LivePreviewImageIntervalMs = 2000;
+        public const int ProgressUpdateIntervalMs = 200;
+        public const int LiveWindowSeekDelayMs = 300;
+        public const int LiveWindowTimerIntervalMs = 100;
+        public const int DefaultLiveWindowWidth = 800;
+        public const int DefaultLiveWindowHeight = 450;
+        public const int ProgressBarHeight = 7;
+        public const int PreviewSnapshotWidth = 640;
+        public const int PreviewSnapshotHeight = 360;
+    }
+
+    public static class Media
+    {
+        public const string SnapshotPrefix = "vlc_snapshot_";
+        public const string SnapshotExtension = ".png";
+        public const string SoundFontFileName = "SalC5Light2.sf2";
+        public const string SoundsDirectory = "Sounds";
+    }
+
+    public static class Storage
+    {
+        public const string AppDataFolderName = "ChurchDisplayApp";
+        public const string SettingsFileName = "settings.json";
+        public const string ServicePlanFileName = "service_plan.json";
+    }
+
+    public static class Timeouts
+    {
+        public const int ShutdownTimeoutSeconds = 2;
+    }
+
+    public static class Colors
+    {
+        public static readonly System.Windows.Media.Color PulseLightBlue = System.Windows.Media.Color.FromArgb(255, 173, 216, 230);
+    }
+}

@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChurchDisplayApp", "ChurchDisplayApp.csproj", "{7EB59028-B843-0AC5-9BC4-CF3300FFABE6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7EB59028-B843-0AC5-9BC4-CF3300FFABE6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EB59028-B843-0AC5-9BC4-CF3300FFABE6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7EB59028-B843-0AC5-9BC4-CF3300FFABE6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EB59028-B843-0AC5-9BC4-CF3300FFABE6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {44604371-7046-46BF-9EA7-728182C1A4C1}
+	EndGlobalSection
+EndGlobal

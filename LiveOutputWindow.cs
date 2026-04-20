@@ -1,0 +1,571 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.IO;
+using System.Windows.Threading;
+using LibVLCSharp.Shared;
+using LibVLCSharp.WPF;
+using ChurchDisplayApp.Models;
+
+namespace ChurchDisplayApp;
+
+
+
+/// <summary>
+/// The primary display window that projects media (video, images, text) to the target monitor.
+/// Uses LibVLC for high-performance media playback.
+/// </summary>
+public class LiveOutputWindow : Window, IDisposable
+{
+    private readonly TextBlock _filenameLabel;
+    private readonly VideoView _videoView;
+    private readonly LibVLC _libVLC;
+    private readonly LibVLCSharp.Shared.MediaPlayer _mediaPlayer;
+    private readonly Image _imageDisplay;
+    private readonly ProgressBar _progressBar;
+    private readonly Grid _contentGrid;
+    private readonly DispatcherTimer _timer;
+    private bool _isPlaying = false;
+    private string? _currentMediaPath;
+    private int _targetVolume = 100; // Stored volume to apply when VLC starts playing
+    private Media? _currentMedia; // Track current media for proper disposal
+    private readonly string _snapshotTempPath;
+    public bool IsDisposed { get; private set; }
+
+    /// <summary>Occurs when a media file finishes playing.</summary>
+    public event EventHandler? MediaEnded;
+
+    /// <summary>
+    /// Gets the current display content as a BitmapSource (for images) or video snapshot (for videos).
+    /// Non-blocking async version for use from the UI thread.
+    /// </summary>
+    public async Task<BitmapSource?> GetCurrentSnapshotAsync()
+    {
+        // If displaying an image, return the image source (no I/O needed)
+        if (_imageDisplay.IsVisible && _imageDisplay.Source is BitmapSource bitmapSource)
+        {
+            return bitmapSource;
+        }
+
+        // If playing video, get a VLC snapshot asynchronously
+        if (_videoView.IsVisible)
+        {
+            return await GetVideoSnapshotAsync();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets a snapshot of the current video frame as a BitmapSource, or null if no video is playing.
+    /// Uses async file-wait to avoid blocking the UI thread.
+    /// </summary>
+    private async Task<BitmapSource?> GetVideoSnapshotAsync()
+    {
+        if (_mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero || !_mediaPlayer.IsPlaying)
+            return null;
+
+        try
+        {
+            // Use explicit small dimensions — a 640x360 PNG is ~50-100KB
+            // vs a 1080p PNG at ~2-4MB. Massive reduction in encode+decode time.
+            if (!_mediaPlayer.TakeSnapshot(0, _snapshotTempPath,
+                    AppConstants.UI.PreviewSnapshotWidth,
+                    AppConstants.UI.PreviewSnapshotHeight))
+            {
+                return null;
+            }
+
+            // Wait for VLC to finish writing (non-blocking, same file reused)
+            for (int i = 0; i < 10; i++)
+            {
+                if (File.Exists(_snapshotTempPath))
+                {
+                    // Check file is not still being written by VLC
+                    try
+                    {
+                        using (var fs = File.OpenRead(_snapshotTempPath))
+                        {
+                            if (fs.Length > 0) break;
+                        }
+                    }
+                    catch (IOException)
+                    {
+                        await Task.Delay(5);
+                        continue;
+                    }
+                }
+                await Task.Delay(5);
+            }
+
+            if (!File.Exists(_snapshotTempPath))
+                return null;
+
+            // Read file bytes into memory, then decode from MemoryStream.
+            // This avoids WPF's URI parsing overhead when using UriSource.
+            var bitmap = await Task.Run(() =>
+            {
+                byte[] fileBytes = File.ReadAllBytes(_snapshotTempPath);
+                var bmp = new BitmapImage();
+                using (var ms = new System.IO.MemoryStream(fileBytes))
+                {
+                    bmp.BeginInit();
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.StreamSource = ms;
+                    bmp.DecodePixelWidth = AppConstants.UI.PreviewSnapshotWidth;
+                    bmp.EndInit();
+                }
+                bmp.Freeze();
+                return bmp;
+            });
+
+            return bitmap;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Video snapshot failed");
+            return null;
+        }
+        // NOTE: No file deletion — we reuse _snapshotTempPath across frames.
+        // It gets cleaned up in Dispose().
+    }
+
+    public LiveOutputWindow(LibVLC libVLC)
+    {
+        _libVLC = libVLC ?? throw new ArgumentNullException(nameof(libVLC));
+        
+        Title = "Live Output";
+        Width = AppConstants.UI.DefaultLiveWindowWidth;
+        Height = AppConstants.UI.DefaultLiveWindowHeight;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Background = Brushes.Black;
+        WindowStyle = WindowStyle.None;  // Remove title bar and borders
+        ResizeMode = ResizeMode.NoResize;  // Prevent resizing
+
+        _contentGrid = new Grid
+        {
+            Background = Brushes.Black
+        };
+        _snapshotTempPath = Path.Combine(Path.GetTempPath(), $"{AppConstants.Media.SnapshotPrefix}preview{AppConstants.Media.SnapshotExtension}");
+        
+        // Create outer grid with rows for content and progress bar
+        var mainGrid = new Grid();
+        mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        // Initialize MediaPlayer
+        try
+        {
+            _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVLC);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Failed to initialize MediaPlayer.");
+            _mediaPlayer = null!;
+        }
+
+        // Create VideoView for media playback
+        _videoView = new VideoView
+        {
+            MediaPlayer = _mediaPlayer,
+            Visibility = Visibility.Collapsed
+        };
+
+        // Create Image for static images
+        _imageDisplay = new Image
+        {
+            Stretch = Stretch.Uniform,
+            Visibility = Visibility.Collapsed
+        };
+
+        // Create a filename label
+        _filenameLabel = new TextBlock
+        {
+            Text = "",
+            Foreground = Brushes.White,
+            FontSize = 24,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(20)
+        };
+
+        // Add elements to content grid in z-order
+        _contentGrid.Children.Add(_videoView);
+        _contentGrid.Children.Add(_imageDisplay);
+        _contentGrid.Children.Add(_filenameLabel);
+
+        // Progress bar
+        _progressBar = new ProgressBar
+        {
+            Height = AppConstants.UI.ProgressBarHeight,
+            Foreground = new SolidColorBrush(AppConstants.Colors.PulseLightBlue),
+            Background = Brushes.DarkGray,
+            Visibility = Visibility.Collapsed
+        };
+
+        // Add to main grid
+        Grid.SetRow(_contentGrid, 0);
+        Grid.SetRow(_progressBar, 1);
+        mainGrid.Children.Add(_contentGrid);
+        mainGrid.Children.Add(_progressBar);
+
+        Content = mainGrid;
+
+        // Set up timer for progress updates
+        _timer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(AppConstants.UI.LiveWindowTimerIntervalMs)
+        };
+        _timer.Tick += Timer_Tick;
+
+        // Subscribe to media player events
+        if (_mediaPlayer != null)
+        {
+            _mediaPlayer.EndReached += (s, e) =>
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _isPlaying = false;
+                    _progressBar.Visibility = Visibility.Collapsed;
+                    _timer.Stop();
+                    MediaEnded?.Invoke(this, EventArgs.Empty);
+                });
+            };
+
+            // When VLC starts playing and audio output is ready,
+            // re-apply the stored volume for reliable audio initialization
+            _mediaPlayer.Playing += (s, e) =>
+            {
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    try
+                    {
+                        // Set immediately (VLC thread-safe)
+                        if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                            _mediaPlayer.Volume = _targetVolume;
+                        
+                        // Re-apply after audio output initializes
+                        await System.Threading.Tasks.Task.Delay(150);
+                        if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                            _mediaPlayer.Volume = _targetVolume;
+                    }
+                    catch (ObjectDisposedException) { /* Window closed during delay */ }
+                    catch (Exception ex) { Serilog.Log.Debug(ex, "Delayed volume set failed"); }
+                });
+            };
+
+            _mediaPlayer.EncounteredError += (s, e) =>
+            {
+                Serilog.Log.Error("MediaPlayer encountered an error playback of {Path}", _currentMediaPath);
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _isPlaying = false;
+                    _timer.Stop();
+                    _progressBar.Visibility = Visibility.Collapsed;
+                });
+            };
+        }
+
+        Closing += (s, e) =>
+        {
+            // Only allow the window to close if it has been explicitly disposed
+            // (e.g. when the main app is shutting down). This prevents the operator
+            // from accidentally closing the projection display by clicking X.
+            if (!IsDisposed)
+            {
+                e.Cancel = true;
+                Hide();  // Hide instead of close — operator can bring it back via Toggle Display
+                return;
+            }
+            Dispose();
+        };
+    }
+
+    public void Dispose()
+    {
+        if (IsDisposed) return;
+        // Clean up the reusable snapshot temp file
+        try { File.Delete(_snapshotTempPath); } catch { }
+        IsDisposed = true;
+
+        _timer?.Stop();
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            _mediaPlayer.Stop();
+            _mediaPlayer.Dispose();
+        }
+        _currentMedia?.Dispose();
+        _currentMedia = null;
+    }
+
+    private void Timer_Tick(object? sender, EventArgs e)
+    {
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && _mediaPlayer.Length > 0)
+        {
+            var progress = (double)_mediaPlayer.Time / _mediaPlayer.Length;
+            _progressBar.Value = progress * 100;
+        }
+    }
+
+    /// <summary>
+    /// Displays the specified media file. Detects if it is an image or video based on file extension.
+    /// </summary>
+    /// <param name="filePath">The absolute path to the media file.</param>
+    public void ShowMedia(string filePath)
+    {
+        _isPlaying = false;
+        _timer.Stop();
+        _currentMediaPath = filePath;
+
+        if (MediaConstants.IsImage(filePath))
+        {
+            _ = ShowImageAsync(filePath);
+        }
+        else if (MediaConstants.IsSupported(filePath))
+        {
+            PlayVideo(filePath);
+        }
+    }
+
+    private async Task ShowImageAsync(string imagePath)
+    {
+        if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+        {
+            Stop();
+            return;
+        }
+
+        try
+        {
+            // Ensure any currently playing video/audio is stopped
+            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+            {
+                _mediaPlayer.Stop();
+            }
+
+            _videoView.Visibility = Visibility.Collapsed;
+            _imageDisplay.Visibility = Visibility.Visible;
+            _filenameLabel.Visibility = Visibility.Collapsed;
+            _progressBar.Visibility = Visibility.Collapsed;
+
+            // Prevent UI freeze from disk I/O by reading the file bytes asynchronously
+            byte[] fileBytes = await File.ReadAllBytesAsync(imagePath);
+
+            // Race-condition guard: if the operator loaded a different media item
+            // while we were suspended at the await, discard this stale result.
+            if (_currentMediaPath != imagePath) return;
+
+            var bitmap = new BitmapImage();
+            using (var ms = new System.IO.MemoryStream(fileBytes))
+            {
+                bitmap.BeginInit();
+                bitmap.StreamSource = ms;
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
+                bitmap.EndInit();
+            }
+
+            _imageDisplay.Source = bitmap;
+            _isPlaying = false;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Failed to load image at {Path}", imagePath);
+            Stop();
+        }
+    }
+
+    private void PlayVideo(string videoPath)
+    {
+        if (_libVLC == null || _mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero)
+        {
+            MessageBox.Show("Video playback is unavailable because LibVLC failed to initialize. Please ensure VLC and its dependencies are correctly installed.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        _imageDisplay.Visibility = Visibility.Collapsed;
+        _filenameLabel.Visibility = Visibility.Collapsed;
+        _videoView.Visibility = Visibility.Visible;
+        _progressBar.Visibility = Visibility.Visible;
+        _progressBar.Value = 0;
+
+        _currentMedia?.Dispose();
+        _currentMedia = new Media(_libVLC, videoPath, FromType.FromPath);
+        _mediaPlayer.Play(_currentMedia);
+        _isPlaying = true;
+        _timer.Start();
+    }
+
+    public void Pause()
+    {
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && _mediaPlayer.CanPause)
+        {
+            _mediaPlayer.Pause();
+            _isPlaying = false;
+        }
+    }
+
+    public void Resume()
+    {
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            RestoreVisibility();
+            _mediaPlayer.Play();
+            _isPlaying = true;
+            _timer.Start();
+        }
+    }
+
+    /// <summary>
+    /// Stops the currently playing media and clears the display.
+    /// </summary>
+    public void Stop()
+    {
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            _mediaPlayer.Stop();
+        }
+        _isPlaying = false;
+        _timer.Stop();
+        _progressBar.Visibility = Visibility.Collapsed;
+        
+        _videoView.Visibility = Visibility.Collapsed;
+        _imageDisplay.Visibility = Visibility.Collapsed;
+        _imageDisplay.Source = null;
+        _filenameLabel.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Blanks the display by hiding all content elements and pausing media if playing.
+    /// </summary>
+    public void Blank()
+    {
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero
+            && _mediaPlayer.CanPause && _mediaPlayer.IsPlaying)
+        {
+            _mediaPlayer.Pause();
+        }
+        
+        _isPlaying = false;
+        _timer.Stop();
+
+        _videoView.Visibility = Visibility.Collapsed;
+        _imageDisplay.Visibility = Visibility.Collapsed;
+        _filenameLabel.Visibility = Visibility.Collapsed;
+        _progressBar.Visibility = Visibility.Collapsed;
+    }
+
+    public void Seek(double position)
+    {
+        if (_mediaPlayer != null && _mediaPlayer.IsSeekable && _mediaPlayer.Length > 0)
+        {
+            try
+            {
+                _mediaPlayer.Time = (long)(position * _mediaPlayer.Length);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error seeking in LiveOutputWindow");
+            }
+        }
+    }
+
+    public ProgressInfo? GetProgress()
+    {
+        if (_mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero)
+            return null;
+
+        try
+        {
+            var length = _mediaPlayer.Length;
+            var time = _mediaPlayer.Time;
+
+            if (length <= 0) return null;
+
+            var totalSeconds = length / 1000.0;
+            var currentSeconds = time / 1000.0;
+
+            return new ProgressInfo
+            {
+                ProgressPercent = totalSeconds > 0 ? (currentSeconds / totalSeconds) * 100 : 0,
+                CurrentTime = TimeSpan.FromSeconds(currentSeconds),
+                Duration = TimeSpan.FromSeconds(totalSeconds)
+            };
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Error getting progress in LiveOutputWindow");
+            return null;
+        }
+    }
+
+    public void Play()
+    {
+        if (_currentMediaPath != null)
+        {
+            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+            {
+                Resume();
+            }
+            else
+            {
+                ShowMedia(_currentMediaPath);
+            }
+        }
+    }
+
+    private void RestoreVisibility()
+    {
+        if (_currentMediaPath == null) return;
+
+        if (MediaConstants.IsImage(_currentMediaPath))
+        {
+            _imageDisplay.Visibility = Visibility.Visible;
+            _videoView.Visibility = Visibility.Collapsed;
+            _progressBar.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            _imageDisplay.Visibility = Visibility.Collapsed;
+            _videoView.Visibility = Visibility.Visible;
+            _progressBar.Visibility = Visibility.Visible;
+        }
+    }
+
+    public void ShowBlank()
+    {
+        Blank();
+    }
+
+    public void SetVolume(double volume)
+    {
+        _targetVolume = (int)(Math.Clamp(volume, 0.0, 1.0) * 100);
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            _mediaPlayer.Volume = _targetVolume;
+        }
+    }
+
+    /// <summary>Gets a value indicating whether media is currently playing.</summary>
+    public bool IsPlaying => _isPlaying;
+
+    public string? CurrentMediaPath => _currentMediaPath;
+
+    /// <summary>
+    /// Toggles the window between maximized and normal state.
+    /// </summary>
+    public void ToggleFullscreen()
+    {
+        WindowState = (WindowState == WindowState.Maximized) ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    /// <summary>
+    /// Sets the window to maximized or normal state.
+    /// </summary>
+    public void SetFullscreen(bool fullscreen)
+    {
+        WindowState = fullscreen ? WindowState.Maximized : WindowState.Normal;
+    }
+}
