@@ -37,11 +37,11 @@ Each playlist item stores its own volume setting (0.0 to 1.0). The default volum
 5. The default volume for new items is set in the Service Elements creator and saved between sessions.
 
 ### Volume Management
-- **Per-Item Volume**: Stored in `PlaylistItem.Volume` (0.0–1.0), applied when an item starts playing.
-- **Global Volume**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), synced from per-item volume on playback.
-- **Default Service Volume**: Stored in `AppSettings.DefaultServiceVolume` (0.0–1.0), configured in the Service Elements window. Used as the default when adding items to the playlist via "ADD MEDIA" or "Send to Playlist". Persisted between sessions.
+- **Per-Item Volume**: Stored in `PlaylistItem.Volume` (0.0–1.0), applied when an item starts playing. This is the sole source of truth for playback volume — there is no separate global/master volume.
+- **Main Volume Slider**: `MainViewModel.Volume` is a computed property that reads from and writes to the currently loaded item (or the selected item when nothing is playing). Adjusting the slider mutates the underlying `PlaylistItem.Volume` directly.
+- **Default Service Volume**: Stored in `AppSettings.DefaultServiceVolume` (0.0–1.0), configured in the Service Elements window. Used as the default when adding items to the playlist via "ADD MEDIA" or "Send to Playlist", and as the slider fallback when no item is selected. Persisted between sessions.
 - **VLC Re-application**: Volume is set both immediately and after VLC's `Playing` event to handle asynchronous audio initialization.
-- **Amen Resolve Volume**: Uses the currently playing item's volume or the global volume as a fallback.
+- **Amen Resolve Volume**: Uses the currently playing item's volume or `DefaultServiceVolume` as a fallback.
 
 ### Amen Resolve
 The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2) and NAudio (WaveOutEvent). It plays a Plagal Cadence (IV-I) chord progression with:

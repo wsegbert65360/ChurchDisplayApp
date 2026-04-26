@@ -52,3 +52,24 @@ To use the remote control:
 ## Documentation
 
 Detailed setup and technical information can be found in [DOCS.md](DOCS.md) and [BLUEPRINT.md](BLUEPRINT.md).
+
+## Updating & Deployment (GitLab)
+
+The source of truth for ChurchDisplayApp is now hosted on **GitLab**.
+
+### Developer Workflow
+To update the application and sync your changes:
+
+```bash
+# Stage your changes
+git add .
+
+# Commit your changes
+git commit -m "Your description of changes"
+
+# Push to GitLab
+git push origin main
+```
+
+GitLab CI is configured to automatically run builds across standard Windows runner environments to ensure stability.
+

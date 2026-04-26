@@ -13,7 +13,7 @@ public class MainViewModel : BaseViewModel
     private readonly PlaylistManager _playlistManager;
     private readonly MediaControlService _mediaControlService;
     private readonly AppSettings _settings;
-    private double _volume = 0.5;
+
     private double _progress = 0;
     private string _currentMediaTitle = "Idle";
     private string _currentTimeStr = "00:00";
@@ -29,9 +29,7 @@ public class MainViewModel : BaseViewModel
         _mediaControlService = mediaControlService ?? throw new ArgumentNullException(nameof(mediaControlService));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         
-        _volume = _settings.MainMediaVolume;
         _playlistFontSize = _settings.PlaylistFontSize;
-        _mediaControlService.SetVolume(_volume);
 
         // Commands
         PlayCommand = new RelayCommand(_ => PlaySelected());
@@ -59,6 +57,8 @@ public class MainViewModel : BaseViewModel
             {
                 OnPropertyChanged(nameof(SelectedItemVolumePercent));
                 OnPropertyChanged(nameof(IsSelectedItemPlaying));
+                OnPropertyChanged(nameof(Volume));
+                OnPropertyChanged(nameof(VolumePercentage));
             }
         }
     }
@@ -72,30 +72,40 @@ public class MainViewModel : BaseViewModel
 
     public double Volume
     {
-        get => _volume;
+        get
+        {
+            if (!string.IsNullOrEmpty(_currentlyLoadedPath))
+            {
+                var loadedItem = _playlistManager.Items.FirstOrDefault(i => i.FullPath == _currentlyLoadedPath);
+                return loadedItem?.Volume ?? _settings.DefaultServiceVolume;
+            }
+            return SelectedItem?.Volume ?? _settings.DefaultServiceVolume;
+        }
         set
         {
-            if (SetProperty(ref _volume, value))
+            var current = Volume;
+            if (Math.Abs(current - value) < 0.001) return;
+
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            _mediaControlService.SetVolume(clamped);
+
+            if (!string.IsNullOrEmpty(_currentlyLoadedPath))
             {
-                _mediaControlService.SetVolume(value);
-                _settings.MainMediaVolume = value;
-                
-                // Save it back to the currently loaded item so its volume persists!
-                if (!string.IsNullOrEmpty(_currentlyLoadedPath))
-                {
-                    var playingItem = _playlistManager.Items.FirstOrDefault(i => i.FullPath == _currentlyLoadedPath);
-                    if (playingItem != null)
-                    {
-                        playingItem.Volume = value;
-                    }
-                }
-                
-                OnPropertyChanged(nameof(VolumePercentage));
+                var loadedItem = _playlistManager.Items.FirstOrDefault(i => i.FullPath == _currentlyLoadedPath);
+                if (loadedItem != null)
+                    loadedItem.Volume = clamped;
             }
+            else if (SelectedItem != null)
+            {
+                SelectedItem.Volume = clamped;
+            }
+
+            OnPropertyChanged(nameof(Volume));
+            OnPropertyChanged(nameof(VolumePercentage));
         }
     }
 
-    public string VolumePercentage => $"{(int)(_volume * 100)}%";
+    public string VolumePercentage => $"{(int)(Volume * 100)}%";
 
     public double Progress
     {
@@ -191,12 +201,10 @@ public class MainViewModel : BaseViewModel
             // If already loaded and just paused, simply resume
             if (SelectedItem.FullPath == _currentlyLoadedPath && !IsPlaying)
             {
-                // Re-apply the selected item's volume on resume
-                _mediaControlService.SetVolume(SelectedItem.Volume);
-                Volume = SelectedItem.Volume;
-
                 _mediaControlService.Play();
                 IsPlaying = true;
+                OnPropertyChanged(nameof(Volume));
+                OnPropertyChanged(nameof(VolumePercentage));
                 return;
             }
 
@@ -209,10 +217,10 @@ public class MainViewModel : BaseViewModel
             _mediaControlService.PlayMedia(SelectedItem.FullPath, SelectedItem.Volume);
             _currentlyLoadedPath = SelectedItem.FullPath;
             CurrentMediaTitle = SelectedItem.FileName;
-            // Sync the global volume slider to reflect the item's volume
-            Volume = SelectedItem.Volume;
             IsPlaying = true;
             OnPropertyChanged(nameof(IsSelectedItemPlaying));
+            OnPropertyChanged(nameof(Volume));
+            OnPropertyChanged(nameof(VolumePercentage));
         }
     }
 
@@ -223,6 +231,9 @@ public class MainViewModel : BaseViewModel
         _currentlyLoadedPath = null;
         CurrentMediaTitle = "Idle";
         OnPropertyChanged(nameof(IsSelectedItemPlaying));
+        OnPropertyChanged(nameof(Volume));
+        OnPropertyChanged(nameof(VolumePercentage));
+        OnPropertyChanged(nameof(SelectedItemVolumePercent));
     }
 
     private void Pause()

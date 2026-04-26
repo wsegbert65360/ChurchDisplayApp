@@ -99,5 +99,6 @@ To remove the application, use the standard Windows **"Add or Remove Programs"**
 ---
 
 ## 📞 Support
-For issues or contributions, please visit the GitHub repository:  
-[github.com/wsegbert65360/ChurchDisplayApp](https://github.com/wsegbert65360/ChurchDisplayApp)
+For issues or contributions, please visit the GitLab repository:  
+[gitlab.com/wsegbert65360/ChurchDisplayApp](https://gitlab.com/wsegbert65360/ChurchDisplayApp)
+

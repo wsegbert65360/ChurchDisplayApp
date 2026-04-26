@@ -32,7 +32,7 @@ public class MediaControlService
     /// Plays the specified media file on the live output window.
     /// </summary>
     /// <param name="filePath">The media file to play.</param>
-    /// <param name="itemVolume">Per-item volume (0.0 to 1.0). Falls back to MainMediaVolume if not specified.</param>
+    /// <param name="itemVolume">Per-item volume (0.0 to 1.0). Falls back to DefaultServiceVolume if not specified.</param>
     public void PlayMedia(string filePath, double? itemVolume = null)
     {
         if (string.IsNullOrWhiteSpace(filePath))
@@ -42,8 +42,8 @@ public class MediaControlService
             throw new FileNotFoundException("Media file not found", filePath);
 
         // Set volume BEFORE starting playback so _targetVolume is correct
-        // when VLC's Playing event fires. Use item volume if provided, else global setting.
-        var mainVolume = Math.Clamp(itemVolume ?? _settings.MainMediaVolume, 0.0, 1.0);
+        // when VLC's Playing event fires. Use item volume if provided, else default service volume.
+        var mainVolume = Math.Clamp(itemVolume ?? _settings.DefaultServiceVolume, 0.0, 1.0);
         _liveWindow.SetVolume(mainVolume);
 
         _liveWindow.ShowMedia(filePath);

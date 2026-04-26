@@ -27,9 +27,6 @@ public class AppSettings
     [JsonPropertyName("LastPlaylistSaveDirectory")]
     public string? LastPlaylistDirectory { get; set; }
 
-    /// <summary>Gets or sets the volume level for the main media (0.0 to 1.0).</summary>
-    public double MainMediaVolume { get; set; } = 0.5;
-
     /// <summary>Gets or sets the default volume used by the Service Elements creator when adding items to the playlist (0.0 to 1.0).</summary>
     public double DefaultServiceVolume { get; set; } = 1.0;
 
@@ -140,7 +137,6 @@ public class AppSettings
     public void Validate()
     {
         // Volume validation (0.0 to 1.0)
-        MainMediaVolume = Math.Clamp(MainMediaVolume, 0.0, 1.0);
         DefaultServiceVolume = Math.Clamp(DefaultServiceVolume, 0.0, 1.0);
         PlaylistFontSize = Math.Clamp(PlaylistFontSize, 6.0, 30.0);
 
