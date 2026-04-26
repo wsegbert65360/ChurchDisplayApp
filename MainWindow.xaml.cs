@@ -1079,8 +1079,6 @@ public partial class MainWindow : Window, IDisplayController
             try
             {
                 _playlistManager.LoadPlaylist(dlg.FileName);
-                _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
-                _settings.Save();
                 MessageBox.Show($"Playlist loaded successfully. {_playlistManager.Items.Count} files added.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }

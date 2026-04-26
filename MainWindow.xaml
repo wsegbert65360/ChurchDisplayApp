@@ -69,8 +69,7 @@
                          DragOver="PlaylistListBox_DragOver"
                          PreviewMouseLeftButtonDown="PlaylistListBox_PreviewMouseLeftButtonDown"
                          PreviewMouseMove="PlaylistListBox_PreviewMouseMove"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         VirtualizingStackPanel.IsVirtualizing="False">
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Grid Margin="5,0">
