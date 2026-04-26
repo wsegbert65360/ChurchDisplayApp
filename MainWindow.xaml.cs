@@ -150,7 +150,10 @@ public partial class MainWindow : Window, IDisplayController
                 try { StartupProfiler.Instance.EndPhase("AssemblyLoad"); } catch { }
 
                 try { StartupProfiler.Instance.StartPhase("VlcInitialization"); } catch { }
-                System.Windows.Application.Current.Dispatcher.Invoke(() => LoadingStatusText.Text = "Loading media engine...");
+                // BeginInvoke (non-blocking) to avoid deadlock: the UI thread may
+                // be blocked by _vlcInitTask.Wait() during shutdown.  Invoke() would
+                // deadlock because both threads would wait on each other.
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() => LoadingStatusText.Text = "Loading media engine...");
 
                 LibVLCSharp.Shared.Core.Initialize();
 
@@ -399,7 +402,7 @@ public partial class MainWindow : Window, IDisplayController
         }
         else
         {
-            Dispatcher.BeginInvoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 RemoteUrlText.Text = "Remote control unavailable";
                 RemoteUrlText.ToolTip = $"Ports {RemoteControlPortPreferred} and {RemoteControlPortFallback} are in use or blocked. " +
@@ -431,8 +434,10 @@ public partial class MainWindow : Window, IDisplayController
                     UseShellExecute = false,
                     CreateNoWindow = true
                 });
-                proc?.WaitForExit(3000);
+                // Read stdout BEFORE WaitForExit to avoid deadlock when the
+                // child process fills its output buffer.
                 var output = proc?.StandardOutput.ReadToEnd() ?? "";
+                proc?.WaitForExit(3000);
 
                 if (output.Contains(ruleName))
                 {
@@ -550,14 +555,18 @@ public partial class MainWindow : Window, IDisplayController
         // after the user closes the app, leaking native resources.
         _vlcInitCts?.Cancel();
 
+        // Wait for VLC init to finish (or cancel).  Use await instead of
+        // .Wait() to avoid deadlock: if VLC init is blocked on a
+        // Dispatcher.BeginInvoke callback, the UI thread must remain free
+        // to process that callback.
         try
         {
-            _vlcInitTask?.Wait(TimeSpan.FromSeconds(5));
+            if (_vlcInitTask != null)
+                await Task.WhenAny(_vlcInitTask, Task.Delay(TimeSpan.FromSeconds(5)));
         }
-        catch (AggregateException ae)
+        catch (Exception ex) when (ex is OperationCanceledException or AggregateException)
         {
-            // OperationCanceledException is expected — swallow it
-            ae.Handle(ex => ex is OperationCanceledException);
+            // Cancellation is expected during shutdown
         }
 
         try
@@ -695,8 +704,7 @@ public partial class MainWindow : Window, IDisplayController
 
     private void ToggleDisplay_Click(object sender, RoutedEventArgs e)
     {
-        // PHASE 2: Guard against VLC not ready
-        if (!EnsureVlcReady()) return;
+        if (EnsureVlcReady() == null) return;
 
         // If the window was closed by the user clicking X on it directly,
         // IsDisposed will be true even though _liveWindow is not null.
@@ -775,14 +783,6 @@ public partial class MainWindow : Window, IDisplayController
     }
 
     // Drag and Drop Event Handlers for Playlist
-    private void Playlist_DragEnter(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            e.Effects = DragDropEffects.Copy;
-        else
-            e.Effects = DragDropEffects.None;
-    }
-
     private void Playlist_Drop(object sender, DragEventArgs e) => _playlistDragDropManager?.HandlePlaylistDrop(sender, e);
     private void PlaylistListBox_DragOver(object sender, DragEventArgs e) => _playlistDragDropManager?.HandleListBoxDragOver(sender, e);
     private void PlaylistListBox_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => _playlistDragDropManager?.HandleListBoxPreviewMouseLeftButtonDown(sender, e);
@@ -791,8 +791,9 @@ public partial class MainWindow : Window, IDisplayController
 
     private void PlaylistListBox_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.PlayCommand.Execute(null);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.PlayCommand.Execute(null);
     }
 
     private bool _previewUpdateInProgress = false;
@@ -861,7 +862,7 @@ public partial class MainWindow : Window, IDisplayController
             // call it to check if the bitmap actually changed.
             if (isImage)
             {
-                var imageSnapshot = _liveWindow.GetCurrentSnapshotAsync().Result;
+                var imageSnapshot = await _liveWindow.GetCurrentSnapshotAsync();
                 if (imageSnapshot != null && !ReferenceEquals(imageSnapshot, PreviewImage.Source))
                 {
                     PreviewImage.Source = imageSnapshot;
@@ -960,7 +961,7 @@ public partial class MainWindow : Window, IDisplayController
                 
                 if (ViewModel != null && !ViewModel.IsPlaying)
                 {
-                    var info = _mediaControlService.GetProgress();
+                    var info = _mediaControlService?.GetProgress();
                     if (info != null)
                     {
                         ViewModel.CurrentTimeStr = ViewModel.FormatTime(info.CurrentTime);
@@ -991,10 +992,11 @@ public partial class MainWindow : Window, IDisplayController
 
     private async void AmenButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!EnsureVlcReady()) return;
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
 
         // Stop current media and clear all state (including _currentlyLoadedPath)
-        ViewModel.StopCommand.Execute(null);
+        vm.StopCommand.Execute(null);
 
         // Play Amen resolve if available
         if (_amenResolveService != null)
@@ -1005,7 +1007,7 @@ public partial class MainWindow : Window, IDisplayController
                 try
                 {
                     // Use current volume or selected item volume
-                    float amenVolume = (float)(ViewModel.SelectedItem?.Volume ?? ViewModel.Volume);
+                    float amenVolume = (float)(vm.SelectedItem?.Volume ?? vm.Volume);
                     await _amenResolveService.ExecuteResolveAsync(amenVolume);
                 }
                 catch (Exception ex)
@@ -1162,62 +1164,72 @@ public partial class MainWindow : Window, IDisplayController
 
     public void Next()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.NextCommand.Execute(null);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.NextCommand.Execute(null);
     }
     public void Previous()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.PreviousCommand.Execute(null);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.PreviousCommand.Execute(null);
     }
     public void Play()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.PlayCommand.Execute(null);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.PlayCommand.Execute(null);
     }
     public void Pause()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.PauseCommand.Execute(null);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.PauseCommand.Execute(null);
     }
     public void Stop()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.StopCommand.Execute(null);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.StopCommand.Execute(null);
     }
     public void Blank()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.BlankCommand.Execute(null);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.BlankCommand.Execute(null);
     }
     public void SetVolume(double volume)
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.Volume = volume;
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.Volume = volume;
     }
     public void VolumeUp()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.Volume = Math.Clamp(ViewModel.Volume + 0.02, 0.0, 1.0);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.Volume = Math.Clamp(vm.Volume + 0.02, 0.0, 1.0);
     }
     public void VolumeDown()
     {
-        if (!EnsureVlcReady()) return;
-        ViewModel.Volume = Math.Clamp(ViewModel.Volume - 0.02, 0.0, 1.0);
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
+        vm.Volume = Math.Clamp(vm.Volume - 0.02, 0.0, 1.0);
     }
     public void PlayIndex(int index)
     {
-        if (!EnsureVlcReady()) return;
+        var vm = EnsureVlcReady();
+        if (vm == null) return;
         if (index >= 0 && index < _playlistManager.Items.Count)
         {
-            ViewModel.SelectedItem = _playlistManager.Items[index];
-            ViewModel.PlayCommand.Execute(null);
+            vm.SelectedItem = _playlistManager.Items[index];
+            vm.PlayCommand.Execute(null);
         }
     }
 
     public void Amen()
     {
-        if (!EnsureVlcReady()) return;
+        if (EnsureVlcReady() == null) return;
         Dispatcher.BeginInvoke(() => AmenButton_Click(this, new RoutedEventArgs()));
     }
 
@@ -1263,13 +1275,15 @@ public partial class MainWindow : Window, IDisplayController
     }
 
     /// <summary>
-    /// PHASE 2: Guards VLC-dependent actions. Returns true if VLC is ready.
-    /// If VLC is not ready, returns false and logs a warning.
+    /// <summary>
+    /// Guards VLC-dependent actions. Returns the ViewModel if VLC is ready,
+    /// or null if VLC is still initializing or failed to initialize.
+    /// Callers should check for null and return early.
     /// </summary>
-    private bool EnsureVlcReady()
+    private MainViewModel? EnsureVlcReady()
     {
         if (_vlcReady && ViewModel != null)
-            return true;
+            return ViewModel;
 
         if (_vlcInitFailed)
         {
@@ -1279,7 +1293,7 @@ public partial class MainWindow : Window, IDisplayController
         {
             Log.Information("VLC action blocked: media engine still initializing.");
         }
-        return false;
+        return null;
     }
 
     #endregion

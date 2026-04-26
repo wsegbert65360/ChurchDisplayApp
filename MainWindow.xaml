@@ -203,7 +203,8 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="🕒" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.6" />
+                    <TextBlock Text="{Binding CurrentTimeStr}" Grid.Column="0" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <Slider x:Name="ProgressSlider" Grid.Column="1" Minimum="0" Maximum="100"
                             Value="{Binding Progress, Mode=TwoWay}"
                             IsMoveToPointEnabled="True" Cursor="Hand"
@@ -211,8 +212,6 @@
                             PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
                     <TextBlock Text="{Binding DurationStr}" Grid.Column="2" FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
-                    <TextBlock Text="{Binding CurrentTimeStr}" Grid.Column="0" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="12,0,0,0" HorizontalAlignment="Right" />
                 </Grid>
             </Border>
 

@@ -259,10 +259,10 @@ public class AppSettings
         }
     }
 
-    private static AppSettings? _instance;
+    private static readonly Lazy<AppSettings> _lazyInstance = new(Load, LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
-    /// Gets the shared application settings instance. Call Load() once at startup.
+    /// Gets the shared application settings instance. Thread-safe via Lazy&lt;T&gt;.
     /// </summary>
-    public static AppSettings Current => _instance ??= Load();
+    public static AppSettings Current => _lazyInstance.Value;
 }

@@ -21,7 +21,7 @@ public class LiveOutputWindow : Window, IDisposable
     private readonly TextBlock _filenameLabel;
     private readonly VideoView _videoView;
     private readonly LibVLC _libVLC;
-    private readonly LibVLCSharp.Shared.MediaPlayer _mediaPlayer;
+    private readonly LibVLCSharp.Shared.MediaPlayer? _mediaPlayer;
     private readonly Image _imageDisplay;
     private readonly ProgressBar _progressBar;
     private readonly Grid _contentGrid;
@@ -459,7 +459,8 @@ public class LiveOutputWindow : Window, IDisposable
 
     public void Seek(double position)
     {
-        if (_mediaPlayer != null && _mediaPlayer.IsSeekable && _mediaPlayer.Length > 0)
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero
+            && _mediaPlayer.IsSeekable && _mediaPlayer.Length > 0)
         {
             try
             {
