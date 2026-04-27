@@ -73,7 +73,7 @@ public class MainViewModel : BaseViewModel
     /// </summary>
     public string SelectedItemVolumePercent => SelectedItem != null 
         ? $"{(int)(SelectedItem.Volume * 100)}%" 
-        : $"{(int)(AppSettings.Current.DefaultServiceVolume * 100)}%";
+        : $"{(int)(_settings.DefaultServiceVolume * 100)}%";
 
     public double Volume
     {
@@ -280,9 +280,20 @@ public class MainViewModel : BaseViewModel
     private void Stop()
     {
         _mediaControlService.Stop();
+        ReconcilePlaybackStopped("Stop command");
+    }
+
+    /// <summary>
+    /// Reconciles the ViewModel to an idle state when playback has ended, failed, or the live output window was recreated.
+    /// </summary>
+    public void ReconcilePlaybackStopped(string reason)
+    {
         IsPlaying = false;
-        ClearNowPlayingItem("Stop command");
+        ClearNowPlayingItem(reason);
         CurrentMediaTitle = "Idle";
+        CurrentTimeStr = "00:00";
+        DurationStr = "00:00";
+        Progress = 0;
     }
 
     private void Pause()

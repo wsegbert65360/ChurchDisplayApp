@@ -775,8 +775,7 @@ public partial class MainWindow : Window, IDisplayController
             };
             _mediaControlService?.UpdateLiveWindow(_liveWindow);
             _mediaControlService?.SetVolume(ViewModel.Volume);
-            ViewModel.IsPlaying = false;
-            ViewModel.CurrentMediaTitle = "Idle";
+            ViewModel.ReconcilePlaybackStopped("Live output window recreated");
         }
         
         PositionDisplayWindow();

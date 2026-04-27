@@ -40,6 +40,7 @@ Each playlist item stores its own volume setting (0.0 to 1.0). The default volum
 ### Volume Management
 - **Per-Item Volume**: Stored in `PlaylistItem.Volume` (0.0–1.0), applied when an item starts playing.
 - **Main Slider Value**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), synced from per-item volume on playback and reused as the active slider value.
+- **Input Hardening**: Volume values are clamped to `0.0–1.0` at remote endpoint, controller boundary, and ViewModel setter.
 - **Current Behavior Note**: There is one operator-facing media volume slider (no separate "Selected Item Volume" slider).
 - **Default Service Volume**: Stored in `AppSettings.DefaultServiceVolume` (0.0–1.0), configured in the Service Elements window. Used as the default when adding items to the playlist via "ADD MEDIA" or "Send to Playlist". Persisted between sessions.
 - **VLC Re-application**: Volume is set both immediately and after VLC's `Playing` event to handle asynchronous audio initialization.
@@ -72,12 +73,13 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - Features blackout (blank screen), toggle display, and seamless transitions.
 - Disposes VLC `Media` objects properly after each playback to prevent memory leaks.
 - Applies volume on the `Playing` event with a delayed re-application for reliability.
+- Raises `MediaError` on VLC playback failure so the main UI can force stop-state reconciliation.
 - Progress bar (7px) at the bottom of the display window.
 - **Live Preview Architecture**: Highly optimized ~24 FPS snapshot loop. Uses a single, reusable `vlc_snapshot_preview.png` to eliminate disk allocation overhead. Fetches direct `640x360` scaled snapshots loaded via `MemoryStream` bypassing standard WPF URI locks. Polling is dynamically adaptive (42ms video, 2000ms image, 500ms idle) and seamlessly drops overlapping frames via reentrancy guards. All snapshot operations use `async/await` to avoid blocking the UI thread.
 
 ### 4. Playlist Management (`PlaylistManager.cs`)
 - `ObservableCollection<PlaylistItem>` with drag-and-drop reordering support.
-- **Dirty tracking**: `IsDirty` property automatically detects any collection change (add, remove, reorder) via `CollectionChanged` event. Resets on save and load.
+- **Dirty tracking**: `IsDirty` detects collection changes (add/remove/reorder) and per-item volume edits via `PlaylistItem.PropertyChanged`. Resets on save and load.
 - **Per-Item Volume**: Each `PlaylistItem` stores its own `Volume` property (default 1.0). Implements `INotifyPropertyChanged` for UI binding.
 - Save/Load via JSON serialization (`.pls` files).
 - **Playlist Format v2**: `{ "version": 2, "items": [{ "fullPath": "...", "volume": 1.0 }] }`.
@@ -90,8 +92,15 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - Allows control via any smartphone or tablet on the local network.
 - QR code display for easy connection.
 - **Endpoints**: `/api/play`, `/api/pause`, `/api/stop`, `/api/blank`, `/api/amen`, `/api/volume/*`, `/api/playlist`, `/api/status`.
+- **Volume API hardening**: `/api/volume/{level}` clamps out-of-range input; volume up/down and status/playlist endpoints return `503` while server shutdown is in progress.
+- **Restart reliability**: shutdown gate is reset on server start so endpoints recover correctly after stop/start.
 
-### 6. Amen Resolve (`AmenResolveService.cs`)
+### 6. Main Playback State Coordination (`MainViewModel.cs` + `MainWindow.xaml.cs`)
+- Maintains an explicit authoritative now-playing item reference.
+- Uses `ReconcilePlaybackStopped(reason)` to normalize UI state (`IsPlaying`, title, time, duration, progress, now-playing item) after stop, playback errors, or display window recreation.
+- Prevents stale now-playing references from corrupting per-item volume when switching windows/media.
+
+### 7. Amen Resolve (`AmenResolveService.cs`)
 - Uses MeltySynth synthesizer with a piano SoundFont.
 - Plays a Plagal Cadence (IV-I) with randomized velocity for a natural sound.
 - Triggered by the dedicated Amen button or remote `/api/amen` endpoint.
@@ -124,6 +133,16 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - Transport buttons (left): **Play**, **Pause**, **Stop**, **AMEN**.
 - Current media title (center, fills remaining space).
 - Single active volume slider with percentage (right) for current media level.
+
+### Remote Web UI (Smartphone)
+- Playlist cards with active-item highlight.
+- Fixed bottom player with transport controls and Amen button.
+- Volume section optimized for touch reliability:
+  - Large **Volume Down / Up** buttons (48x48 touch targets).
+  - Horizontal volume slider (0–100) with debounced updates.
+  - Mute/restore toggle with dynamic icon.
+  - Press-and-hold repeat on +/- for rapid adjustment.
+  - iOS-friendly touch behavior (`touch-action: manipulation`, reduced accidental zoom/selection).
 
 ## 📦 Deployment & Maintenance
 

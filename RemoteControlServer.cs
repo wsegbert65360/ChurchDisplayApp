@@ -37,6 +37,9 @@ public sealed class RemoteControlServer
             return;
         }
 
+        // Reset shutdown gate for a fresh server instance.
+        _isShuttingDown = false;
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             ApplicationName = typeof(RemoteControlServer).Assembly.FullName,
@@ -76,7 +79,7 @@ public sealed class RemoteControlServer
 
             {
                 Log.Error("index.html not found at {Path}", htmlPath);
-                context.Response.StatusCode = 200;
+                context.Response.StatusCode = 500;
                 context.Response.ContentType = "text/html; charset=utf-8";
                 await context.Response.WriteAsync(
                     "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>" +
@@ -154,6 +157,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/volume/up", () =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Volume Up");
             dispatcher.BeginInvoke(() => controller.VolumeUp());
             return Results.Ok(new { ok = true });
@@ -161,6 +165,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/volume/down", () =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Volume Down");
             dispatcher.BeginInvoke(() => controller.VolumeDown());
             return Results.Ok(new { ok = true });

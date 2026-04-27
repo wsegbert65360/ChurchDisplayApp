@@ -23,6 +23,9 @@
         * {
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
 
         body,
@@ -198,6 +201,7 @@
             align-items: center;
             justify-content: center;
             transition: transform 0.1s;
+            touch-action: manipulation;
         }
 
         .btn-control:active {
@@ -234,6 +238,96 @@
             font-weight: 800;
             font-size: 12px;
             letter-spacing: -0.5px;
+            touch-action: manipulation;
+        }
+
+        .volume-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .volume-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-volume {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            touch-action: manipulation;
+        }
+
+        .btn-volume i {
+            width: 26px;
+            height: 26px;
+        }
+
+        .btn-mute {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            touch-action: manipulation;
+        }
+
+        .btn-mute i {
+            width: 24px;
+            height: 24px;
+        }
+
+        .volume-display {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text);
+            min-width: 46px;
+            text-align: center;
+        }
+
+        .volume-slider {
+            flex: 1;
+            width: 100%;
+            appearance: none;
+            -webkit-appearance: none;
+            height: 8px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            outline: none;
+            touch-action: pan-x;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background: var(--primary);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background: var(--primary);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
         }
 
         .progress-section {
@@ -304,17 +398,22 @@
                 <div id="player-title" class="player-title">Church Display Standby</div>
                 <div id="player-subtitle" class="player-subtitle">Ready for service</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <button class="btn-control" style="padding: 4px;" onclick="post('/api/volume/down')">
-                    <i data-lucide="minus-circle" style="width: 20px; height: 20px;"></i>
+        </div>
+
+        <div class="volume-panel">
+            <div class="volume-row">
+                <button id="volume-down-btn" class="btn-volume" type="button" aria-label="Volume Down">
+                    <i data-lucide="minus"></i>
                 </button>
-                <div style="font-size: 14px; font-weight: 700; color: var(--text); min-width: 38px; text-align: center;"
-                    id="volume-display">
-                    --%
-                </div>
-                <button class="btn-control" style="padding: 4px;" onclick="post('/api/volume/up')">
-                    <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i>
+                <input id="volume-slider" class="volume-slider" type="range" min="0" max="100" step="1" value="50"
+                    aria-label="Volume slider" />
+                <button id="volume-up-btn" class="btn-volume" type="button" aria-label="Volume Up">
+                    <i data-lucide="plus"></i>
                 </button>
+                <button id="volume-mute-btn" class="btn-mute" type="button" aria-label="Mute toggle">
+                    <i id="volume-mute-icon" data-lucide="volume-2"></i>
+                </button>
+                <div id="volume-display" class="volume-display">--%</div>
             </div>
         </div>
 
@@ -346,6 +445,9 @@
 
     <script>
         let currentStatus = null;
+        let isVolumeSliderActive = false;
+        let volumeCommitTimer = null;
+        let lastNonZeroVolume = 0.5;
 
         // Initialize Lucide icons (guard against load failure)
         if (typeof lucide !== 'undefined') {
@@ -361,12 +463,13 @@
             setTimeout(() => toast.style.display = 'none', 2000);
         }
 
-        async function post(url) {
+        async function post(url, options = {}) {
+            const refresh = options.refresh !== false;
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), 3000);
             try {
                 const res = await fetch(url, { method: 'POST', signal: controller.signal });
-                if (res.ok) {
+                if (res.ok && refresh) {
                     pollStatus();
                 }
             } catch (e) {
@@ -374,6 +477,67 @@
             } finally {
                 clearTimeout(id);
             }
+        }
+
+        function clampVolume(v) {
+            const n = Number(v);
+            if (Number.isNaN(n)) return 0;
+            return Math.max(0, Math.min(1, n));
+        }
+
+        function updateMuteIcon(vol01) {
+            const muteIcon = document.getElementById('volume-mute-icon');
+            if (!muteIcon) return;
+            const icon = vol01 <= 0.001 ? 'volume-x' : (vol01 < 0.35 ? 'volume-1' : 'volume-2');
+            muteIcon.setAttribute('data-lucide', icon);
+            if (typeof lucide !== 'undefined') {
+                try { lucide.createIcons(); } catch (_) { }
+            }
+        }
+
+        function setVolumeAbsolute(level01, options = {}) {
+            const clamped = clampVolume(level01);
+            post('/api/volume/' + clamped.toFixed(2), { refresh: options.refresh !== false });
+            const display = document.getElementById('volume-display');
+            if (display) display.textContent = Math.round(clamped * 100) + '%';
+            const slider = document.getElementById('volume-slider');
+            if (slider) slider.value = String(Math.round(clamped * 100));
+            updateMuteIcon(clamped);
+        }
+
+        function volumeStep(direction) {
+            if (direction !== 1 && direction !== -1) return;
+            const cur = clampVolume((currentStatus && typeof currentStatus.volume === 'number') ? currentStatus.volume : 0.5);
+            const next = clampVolume(cur + (direction * 0.02));
+            currentStatus = Object.assign({}, currentStatus || {}, { volume: next });
+            if (next > 0) lastNonZeroVolume = next;
+            setVolumeAbsolute(next, { refresh: false });
+        }
+
+        function attachRepeatPress(button, action) {
+            if (!button) return;
+            let delayTimer = null;
+            let repeatTimer = null;
+
+            const stop = () => {
+                if (delayTimer) clearTimeout(delayTimer);
+                if (repeatTimer) clearInterval(repeatTimer);
+                delayTimer = null;
+                repeatTimer = null;
+            };
+
+            const start = (ev) => {
+                ev.preventDefault();
+                action();
+                delayTimer = setTimeout(() => {
+                    repeatTimer = setInterval(action, 90);
+                }, 300);
+            };
+
+            button.addEventListener('pointerdown', start);
+            button.addEventListener('pointerup', stop);
+            button.addEventListener('pointercancel', stop);
+            button.addEventListener('pointerleave', stop);
         }
 
         async function pollStatus() {
@@ -391,6 +555,16 @@
                     const volPercent = Math.round((data.volume || 0) * 100);
                     volDisplay.textContent = volPercent + '%';
                 }
+
+                if ((data.volume || 0) > 0.001) {
+                    lastNonZeroVolume = data.volume;
+                }
+
+                const volSlider = document.getElementById('volume-slider');
+                if (volSlider && !isVolumeSliderActive) {
+                    volSlider.value = String(Math.round((data.volume || 0) * 100));
+                }
+                updateMuteIcon(data.volume || 0);
 
                 // 2. Update Player
                 const playerTitle = document.getElementById('player-title');
@@ -473,6 +647,55 @@
         }
 
         // Initialize
+        const volumeSlider = document.getElementById('volume-slider');
+        const volumeDownBtn = document.getElementById('volume-down-btn');
+        const volumeUpBtn = document.getElementById('volume-up-btn');
+        const volumeMuteBtn = document.getElementById('volume-mute-btn');
+
+        if (volumeSlider) {
+            volumeSlider.addEventListener('pointerdown', () => { isVolumeSliderActive = true; });
+            volumeSlider.addEventListener('pointerup', () => {
+                isVolumeSliderActive = false;
+                const target = clampVolume(Number(volumeSlider.value) / 100);
+                setVolumeAbsolute(target, { refresh: true });
+            });
+            volumeSlider.addEventListener('pointercancel', () => { isVolumeSliderActive = false; });
+            volumeSlider.addEventListener('input', () => {
+                const target = clampVolume(Number(volumeSlider.value) / 100);
+                const volDisplay = document.getElementById('volume-display');
+                if (volDisplay) volDisplay.textContent = Math.round(target * 100) + '%';
+                updateMuteIcon(target);
+                if (target > 0) lastNonZeroVolume = target;
+
+                if (volumeCommitTimer) clearTimeout(volumeCommitTimer);
+                volumeCommitTimer = setTimeout(() => {
+                    setVolumeAbsolute(target, { refresh: false });
+                }, 140);
+            });
+            volumeSlider.addEventListener('change', () => {
+                const target = clampVolume(Number(volumeSlider.value) / 100);
+                setVolumeAbsolute(target, { refresh: true });
+            });
+        }
+
+        attachRepeatPress(volumeDownBtn, () => volumeStep(-1));
+        attachRepeatPress(volumeUpBtn, () => volumeStep(1));
+
+        if (volumeMuteBtn) {
+            volumeMuteBtn.addEventListener('click', () => {
+                const currentVolume = clampVolume((currentStatus && typeof currentStatus.volume === 'number') ? currentStatus.volume : 0.5);
+                if (currentVolume <= 0.001) {
+                    const restore = lastNonZeroVolume > 0.001 ? lastNonZeroVolume : 0.5;
+                    setVolumeAbsolute(restore, { refresh: true });
+                    showToast('Volume restored');
+                } else {
+                    lastNonZeroVolume = currentVolume;
+                    setVolumeAbsolute(0, { refresh: true });
+                    showToast('Muted');
+                }
+            });
+        }
+
         loadPlaylist();
         pollStatus();
         setInterval(pollStatus, 1000);
