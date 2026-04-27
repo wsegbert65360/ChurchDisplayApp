@@ -232,8 +232,13 @@ public partial class MainWindow : Window, IDisplayController
 
                 try { StartupProfiler.Instance.EndPhase("VlcInitialization"); } catch { }
 
-                // Subscribe to MediaEnded
+                // Subscribe to playback lifecycle events
                 _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
+                _liveWindow.MediaError += (s, e) =>
+                {
+                    Log.Warning("Live output media error detected. Forcing ViewModel stop-state reconciliation.");
+                    ViewModel.StopCommand.Execute(null);
+                };
 
                 // RELIABILITY FIX #4: Update the drag-drop replay callback now that
                 // we have a real ViewModel. The no-op callback set in the constructor
@@ -763,6 +768,11 @@ public partial class MainWindow : Window, IDisplayController
         if (ViewModel != null)
         {
             _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
+            _liveWindow.MediaError += (s, e) =>
+            {
+                Log.Warning("Live output media error detected on recreated window. Forcing stop-state reconciliation.");
+                ViewModel.StopCommand.Execute(null);
+            };
             _mediaControlService?.UpdateLiveWindow(_liveWindow);
             _mediaControlService?.SetVolume(ViewModel.Volume);
             ViewModel.IsPlaying = false;
@@ -1202,7 +1212,9 @@ public partial class MainWindow : Window, IDisplayController
     {
         var vm = EnsureVlcReady();
         if (vm == null) return;
-        vm.Volume = volume;
+        var clamped = Math.Clamp(volume, 0.0, 1.0);
+        Log.Debug("IDisplayController.SetVolume called with {Volume:P0} (clamped to {Clamped:P0})", volume, clamped);
+        vm.Volume = clamped;
     }
     public void VolumeUp()
     {

@@ -44,6 +44,12 @@ public class MediaControlService
         // Set volume BEFORE starting playback so _targetVolume is correct
         // when VLC's Playing event fires. Use item volume if provided, else global setting.
         var mainVolume = Math.Clamp(itemVolume ?? _settings.MainMediaVolume, 0.0, 1.0);
+        Serilog.Log.Debug(
+            "PlayMedia {Path}; requested itemVolume={ItemVolume}; effective volume={Effective:P0}; settings main volume={Settings:P0}",
+            filePath,
+            itemVolume,
+            mainVolume,
+            _settings.MainMediaVolume);
         _liveWindow.SetVolume(mainVolume);
 
         _liveWindow.ShowMedia(filePath);

@@ -5,10 +5,10 @@ ChurchDisplayApp is a professional Windows-based display management system built
 
 ## 🏗️ Technical Stack
 - **Framework**: WPF (Windows Presentation Foundation)
-- **Target Runtime**: .NET 10.0 (compatible with 8.0/later)
-- **Language**: C# 14+
-- **Media Engine**: LibVLC (VLC.DotNet) for hardware-accelerated playback of diverse media formats.
-- **Audio Backend**: WASAPI audio session for main media playback (VLC). Amen resolve uses MeltySynth + NAudio.
+- **Target Runtime**: .NET 8.0
+- **Language**: C# 12+
+- **Media Engine**: LibVLCSharp (LibVLCSharp.WPF) for hardware-accelerated playback of diverse media formats.
+- **Audio Backend**: DirectSound audio output for main media playback (VLC). Amen resolve uses MeltySynth + NAudio.
 - **UI Architecture**: Standard MVVM-lite (Model-View-ViewModel) with custom `RelayCommand` and `BaseViewModel` implementations.
 
 ## 🎨 Design System
@@ -26,19 +26,21 @@ The application uses a single audio subsystem for media playback through LibVLC.
 
 | System | Backend | Audio API | Purpose |
 |--------|---------|-----------|---------|
-| **Main Media Player** | LibVLCSharp | WASAPI (`--aout=wasapi`) | All playlist media playback |
+| **Main Media Player** | LibVLCSharp | DirectSound (`--aout=directsound`) | All playlist media playback |
 
 ### Per-Playlist-Item Volume
 Each playlist item stores its own volume setting (0.0 to 1.0). The default volume is configured and persisted in the Service Elements window (`AppSettings.DefaultServiceVolume`). When a playlist item is played:
 1. The item's stored volume is applied to the media player before playback begins.
 2. The global volume slider is synced to reflect the item's volume.
-3. Users can edit the selected item's volume via the "Selected Item Volume" slider.
-4. Volume changes are persisted when saving the playlist.
-5. The default volume for new items is set in the Service Elements creator and saved between sessions.
+3. Users can adjust the active volume using the single media controls volume slider.
+4. While a playlist item is currently loaded/playing, slider changes are written back to that item's `PlaylistItem.Volume`.
+5. Volume changes are persisted when saving the playlist.
+6. The default volume for new items is set in the Service Elements creator and saved between sessions.
 
 ### Volume Management
 - **Per-Item Volume**: Stored in `PlaylistItem.Volume` (0.0–1.0), applied when an item starts playing.
-- **Global Volume**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), synced from per-item volume on playback.
+- **Main Slider Value**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), synced from per-item volume on playback and reused as the active slider value.
+- **Current Behavior Note**: There is one operator-facing media volume slider (no separate "Selected Item Volume" slider).
 - **Default Service Volume**: Stored in `AppSettings.DefaultServiceVolume` (0.0–1.0), configured in the Service Elements window. Used as the default when adding items to the playlist via "ADD MEDIA" or "Send to Playlist". Persisted between sessions.
 - **VLC Re-application**: Volume is set both immediately and after VLC's `Playing` event to handle asynchronous audio initialization.
 - **Amen Resolve Volume**: Uses the currently playing item's volume or the global volume as a fallback.
@@ -54,6 +56,7 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 ### 1. Settings Management (`AppSettings.cs`)
 - **Strategy**: Asynchronous, debounced auto-save.
 - **Mechanism**: Serializes to `settings.json`.
+- **Singleton**: Thread-safe via `Lazy<AppSettings>` with `ExecutionAndPublication` mode, ensuring safe concurrent access from UI thread and ASP.NET Core request threads.
 - **Hardening**: Uses `CancellationTokenSource` to debounce rapid changes and a thread-safe `SaveImmediate()` for critical persistence.
 - **Directory Memory**: Centralizes folder context. `LastMediaDirectory` tracks the general media folder (used by "Add Media"). `LastPlaylistDirectory` tracks the playlist folder (shared by "Load" and "Save").
 - **Backward Compatibility**: `LastPlaylistDirectory` maps to the legacy `LastPlaylistSaveDirectory` key during serialization to preserve user settings. Old BGM-related settings fields are silently ignored.
@@ -70,7 +73,7 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 - Disposes VLC `Media` objects properly after each playback to prevent memory leaks.
 - Applies volume on the `Playing` event with a delayed re-application for reliability.
 - Progress bar (7px) at the bottom of the display window.
-- **Live Preview Architecture**: Highly optimized 24 FPS snapshot loop. Uses a single, reusable `vlc_snapshot_preview.png` to eliminate disk allocation overhead. Fetches direct `640x360` scaled snapshots loaded via synchronous `MemoryStream` bypassing standard WPF URI locks. Polling is dynamically adaptive (42ms video, 2000ms image, 500ms idle) and seamlessly drops overlapping frames via reentrancy guards.
+- **Live Preview Architecture**: Highly optimized ~24 FPS snapshot loop. Uses a single, reusable `vlc_snapshot_preview.png` to eliminate disk allocation overhead. Fetches direct `640x360` scaled snapshots loaded via `MemoryStream` bypassing standard WPF URI locks. Polling is dynamically adaptive (42ms video, 2000ms image, 500ms idle) and seamlessly drops overlapping frames via reentrancy guards. All snapshot operations use `async/await` to avoid blocking the UI thread.
 
 ### 4. Playlist Management (`PlaylistManager.cs`)
 - `ObservableCollection<PlaylistItem>` with drag-and-drop reordering support.
@@ -113,14 +116,14 @@ The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2
 **Row 1 — Playlist Controls + Remote QR (side by side):**
 - **Left**: Compact playlist controls section.
   - Buttons: **LOAD**, **SAVE**, **NEW**, **BLANK**, **DISPLAY**, **CLOSE PLAYLIST**.
-  - Selected Item Volume slider below the buttons.
+  - No dedicated selected-item volume control in this section.
 - **Right**: Remote control QR code (88×88px, as large as space allows) and URL.
 
 **Row 2 — Media Controls (full width):**
 - Seek bar with current time / duration display (stretches full width).
 - Transport buttons (left): **Play**, **Pause**, **Stop**, **AMEN**.
 - Current media title (center, fills remaining space).
-- Volume slider with percentage (right).
+- Single active volume slider with percentage (right) for current media level.
 
 ## 📦 Deployment & Maintenance
 
@@ -140,4 +143,4 @@ See [INSTALL.md](INSTALL.md) for complete step-by-step build and install instruc
 - Sources from `bin\Publish\win-x64\`.
 
 ---
-*Last Updated: April 13, 2026*
+*Last Updated: April 26, 2026*

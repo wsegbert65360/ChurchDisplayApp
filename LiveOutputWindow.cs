@@ -36,6 +36,9 @@ public class LiveOutputWindow : Window, IDisposable
     /// <summary>Occurs when a media file finishes playing.</summary>
     public event EventHandler? MediaEnded;
 
+    /// <summary>Occurs when VLC encounters a media playback error.</summary>
+    public event EventHandler? MediaError;
+
     /// <summary>
     /// Gets the current display content as a BitmapSource (for images) or video snapshot (for videos).
     /// Non-blocking async version for use from the UI thread.
@@ -264,6 +267,7 @@ public class LiveOutputWindow : Window, IDisposable
                     _isPlaying = false;
                     _timer.Stop();
                     _progressBar.Visibility = Visibility.Collapsed;
+                    MediaError?.Invoke(this, EventArgs.Empty);
                 });
             };
         }

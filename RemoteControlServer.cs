@@ -168,9 +168,18 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/volume/{level:double}", (double level) =>
         {
-            Log.Information("Remote: Set Volume {Level}", level);
-            dispatcher.BeginInvoke(() => controller.SetVolume(level));
-            return Results.Ok(new { ok = true });
+            var clamped = Math.Clamp(level, 0.0, 1.0);
+            if (Math.Abs(level - clamped) > 0.0001)
+            {
+                Log.Warning("Remote: Set Volume out of range {Input}; clamped to {Clamped}", level, clamped);
+            }
+            else
+            {
+                Log.Information("Remote: Set Volume {Level}", level);
+            }
+
+            dispatcher.BeginInvoke(() => controller.SetVolume(clamped));
+            return Results.Ok(new { ok = true, applied = clamped });
         });
 
         // Amen endpoint

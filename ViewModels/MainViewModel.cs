@@ -57,6 +57,11 @@ public class MainViewModel : BaseViewModel
         {
             if (SetProperty(ref _selectedItem, value))
             {
+                Serilog.Log.Debug(
+                    "SelectedItem changed to {FileName} (Volume={Volume:P0}); currently loaded item is {LoadedFile}",
+                    value?.FileName ?? "<none>",
+                    value?.Volume ?? 0,
+                    _currentlyLoadedItem?.FileName ?? "<none>");
                 OnPropertyChanged(nameof(SelectedItemVolumePercent));
                 OnPropertyChanged(nameof(IsSelectedItemPlaying));
             }
@@ -75,15 +80,29 @@ public class MainViewModel : BaseViewModel
         get => _volume;
         set
         {
-            if (SetProperty(ref _volume, value))
+            var clampedValue = Math.Clamp(value, 0.0, 1.0);
+            var oldVolume = _volume;
+            if (SetProperty(ref _volume, clampedValue))
             {
-                _mediaControlService.SetVolume(value);
-                _settings.MainMediaVolume = value;
+                Serilog.Log.Debug(
+                    "Main volume changed {Old:P0} -> {New:P0} (input {Input}); selected={Selected}; loaded={Loaded}",
+                    oldVolume,
+                    clampedValue,
+                    value,
+                    SelectedItem?.FileName ?? "<none>",
+                    _currentlyLoadedItem?.FileName ?? "<none>");
+
+                _mediaControlService.SetVolume(clampedValue);
+                _settings.MainMediaVolume = clampedValue;
                 
                 // Save it back to the currently loaded item so its volume persists!
                 if (_currentlyLoadedItem != null)
                 {
-                    _currentlyLoadedItem.Volume = value;
+                    _currentlyLoadedItem.Volume = clampedValue;
+                    Serilog.Log.Debug(
+                        "Applied volume {Volume:P0} to currently loaded item {FileName}",
+                        clampedValue,
+                        _currentlyLoadedItem.FileName);
                 }
                 
                 OnPropertyChanged(nameof(VolumePercentage));
@@ -151,7 +170,7 @@ public class MainViewModel : BaseViewModel
         : System.Windows.Media.Brushes.White;
 
     /// <summary>
-    /// Gets a value indicating whether the currently selected item is also the one being played.
+    /// Gets a value indicating whether the currently selected item is also the explicit now-playing item.
     /// </summary>
     public bool IsSelectedItemPlaying => SelectedItem != null && _currentlyLoadedItem == SelectedItem;
 
@@ -180,10 +199,47 @@ public class MainViewModel : BaseViewModel
 
     private PlaylistItem? _currentlyLoadedItem;
 
+    /// <summary>
+    /// Marks a playlist item as the authoritative now-playing item.
+    /// Only called after playback is successfully handed off to the media service.
+    /// </summary>
+    private void SetNowPlayingItem(PlaylistItem item)
+    {
+        if (!ReferenceEquals(_currentlyLoadedItem, item))
+        {
+            Serilog.Log.Debug(
+                "Now-playing item set to {FileName} (Volume={Volume:P0})",
+                item.FileName,
+                item.Volume);
+        }
+
+        _currentlyLoadedItem = item;
+        OnPropertyChanged(nameof(IsSelectedItemPlaying));
+    }
+
+    /// <summary>
+    /// Clears the authoritative now-playing item.
+    /// </summary>
+    private void ClearNowPlayingItem(string reason)
+    {
+        if (_currentlyLoadedItem != null)
+        {
+            Serilog.Log.Debug("Now-playing item cleared ({Reason}): {FileName}", reason, _currentlyLoadedItem.FileName);
+        }
+
+        _currentlyLoadedItem = null;
+        OnPropertyChanged(nameof(IsSelectedItemPlaying));
+    }
+
     private void PlaySelected()
     {
         if (SelectedItem != null)
         {
+            Serilog.Log.Debug(
+                "PlaySelected invoked for {FileName} (item volume {Volume:P0})",
+                SelectedItem.FileName,
+                SelectedItem.Volume);
+
             // If already loaded and just paused, simply resume
             if (SelectedItem == _currentlyLoadedItem && !IsPlaying)
             {
@@ -202,13 +258,22 @@ public class MainViewModel : BaseViewModel
                 return;
             }
 
-            _mediaControlService.PlayMedia(SelectedItem.FullPath, SelectedItem.Volume);
-            _currentlyLoadedItem = SelectedItem;
+            try
+            {
+                _mediaControlService.PlayMedia(SelectedItem.FullPath, SelectedItem.Volume);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Failed to play selected item {FileName}", SelectedItem.FileName);
+                IsPlaying = false;
+                return;
+            }
+
+            SetNowPlayingItem(SelectedItem);
             CurrentMediaTitle = SelectedItem.FileName;
             // Sync the global volume slider to reflect the item's volume
             Volume = SelectedItem.Volume;
             IsPlaying = true;
-            OnPropertyChanged(nameof(IsSelectedItemPlaying));
         }
     }
 
@@ -216,9 +281,8 @@ public class MainViewModel : BaseViewModel
     {
         _mediaControlService.Stop();
         IsPlaying = false;
-        _currentlyLoadedItem = null;
+        ClearNowPlayingItem("Stop command");
         CurrentMediaTitle = "Idle";
-        OnPropertyChanged(nameof(IsSelectedItemPlaying));
     }
 
     private void Pause()

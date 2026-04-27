@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -47,7 +49,59 @@ public class PlaylistManager
     /// </summary>
     public PlaylistManager()
     {
-        Items.CollectionChanged += (_, _) => IsDirty = true;
+        Items.CollectionChanged += Items_CollectionChanged;
+    }
+
+    private void Items_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems != null)
+        {
+            foreach (var oldItem in e.OldItems.OfType<PlaylistItem>())
+            {
+                UnhookItem(oldItem);
+            }
+        }
+
+        if (e.NewItems != null)
+        {
+            foreach (var newItem in e.NewItems.OfType<PlaylistItem>())
+            {
+                HookItem(newItem);
+            }
+        }
+
+        // Any collection mutation (add/remove/reorder/replace) marks playlist dirty.
+        if (e.Action != NotifyCollectionChangedAction.Reset)
+        {
+            IsDirty = true;
+        }
+    }
+
+    private void HookItem(PlaylistItem item)
+    {
+        item.PropertyChanged -= PlaylistItem_PropertyChanged;
+        item.PropertyChanged += PlaylistItem_PropertyChanged;
+    }
+
+    private void UnhookItem(PlaylistItem item)
+    {
+        item.PropertyChanged -= PlaylistItem_PropertyChanged;
+    }
+
+    private void UnhookAllItems()
+    {
+        foreach (var item in Items)
+        {
+            UnhookItem(item);
+        }
+    }
+
+    private void PlaylistItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PlaylistItem.Volume))
+        {
+            IsDirty = true;
+        }
     }
 
     public void AddFiles(string[] filePaths)
@@ -99,6 +153,7 @@ public class PlaylistManager
     /// </summary>
     public void Clear()
     {
+        UnhookAllItems();
         Items.Clear();
         IsDirty = false;
     }
@@ -166,6 +221,7 @@ public class PlaylistManager
 
             var json = File.ReadAllText(filePath);
 
+            UnhookAllItems();
             Items.Clear();
 
             // Try to detect format: new format has a "version" or "items" field at root level
