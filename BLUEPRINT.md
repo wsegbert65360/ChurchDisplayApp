@@ -272,7 +272,9 @@ Build scripts:
 
 - `build-release.bat`: release publish and installer build
 - `publish.bat`: portable publish
-- `sync-fcc.bat`: release build, installer build, and optional sync to deployment folder
+- `sync-fcc.bat`: release publish, installer build, and optional sync to deployment folder
+
+Both release scripts publish `ChurchDisplayApp.csproj` explicitly to `bin\Publish\win-x64` so the SDK does not treat the output path as a solution-level output.
 
 Installer:
 
@@ -290,7 +292,9 @@ Installer:
 - Settings changes use debounced persistence and forced shutdown persistence.
 - Playlist load is transactional.
 - Image display uses async file reads with stale-load cancellation.
+- Resume operations report success back to the ViewModel so the UI does not claim playback is active when reload/resume fails.
 - Remote server shutdown gates are reset on start.
+- Remote action endpoints return `503` during shutdown.
 - Remote volume input is clamped.
 - Media errors reconcile the ViewModel to a stopped state.
 

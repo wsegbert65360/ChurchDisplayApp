@@ -462,6 +462,21 @@ public partial class MainWindow : Window, IDisplayController
                         await Task.WhenAny(exitTask, Task.Delay(1000));
                     }
                     catch { }
+                    try
+                    {
+                        var drainTask = Task.WhenAll(outputTask, errorTask);
+                        if (await Task.WhenAny(drainTask, Task.Delay(1000)) == drainTask)
+                        {
+                            await drainTask;
+                        }
+                        else
+                        {
+                            _ = outputTask.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                            _ = errorTask.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+                        }
+                    }
+                    catch { }
+
                     Log.Warning("Timed out while checking firewall rule '{RuleName}'", ruleName);
                     continue;
                 }

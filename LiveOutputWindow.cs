@@ -340,6 +340,7 @@ public class LiveOutputWindow : Window, IDisposable
         if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
         {
             Stop();
+            MediaError?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -386,6 +387,7 @@ public class LiveOutputWindow : Window, IDisposable
         {
             Serilog.Log.Error(ex, "Failed to load image at {Path}", imagePath);
             Stop();
+            MediaError?.Invoke(this, EventArgs.Empty);
         }
     }
 

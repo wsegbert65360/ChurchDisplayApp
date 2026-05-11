@@ -7,7 +7,7 @@ echo ===================================================
 
 REM 1. Clean and Publish
 echo Publishing ChurchDisplayApp...
-dotnet publish -c Release --self-contained true --runtime win-x64 -p:PublishSingleFile=false -p:PublishReadyToRun=false -p:DebugType=none -p:DebugSymbols=false -o bin\Publish\win-x64
+dotnet publish ChurchDisplayApp.csproj -c Release --self-contained true --runtime win-x64 -p:PublishSingleFile=false -p:PublishReadyToRun=false -p:DebugType=none -p:DebugSymbols=false -o bin\Publish\win-x64
 if !errorLevel! neq 0 (
     echo [ERROR] Publish failed.
     exit /b 1
