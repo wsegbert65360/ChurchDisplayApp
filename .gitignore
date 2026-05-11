@@ -212,3 +212,8 @@ ChurchDisplayApp_Installer.exe
 # Build and debug logs
 build_*.txt
 *.log
+compilation.log
+diff_preview.txt
+git_diff.txt
+git_push_log.txt
+test_results.txt

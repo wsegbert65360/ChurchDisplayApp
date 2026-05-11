@@ -34,6 +34,21 @@
     <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}" />
     <SolidColorBrush x:Key="ControlBackgroundBrush" Color="{StaticResource ControlBackgroundColor}" />
 
+    <!-- Additional UI brushes (used by MainWindow) -->
+    <SolidColorBrush x:Key="ContentBackgroundBrush" Color="#F0F2F5" />
+    <SolidColorBrush x:Key="SplitterBackgroundBrush" Color="#DDDDDD" />
+    <SolidColorBrush x:Key="SplitterBorderBrush" Color="#BBBBBB" />
+    <SolidColorBrush x:Key="SplitterDotFill" Color="#999999" />
+    <SolidColorBrush x:Key="PreviewLabelBackgroundBrush" Color="#44000000" />
+    <SolidColorBrush x:Key="LoadingOverlayBackgroundBrush" Color="#E6FFFFFF" />
+    <SolidColorBrush x:Key="AmenButtonBrush" Color="#E8B849" />
+
+    <!-- Additional UI brushes (used by secondary windows) -->
+    <SolidColorBrush x:Key="ServiceBorderBrush" Color="#CCCCCC" />
+    <SolidColorBrush x:Key="SendToPlaylistBrush" Color="#2E7D32" />
+    <SolidColorBrush x:Key="DialogPrimaryBrush" Color="#1565C0" />
+    <SolidColorBrush x:Key="MonitorSelectionBackgroundBrush" Color="#F0F8FF" />
+
     <!-- Typography -->
     <FontFamily x:Key="MainFontFamily">Segoe UI, Segoe UI Variable, sans-serif</FontFamily>
 

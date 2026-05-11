@@ -130,7 +130,7 @@ public class AppSettings
             ServiceSlots.Add(new ServiceSlot
             {
                 DisplayName = name,
-                FilePath    = null,
+                FilePath    = !string.IsNullOrEmpty(fileName) ? fileName : null,
                 IsSticky    = false,
                 LastUsedFolder = LastMediaDirectory
             });
@@ -203,11 +203,11 @@ public class AppSettings
     /// <summary>
     /// Saves the settings immediately to the JSON file.
     /// </summary>
-    public void SaveImmediate()
+    public void SaveImmediate(bool force = false)
     {
         lock (_saveLock)
         {
-            if (!_isDirty) return;
+            if (!_isDirty && !force) return;
 
             try
             {

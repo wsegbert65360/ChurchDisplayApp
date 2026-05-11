@@ -1,165 +1,299 @@
 # ChurchDisplayApp - Architectural Blueprint
 
-## 🏛️ Project Overview
-ChurchDisplayApp is a professional Windows-based display management system built primarily for the projection of lyrics, announcements, and media during church services. It emphasizes reliability, visual quality, and ease of use.
+## Project Overview
 
-## 🏗️ Technical Stack
-- **Framework**: WPF (Windows Presentation Foundation)
-- **Target Runtime**: .NET 8.0
-- **Language**: C# 12+
-- **Media Engine**: LibVLCSharp (LibVLCSharp.WPF) for hardware-accelerated playback of diverse media formats.
-- **Audio Backend**: DirectSound audio output for main media playback (VLC). Amen resolve uses MeltySynth + NAudio.
-- **UI Architecture**: Standard MVVM-lite (Model-View-ViewModel) with custom `RelayCommand` and `BaseViewModel` implementations.
+ChurchDisplayApp is a Windows WPF display control app for church services. It manages a service playlist, projects media to a live output window, shows a live preview in the operator window, and exposes a browser-based remote control for devices on the same local network.
 
-## 🎨 Design System
-The application uses a centralized design system to ensure visual consistency and a premium feel.
-- **Color Palette**: Defined in `AppConstants.Colors`.
-    - **Primary Accent**: `PulseLightBlue` (Hex: `#00BFFF`) used for active indicators, progress bars, and glowing animations.
-- **Typography**: Focused on readability for projection.
-- **Visual Effects**: Subtle pulsing animations and high-fidelity image scaling.
-- **Live Output Progress Bar**: 7px height bar at the bottom of the projected display, showing media playback progress.
+The current program is centered on one playlist and one active media playback path. Images are rendered directly by WPF, while video and audio playback use LibVLC.
 
-## 🔊 Audio Architecture
+## Technical Stack
 
-### Single Main Media Audio Path
-The application uses a single audio subsystem for media playback through LibVLC.
+- Framework: WPF on .NET 8 (`net8.0-windows`)
+- Language: C# with nullable reference types enabled
+- Media playback: LibVLCSharp.WPF with VideoLAN.LibVLC.Windows
+- Remote control: Embedded ASP.NET Core/Kestrel server
+- Remote UI: Static HTML/CSS/JavaScript copied from `RemoteControl/`
+- Audio support: VLC DirectSound for media; MeltySynth and NAudio for Amen resolve
+- Persistence: JSON settings under `%APPDATA%\ChurchDisplayApp\settings.json`
+- Installer: Inno Setup using the published `win-x64` output
 
-| System | Backend | Audio API | Purpose |
-|--------|---------|-----------|---------|
-| **Main Media Player** | LibVLCSharp | DirectSound (`--aout=directsound`) | All playlist media playback |
+## Runtime Flow
 
-### Per-Playlist-Item Volume
-Each playlist item stores its own volume setting (0.0 to 1.0). The default volume is configured and persisted in the Service Elements window (`AppSettings.DefaultServiceVolume`). When a playlist item is played:
-1. The item's stored volume is applied to the media player before playback begins.
-2. The global volume slider is synced to reflect the item's volume.
-3. Users can adjust the active volume using the single media controls volume slider.
-4. While a playlist item is currently loaded/playing, slider changes are written back to that item's `PlaylistItem.Volume`.
-5. Volume changes are persisted when saving the playlist.
-6. The default volume for new items is set in the Service Elements creator and saved between sessions.
+1. `App.xaml.cs` starts the application and shows the main WPF window.
+2. `MainWindow` loads `AppSettings.Current`, initializes XAML, and starts VLC initialization asynchronously.
+3. While VLC loads, the main window uses `LoadingPlaceholderViewModel` so bindings are valid.
+4. When VLC is ready, `MainWindow` creates:
+   - `LiveOutputWindow`
+   - `MediaControlService`
+   - `MainViewModel`
+   - `PlaylistDragDropManager`
+   - `AmenResolveService` if the SoundFont exists
+5. The live output window is positioned on a selected external monitor when available.
+6. The remote control server starts on port `8088`, falling back to `8090`.
+7. The operator uses the playlist, media controls, service elements window, or remote browser UI to control playback.
 
-### Volume Management
-- **Per-Item Volume**: Stored in `PlaylistItem.Volume` (0.0–1.0), applied when an item starts playing.
-- **Main Slider Value**: Stored in `AppSettings.MainMediaVolume` (0.0–1.0), synced from per-item volume on playback and reused as the active slider value.
-- **Input Hardening**: Volume values are clamped to `0.0–1.0` at remote endpoint, controller boundary, and ViewModel setter.
-- **Current Behavior Note**: There is one operator-facing media volume slider (no separate "Selected Item Volume" slider).
-- **Default Service Volume**: Stored in `AppSettings.DefaultServiceVolume` (0.0–1.0), configured in the Service Elements window. Used as the default when adding items to the playlist via "ADD MEDIA" or "Send to Playlist". Persisted between sessions.
-- **VLC Re-application**: Volume is set both immediately and after VLC's `Playing` event to handle asynchronous audio initialization.
-- **Amen Resolve Volume**: Uses the currently playing item's volume or the global volume as a fallback.
+## Core Components
 
-### Amen Resolve
-The Amen resolve service uses MeltySynth with a piano SoundFont (SalC5Light2.sf2) and NAudio (WaveOutEvent). It plays a Plagal Cadence (IV-I) chord progression with:
-- A dedicated Amen button in the media controls section.
-- An `/api/amen` endpoint in the remote control server.
-- Behavior: stops current media, then plays the Amen resolve chord.
+### AppSettings
 
-## ⚙️ Core Services & Components
+`AppSettings.cs` owns persisted user settings:
 
-### 1. Settings Management (`AppSettings.cs`)
-- **Strategy**: Asynchronous, debounced auto-save.
-- **Mechanism**: Serializes to `settings.json`.
-- **Singleton**: Thread-safe via `Lazy<AppSettings>` with `ExecutionAndPublication` mode, ensuring safe concurrent access from UI thread and ASP.NET Core request threads.
-- **Hardening**: Uses `CancellationTokenSource` to debounce rapid changes and a thread-safe `SaveImmediate()` for critical persistence.
-- **Directory Memory**: Centralizes folder context. `LastMediaDirectory` tracks the general media folder (used by "Add Media"). `LastPlaylistDirectory` tracks the playlist folder (shared by "Load" and "Save").
-- **Backward Compatibility**: `LastPlaylistDirectory` maps to the legacy `LastPlaylistSaveDirectory` key during serialization to preserve user settings. Old BGM-related settings fields are silently ignored.
+- Main media volume
+- Default service volume
+- Playlist font size
+- Sidebar width proportion
+- Last media directory
+- Last playlist directory
+- Service element slots
+- Optional VLC audio device override
 
-### 2. Media Control (`MediaControlService.cs`)
-- Manages playback of all media elements through a single path.
-- Handles volume application before and during playback.
-- Exposes `PlayMedia(filePath, itemVolume)` for per-item volume support.
-- No longer manages background music auto-pause/resume.
+Settings use debounced saves through `Save()` and immediate saves through `SaveImmediate(force: true)` for shutdown-critical persistence.
 
-### 3. Display Projection (`LiveOutputWindow.cs`)
-- Optimized for secondary monitor/projector output.
-- Features blackout (blank screen), toggle display, and seamless transitions.
-- Disposes VLC `Media` objects properly after each playback to prevent memory leaks.
-- Applies volume on the `Playing` event with a delayed re-application for reliability.
-- Raises `MediaError` on VLC playback failure so the main UI can force stop-state reconciliation.
-- Progress bar (7px) at the bottom of the display window.
-- **Live Preview Architecture**: Highly optimized ~24 FPS snapshot loop. Uses a single, reusable `vlc_snapshot_preview.png` to eliminate disk allocation overhead. Fetches direct `640x360` scaled snapshots loaded via `MemoryStream` bypassing standard WPF URI locks. Polling is dynamically adaptive (42ms video, 2000ms image, 500ms idle) and seamlessly drops overlapping frames via reentrancy guards. All snapshot operations use `async/await` to avoid blocking the UI thread.
+`LastPlaylistDirectory` is serialized under the legacy JSON key `LastPlaylistSaveDirectory` so existing settings continue to load.
 
-### 4. Playlist Management (`PlaylistManager.cs`)
-- `ObservableCollection<PlaylistItem>` with drag-and-drop reordering support.
-- **Dirty tracking**: `IsDirty` detects collection changes (add/remove/reorder) and per-item volume edits via `PlaylistItem.PropertyChanged`. Resets on save and load.
-- **Per-Item Volume**: Each `PlaylistItem` stores its own `Volume` property (default 1.0). Implements `INotifyPropertyChanged` for UI binding.
-- Save/Load via JSON serialization (`.pls` files).
-- **Playlist Format v2**: `{ "version": 2, "items": [{ "fullPath": "...", "volume": 1.0 }] }`.
-- **Backward Compatibility**: Old playlists (plain array of path strings) are automatically loaded with default volume.
-- **Load/Save Synchronicity**: Both "Load Playlist" and "Save Playlist" dialogs share the same last-used directory memory so they always open in the same context.
-- **Close Playlist**: Prompts user with Yes/No/Cancel dialog if unsaved changes exist before clearing.
+### MainWindow
 
-### 5. Remote Control (`RemoteControlServer.cs`)
-- Embedded HTTP server providing a web-based interface.
-- Allows control via any smartphone or tablet on the local network.
-- QR code display for easy connection.
-- **Endpoints**: `/api/play`, `/api/pause`, `/api/stop`, `/api/blank`, `/api/amen`, `/api/volume/*`, `/api/playlist`, `/api/status`.
-- **Volume API hardening**: `/api/volume/{level}` clamps out-of-range input; volume up/down and status/playlist endpoints return `503` while server shutdown is in progress.
-- **Restart reliability**: shutdown gate is reset on server start so endpoints recover correctly after stop/start.
+`MainWindow.xaml.cs` is the orchestration layer. It:
 
-### 6. Main Playback State Coordination (`MainViewModel.cs` + `MainWindow.xaml.cs`)
-- Maintains an explicit authoritative now-playing item reference.
-- Uses `ReconcilePlaybackStopped(reason)` to normalize UI state (`IsPlaying`, title, time, duration, progress, now-playing item) after stop, playback errors, or display window recreation.
-- Prevents stale now-playing references from corrupting per-item volume when switching windows/media.
+- Initializes VLC on a background thread and creates WPF media objects on the UI thread.
+- Owns the `PlaylistManager`.
+- Creates the real `MainViewModel` after VLC is ready.
+- Starts and stops the remote control server.
+- Updates the live preview image on an adaptive timer.
+- Handles playlist dialogs, drag/drop handlers, display toggling, Amen, and shutdown cleanup.
+- Verifies expected firewall rules without blocking startup indefinitely.
 
-### 7. Amen Resolve (`AmenResolveService.cs`)
-- Uses MeltySynth synthesizer with a piano SoundFont.
-- Plays a Plagal Cadence (IV-I) with randomized velocity for a natural sound.
-- Triggered by the dedicated Amen button or remote `/api/amen` endpoint.
-- Runs asynchronously with a semaphore to prevent overlapping playback.
+### MainViewModel
 
-## 📐 UI Layout
+`MainViewModel.cs` coordinates operator state:
 
-### Sidebar (Left Panel)
-- **ADD MEDIA** button to add files to the playlist.
-- **Font size slider** (A-A) for playlist item text.
-- **Playlist ListBox** (fills all remaining sidebar space) with drag-and-drop reordering.
-  - Each item shows: file type icon, file name, and per-item volume percentage.
+- Selected playlist item
+- Authoritative now-playing item
+- Current media title
+- Current time, duration, and progress
+- Playback commands
+- Single active media volume slider
+- Playlist font size
 
-### Main Content (Right Panel)
+When an item starts playing, the ViewModel applies that item's stored volume and syncs the operator volume slider. While that item remains the now-playing item, slider changes are written back to the item's `Volume`.
 
-#### Preview Area (top, fills available space)
-- Live output preview with play indicator border animation.
-- Content type label overlay.
+### MediaControlService
 
-#### Controls Area (bottom, two rows)
+`MediaControlService.cs` is a thin wrapper around `LiveOutputWindow`. It applies volume before playback starts, forwards transport commands, and exposes progress/status queries to the ViewModel and controller boundary.
 
-**Row 1 — Playlist Controls + Remote QR (side by side):**
-- **Left**: Compact playlist controls section.
-  - Buttons: **LOAD**, **SAVE**, **NEW**, **BLANK**, **DISPLAY**, **CLOSE PLAYLIST**.
-  - No dedicated selected-item volume control in this section.
-- **Right**: Remote control QR code (88×88px, as large as space allows) and URL.
+### LiveOutputWindow
 
-**Row 2 — Media Controls (full width):**
-- Seek bar with current time / duration display (stretches full width).
-- Transport buttons (left): **Play**, **Pause**, **Stop**, **AMEN**.
-- Current media title (center, fills remaining space).
-- Single active volume slider with percentage (right) for current media level.
+`LiveOutputWindow.cs` is the projection window. It:
 
-### Remote Web UI (Smartphone)
-- Playlist cards with active-item highlight.
-- Fixed bottom player with transport controls and Amen button.
-- Volume section optimized for touch reliability:
-  - Large **Volume Down / Up** buttons (48x48 touch targets).
-  - Horizontal volume slider (0–100) with debounced updates.
-  - Mute/restore toggle with dynamic icon.
-  - Press-and-hold repeat on +/- for rapid adjustment.
-  - iOS-friendly touch behavior (`touch-action: manipulation`, reduced accidental zoom/selection).
+- Shows images through a WPF `Image`.
+- Plays video/audio through LibVLC.
+- Shows a 7px progress bar at the bottom of the live output window.
+- Supports blank, stop, pause, resume, seek, and fullscreen toggle.
+- Generates live preview snapshots for videos.
+- Returns the current image source directly for image preview.
+- Uses a media version token so stale async image loads cannot reappear after Stop or Blank.
+- Disposes VLC media/player resources during shutdown.
 
-## 📦 Deployment & Maintenance
+Blanking hides projected content without clearing the current media path, so playback can be resumed. Stopping clears the active media path.
 
-See [INSTALL.md](INSTALL.md) for complete step-by-step build and install instructions.
+### PlaylistManager
 
-### Build Pipeline
-- `build-release.bat`: The canonical build script. Automatically cleans, publishes a self-contained `.exe`, and compiles the Windows Installer using Inno Setup. Optimized to strip debug symbols (`.pdb`) and documentation (`.xml`) to reduce payload size.
-- `publish.bat`: A lightweight script for generating portable versions. Fixed to correctly output to `bin\Publish\win-x64` and optimized for minimal footprint.
-- `sync-fcc.bat`: A professional automation script that triggers a full build and synchronizes the installer to deployment folders (configurable via `FCC_SYNC_DIR` environment variable).
+`PlaylistManager.cs` owns `ObservableCollection<PlaylistItem>` and playlist persistence.
 
-### Installer Logic (`ChurchDisplayApp.iss`)
-- **Windows 11 Ready**: Enforces standard Windows 10+ environments with adaptive user-privilege fallbacks.
-- **Dependency Management**: Automatically downloads and installs the required Visual C++ Redistributable if missing.
-- **Firewall Rules**: Automatically manages inbound network rules for the remote control server ports.
-- **Clean Execution**: Dedicated logic handles Start Menu/Desktop shortcuts and rigorous uninstallation sweeps.
-- **Size Optimization**: Explicitly excludes `.pdb` and `.xml` files from the payload to minimize footprint.
-- Sources from `bin\Publish\win-x64\`.
+Current behavior:
+
+- Adds supported media files only.
+- Supports drag-and-drop insertion and reordering.
+- Tracks dirty state for collection changes and per-item volume edits.
+- Saves `.pls` playlists as JSON v2:
+
+```json
+{
+  "version": 2,
+  "items": [
+    {
+      "fullPath": "C:\\Media\\song.mp4",
+      "volume": 1.0
+    }
+  ]
+}
+```
+
+- Loads legacy playlists that are arrays of path strings.
+- Parses playlists transactionally so a failed load preserves the current playlist.
+- Validates that v2 `items` is an array.
+- Clamps loaded volume values to `0.0..1.0`.
+
+### Service Elements
+
+`ServiceElementsWindow` is the service plan creator. It uses `AppSettings.ServiceSlots`, where each slot has:
+
+- Stable `Id`
+- Display name
+- Optional file path
+- Sticky/remember flag
+- Last-used folder
+- Optional per-slot default volume override
+
+Non-sticky slots are cleared when the window opens. Sticky slots preserve their file path unless the file no longer exists. Sending items to the playlist uses the slot volume override when set, otherwise `AppSettings.DefaultServiceVolume`.
+
+### AmenResolveService
+
+`AmenResolveService.cs` plays a Plagal Cadence using MeltySynth and NAudio. It:
+
+- Uses `Sounds/SalC5Light2.sf2`.
+- Runs asynchronously.
+- Uses a semaphore to prevent overlap.
+- Supports cancellation during shutdown or repeated action.
+- Locks synthesizer access so MIDI commands and render reads do not race.
+
+Amen can be triggered from the operator UI or from `/api/amen`.
+
+### RemoteControlServer
+
+`RemoteControlServer.cs` hosts the static remote UI and JSON endpoints.
+
+Ports:
+
+- Preferred: `8088`
+- Fallback: `8090`
+
+Endpoints:
+
+- `GET /`
+- `GET /api/playlist`
+- `GET /api/status`
+- `POST /api/play`
+- `POST /api/play/{index:int}`
+- `POST /api/pause`
+- `POST /api/stop`
+- `POST /api/blank`
+- `POST /api/amen`
+- `POST /api/volume/up`
+- `POST /api/volume/down`
+- `POST /api/volume/{level:double}`
+
+The controller boundary checks whether the media engine is ready before executing VLC-dependent actions. During shutdown, applicable endpoints return `503`.
+
+## UI Layout
+
+### Main Operator Window
+
+Left sidebar:
+
+- Add Media button
+- Playlist font size slider
+- Playlist list with file type icon, file name, and per-item volume percentage
+- Context menu delete
+- Drag-and-drop reordering and file insertion
+- Playlist controls:
+  - Load Playlist
+  - Save Playlist
+  - New Playlist
+  - Close Playlist
+  - Display
+
+Right content area:
+
+- Live output preview
+- Current/duration time display
+- Seek slider
+- Transport buttons:
+  - Play
+  - Pause
+  - Stop
+  - Amen
+- Current media title
+- Single active media volume slider
+- Remote QR code and URL
+
+Keyboard bindings:
+
+- Space: play/pause
+- Right: next
+- Left: previous
+- B: blank
+- F11: toggle fullscreen
+- Escape: exit fullscreen
+
+### Live Output Window
+
+The projected display is borderless, black-backed, and positioned on the selected monitor. It shows the active image/video/audio state and a bottom progress bar for media with duration.
+
+### Remote Web UI
+
+The remote page shows:
+
+- Playlist cards
+- Active item highlight
+- Fixed bottom player
+- Play, pause, stop, Amen
+- Volume down/up buttons
+- Volume slider
+- Mute/restore toggle
+- Progress display
+
+The remote UI is served from the app itself and is intended for devices on the same local network.
+
+## Supported Media
+
+Images:
+
+- `.jpg`
+- `.jpeg`
+- `.png`
+- `.bmp`
+- `.gif`
+
+Video:
+
+- `.mp4`
+- `.mov`
+- `.wmv`
+- `.mkv`
+
+Audio:
+
+- `.mp3`
+- `.wav`
+- `.flac`
+- `.wma`
+- `.m4a`
+
+## Build And Deployment
+
+Project file:
+
+- `ChurchDisplayApp.csproj`
+- Version: `1.3.0`
+- Target: `net8.0-windows`
+
+Build scripts:
+
+- `build-release.bat`: release publish and installer build
+- `publish.bat`: portable publish
+- `sync-fcc.bat`: release build, installer build, and optional sync to deployment folder
+
+Installer:
+
+- `ChurchDisplayApp.iss`
+- Builds `bin\Installer\ChurchDisplayApp-{version}-Setup.exe`
+- Installs from `bin\Publish\win-x64`
+- Checks for Visual C++ Redistributable
+- Creates firewall rules for ports `8088` and `8090`
+- Removes those rules on uninstall
+
+## Current Reliability Notes
+
+- VLC initialization can be cancelled during shutdown.
+- LibVLC instances created during cancelled initialization are disposed.
+- Settings changes use debounced persistence and forced shutdown persistence.
+- Playlist load is transactional.
+- Image display uses async file reads with stale-load cancellation.
+- Remote server shutdown gates are reset on start.
+- Remote volume input is clamped.
+- Media errors reconcile the ViewModel to a stopped state.
 
 ---
-*Last Updated: April 26, 2026*
+
+Last updated: May 11, 2026

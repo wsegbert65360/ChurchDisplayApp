@@ -209,8 +209,9 @@ public class PlaylistManager
     }
 
     /// <summary>
-    /// Loads a playlist from a JSON file.
+    /// Loads a playlist from a JSON file using a transaction approach.
     /// Supports both old format (array of path strings) and new format (array of objects with volume).
+    /// On error, the original playlist is preserved.
     /// </summary>
     public void LoadPlaylist(string filePath)
     {
@@ -221,58 +222,16 @@ public class PlaylistManager
 
             var json = File.ReadAllText(filePath);
 
+            // Parse and validate first without modifying existing playlist
+            var loadedItems = ParsePlaylist(json, filePath);
+
+            // Atomically swap the collections only after successful parse
             UnhookAllItems();
             Items.Clear();
 
-            // Try to detect format: new format has a "version" or "items" field at root level
-            using (var doc = JsonDocument.Parse(json))
+            foreach (var item in loadedItems)
             {
-                var root = doc.RootElement;
-
-                if (root.ValueKind == JsonValueKind.Array)
-                {
-                    // Legacy format: plain array of path strings
-                    foreach (var itemElement in root.EnumerateArray())
-                    {
-                        var itemPath = itemElement.GetString();
-                        if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
-                        {
-                            Items.Add(new PlaylistItem(itemPath, DefaultItemVolume));
-                        }
-                    }
-                }
-                else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("items", out var itemsArray))
-                {
-                    // New format: { "version": 2, "items": [...] }
-                    foreach (var itemElement in itemsArray.EnumerateArray())
-                    {
-                        string? itemPath = null;
-                        double itemVolume = DefaultItemVolume;
-
-                        if (itemElement.ValueKind == JsonValueKind.String)
-                        {
-                            // Items array contains plain strings (edge case)
-                            itemPath = itemElement.GetString();
-                        }
-                        else if (itemElement.ValueKind == JsonValueKind.Object)
-                        {
-                            itemPath = itemElement.TryGetProperty("fullPath", out var fpProp) ? fpProp.GetString() : null;
-                            if (itemElement.TryGetProperty("volume", out var volProp))
-                            {
-                                itemVolume = volProp.GetDouble();
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
-                        {
-                            Items.Add(new PlaylistItem(itemPath, itemVolume));
-                        }
-                    }
-                }
-                else
-                {
-                    throw new InvalidDataException("Unrecognized playlist format");
-                }
+                Items.Add(item);
             }
 
             IsDirty = false;
@@ -285,6 +244,74 @@ public class PlaylistManager
         {
             throw new InvalidOperationException($"Failed to load playlist: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Parses playlist JSON without modifying the collection.
+    /// Returns the parsed items or throws an exception.
+    /// </summary>
+    private List<PlaylistItem> ParsePlaylist(string json, string filePath)
+    {
+        var loadedItems = new List<PlaylistItem>();
+
+        using (var doc = JsonDocument.Parse(json))
+        {
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                // Legacy format: plain array of path strings
+                foreach (var itemElement in root.EnumerateArray())
+                {
+                    var itemPath = itemElement.GetString();
+                    if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
+                    {
+                        loadedItems.Add(new PlaylistItem(itemPath, DefaultItemVolume));
+                    }
+                }
+            }
+            else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("items", out var itemsArray))
+            {
+                if (itemsArray.ValueKind != JsonValueKind.Array)
+                {
+                    throw new InvalidDataException("Playlist items must be an array");
+                }
+
+                // New format: { "version": 2, "items": [...] }
+                foreach (var itemElement in itemsArray.EnumerateArray())
+                {
+                    string? itemPath = null;
+                    double itemVolume = DefaultItemVolume;
+
+                    if (itemElement.ValueKind == JsonValueKind.String)
+                    {
+                        // Items array contains plain strings (edge case)
+                        itemPath = itemElement.GetString();
+                    }
+                    else if (itemElement.ValueKind == JsonValueKind.Object)
+                    {
+                        itemPath = itemElement.TryGetProperty("fullPath", out var fpProp) ? fpProp.GetString() : null;
+                        if (itemElement.TryGetProperty("volume", out var volProp))
+                        {
+                            itemVolume = volProp.GetDouble();
+                        }
+                    }
+
+                    itemVolume = Math.Clamp(itemVolume, 0.0, 1.0);
+
+                    if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
+                    {
+                        loadedItems.Add(new PlaylistItem(itemPath, itemVolume));
+                    }
+                }
+            }
+            else
+            {
+                throw new InvalidDataException("Unrecognized playlist format");
+            }
+        }
+
+        return loadedItems;
     }
 
     /// <summary>

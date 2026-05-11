@@ -34,7 +34,7 @@
     <DockPanel Margin="8">
 
         <!-- Bottom action bar -->
-        <Border DockPanel.Dock="Bottom" BorderBrush="#CCCCCC" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,8,0,0">
+        <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource ServiceBorderBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,8,0,0">
             <DockPanel>
                 <!-- Left side: gear button + volume -->
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
@@ -51,7 +51,7 @@
                 <!-- Right side: action buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="MakeServiceButton" Content="▶ Send to Playlist" MinWidth="110" Padding="8,4" Margin="4,0" Click="MakeService_Click"
-                            Background="#2E7D32" Foreground="White" FontWeight="Bold"
+                            Background="{StaticResource SendToPlaylistBrush}" Foreground="White" FontWeight="Bold"
                             ToolTip="Add all assigned slots to the playlist in order"/>
                     <Button x:Name="CloseButton"      Content="Close"        MinWidth="70" Padding="8,4" Margin="4,0" Click="Close_Click"/>
                 </StackPanel>

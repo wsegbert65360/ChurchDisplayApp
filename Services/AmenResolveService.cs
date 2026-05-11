@@ -21,6 +21,8 @@ namespace ChurchDisplayApp.Services
         private readonly SemaphoreSlim _semaphore = new(1, 1);
         private CancellationTokenSource _cts = new();
         private bool _disposed = false;
+        private readonly object _initLock = new();
+        private readonly object _synthLock = new();
 
         public AmenResolveService(string soundFontPath)
         {
@@ -29,29 +31,54 @@ namespace ChurchDisplayApp.Services
 
         private void Initialize()
         {
+            // Thread-safe initialization using double-check locking pattern
             if (_synth != null) return;
 
-            if (!File.Exists(_soundFontPath))
+            lock (_initLock)
             {
-                Log.Error("SoundFont file not found at {Path}. Amen resolve will be unavailable.", _soundFontPath);
-                return;
-            }
+                if (_synth != null) return;
 
-            try
-            {
-                var sf = new SoundFont(_soundFontPath);
-                _synth = new MeltySynth.Synthesizer(sf, 44100);
-                _sampleProvider = new SynthSampleProvider(_synth);
+                if (!File.Exists(_soundFontPath))
+                {
+                    Log.Error("SoundFont file not found at {Path}. Amen resolve will be unavailable.", _soundFontPath);
+                    return;
+                }
+
+                try
+                {
+                    var sf = new SoundFont(_soundFontPath);
+                    _synth = new MeltySynth.Synthesizer(sf, 44100);
+                    _sampleProvider = new SynthSampleProvider(_synth, _synthLock);
                 
-                _waveOut = new WaveOutEvent();
-                _waveOut.Init(_sampleProvider);
-                // Audio output is started/stopped per-execution (Issue #7)
+                    _waveOut = new WaveOutEvent();
+                    _waveOut.Init(_sampleProvider);
+                    // Audio output is started/stopped per-execution (Issue #7)
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to initialize synthesizer with SoundFont at {Path}", _soundFontPath);
+                    _synth = null;
+                }
             }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to initialize synthesizer with SoundFont at {Path}", _soundFontPath);
-                _synth = null;
-            }
+        }
+
+        /// <summary>
+        /// Thread-safe wrapper for sending MIDI messages to the synthesizer.
+        /// Prevents audio glitches when the audio render thread and the MIDI
+        /// command thread access the synthesizer concurrently.
+        /// </summary>
+        private void SafeMidi(int channel, int command, int data1, int data2)
+        {
+            var synth = _synth;
+            if (synth == null) return;
+            lock (_synthLock) { synth.ProcessMidiMessage(channel, command, data1, data2); }
+        }
+
+        private void SafeReset()
+        {
+            var synth = _synth;
+            if (synth == null) return;
+            lock (_synthLock) { synth.Reset(); }
         }
 
         public void Cancel()
@@ -85,38 +112,38 @@ namespace ChurchDisplayApp.Services
 
                 Random rnd = new Random();
 
-                _synth.ProcessMidiMessage(0, 0xB0, 64, 127);
+                SafeMidi(0, 0xB0, 64, 127);
 
-                _synth.ProcessMidiMessage(0, 0x90, F2, 60);
-                _synth.ProcessMidiMessage(0, 0x90, F3, 70 + rnd.Next(-5, 6));
-                _synth.ProcessMidiMessage(0, 0x90, A3, 70 + rnd.Next(-5, 6));
-                _synth.ProcessMidiMessage(0, 0x90, C4, 70 + rnd.Next(-5, 6));
+                SafeMidi(0, 0x90, F2, 60);
+                SafeMidi(0, 0x90, F3, 70 + rnd.Next(-5, 6));
+                SafeMidi(0, 0x90, A3, 70 + rnd.Next(-5, 6));
+                SafeMidi(0, 0x90, C4, 70 + rnd.Next(-5, 6));
 
                 await Task.Delay(2000, token);
 
-                _synth.ProcessMidiMessage(0, 0x80, F2, 0);
-                _synth.ProcessMidiMessage(0, 0x80, F3, 0);
-                _synth.ProcessMidiMessage(0, 0x80, A3, 0);
-                _synth.ProcessMidiMessage(0, 0x80, C4, 0);
+                SafeMidi(0, 0x80, F2, 0);
+                SafeMidi(0, 0x80, F3, 0);
+                SafeMidi(0, 0x80, A3, 0);
+                SafeMidi(0, 0x80, C4, 0);
 
-                _synth.ProcessMidiMessage(0, 0x90, C2, 65);
-                _synth.ProcessMidiMessage(0, 0x90, C3, 85 + rnd.Next(-5, 6));
-                _synth.ProcessMidiMessage(0, 0x90, E3, 85 + rnd.Next(-5, 6));
-                _synth.ProcessMidiMessage(0, 0x90, G3, 85 + rnd.Next(-5, 6));
-                _synth.ProcessMidiMessage(0, 0x90, C4, 85 + rnd.Next(-5, 6));
+                SafeMidi(0, 0x90, C2, 65);
+                SafeMidi(0, 0x90, C3, 85 + rnd.Next(-5, 6));
+                SafeMidi(0, 0x90, E3, 85 + rnd.Next(-5, 6));
+                SafeMidi(0, 0x90, G3, 85 + rnd.Next(-5, 6));
+                SafeMidi(0, 0x90, C4, 85 + rnd.Next(-5, 6));
 
                 await Task.Delay(2500, token);
 
                 for (int vol = 100; vol >= 0; vol -= 5)
                 {
                     token.ThrowIfCancellationRequested();
-                    _synth.ProcessMidiMessage(0, 0xB0, 7, vol);
+                    SafeMidi(0, 0xB0, 7, vol);
                     await Task.Delay(50, token);
                 }
 
-                _synth.ProcessMidiMessage(0, 0xB0, 64, 0);
-                _synth.Reset();
-                _synth.ProcessMidiMessage(0, 0xB0, 7, 100);
+                SafeMidi(0, 0xB0, 64, 0);
+                SafeReset();
+                SafeMidi(0, 0xB0, 7, 100);
 
                 _waveOut.Stop();
             }
@@ -124,14 +151,14 @@ namespace ChurchDisplayApp.Services
             {
                 Log.Information("Amen resolve was cancelled");
                 // Reset synth state so next Amen starts clean (Issue #3)
-                try { _synth?.ProcessMidiMessage(0, 0xB0, 7, 100); } catch { }
-                try { _synth?.Reset(); } catch { }
+                try { SafeMidi(0, 0xB0, 7, 100); } catch { }
+                try { SafeReset(); } catch { }
                 try { _waveOut?.Stop(); } catch { }
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Amen resolve execution failed");
-                try { _synth?.Reset(); } catch { }
+                try { SafeReset(); } catch { }
                 try { _waveOut?.Stop(); } catch { }
             }
             finally
@@ -171,13 +198,15 @@ namespace ChurchDisplayApp.Services
         private class SynthSampleProvider : ISampleProvider
         {
             private readonly MeltySynth.Synthesizer _synth;
+            private readonly object _synthLock;
             private float[] _leftBuf = Array.Empty<float>();
             private float[] _rightBuf = Array.Empty<float>();
             public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
-            public SynthSampleProvider(MeltySynth.Synthesizer synthesizer)
+            public SynthSampleProvider(MeltySynth.Synthesizer synthesizer, object synthLock)
             {
                 _synth = synthesizer;
+                _synthLock = synthLock;
             }
 
             public int Read(float[] buffer, int offset, int count)
@@ -190,7 +219,7 @@ namespace ChurchDisplayApp.Services
                     _rightBuf = new float[half];
                 }
                 
-                lock (_synth)
+                lock (_synthLock)
                 {
                     _synth.Render(_leftBuf, _rightBuf);
                 }

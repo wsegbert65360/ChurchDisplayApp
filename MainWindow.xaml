@@ -69,6 +69,7 @@
                          DragOver="PlaylistListBox_DragOver"
                          PreviewMouseLeftButtonDown="PlaylistListBox_PreviewMouseLeftButtonDown"
                          PreviewMouseMove="PlaylistListBox_PreviewMouseMove"
+                         VirtualizingStackPanel.IsVirtualizing="False"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -136,13 +137,13 @@
                       ResizeDirection="Columns"
                       ResizeBehavior="PreviousAndNext"
                       ShowsPreview="False"
-                      Background="#DDDDDD"
+                      Background="{StaticResource SplitterBackgroundBrush}"
                       Cursor="SizeWE"
                       ToolTip="Drag to resize">
             <GridSplitter.Template>
                 <ControlTemplate TargetType="GridSplitter">
                     <Border Background="{TemplateBinding Background}"
-                            BorderBrush="#BBBBBB"
+                            BorderBrush="{StaticResource SplitterBorderBrush}"
                             BorderThickness="1,0">
                         <ItemsControl HorizontalAlignment="Center"
                                       VerticalAlignment="Center">
@@ -151,9 +152,9 @@
                                     <StackPanel Orientation="Vertical"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
-                            <Ellipse Width="3" Height="3" Fill="#999999" Margin="0,2"/>
-                            <Ellipse Width="3" Height="3" Fill="#999999" Margin="0,2"/>
-                            <Ellipse Width="3" Height="3" Fill="#999999" Margin="0,2"/>
+                            <Ellipse Width="3" Height="3" Fill="{StaticResource SplitterDotFill}" Margin="0,2"/>
+                            <Ellipse Width="3" Height="3" Fill="{StaticResource SplitterDotFill}" Margin="0,2"/>
+                            <Ellipse Width="3" Height="3" Fill="{StaticResource SplitterDotFill}" Margin="0,2"/>
                         </ItemsControl>
                     </Border>
                 </ControlTemplate>
@@ -161,7 +162,7 @@
         </GridSplitter>
 
         <!-- ═══════════════════════ MAIN CONTENT ═══════════════════════ -->
-        <Grid Grid.Column="2" Background="#F0F2F5">
+        <Grid Grid.Column="2" Background="{StaticResource ContentBackgroundBrush}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />    <!-- Preview -->
                 <RowDefinition Height="Auto" /> <!-- Progress bar -->
@@ -187,7 +188,7 @@
                     <Image x:Name="PreviewImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                     
                     <!-- Content Type Label -->
-                    <Border Background="#44000000" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="15" Padding="8,4" CornerRadius="15">
+                    <Border Background="{StaticResource PreviewLabelBackgroundBrush}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="15" Padding="8,4" CornerRadius="15">
                         <TextBlock x:Name="PreviewLabel" Text="Live Output" Foreground="White" FontSize="10" FontWeight="Bold" />
                     </Border>
                 </Grid>
@@ -268,7 +269,7 @@
                                 <!-- Amen -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Click="AmenButton_Click"
                                         ToolTip="Stop Media &amp; Play Amen Resolve"
-                                        Background="#E8B849" BorderThickness="0"
+                                        Background="{StaticResource AmenButtonBrush}" BorderThickness="0"
                                         Width="44" Height="26" Padding="0" Margin="0,0,12,0">
                                     <Border CornerRadius="13">
                                         <TextBlock Text="AMEN" FontSize="7" FontWeight="Black" Foreground="White"
@@ -319,7 +320,7 @@
         <!-- ═══════════════════ PHASE 2: Loading Overlay ═══════════════════ -->
         <Grid x:Name="LoadingOverlay"
               Grid.Column="0" Grid.ColumnSpan="3"
-              Background="#E6FFFFFF"
+              Background="{StaticResource LoadingOverlayBackgroundBrush}"
               Panel.ZIndex="999"
               Visibility="Visible">
             <StackPanel HorizontalAlignment="Center"

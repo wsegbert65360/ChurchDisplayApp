@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         WindowStyle="None"
-        BorderBrush="DarkBlue"
+        BorderBrush="{StaticResource PrimaryAccentBrush}"
         BorderThickness="2"
         Background="White">
     <Grid Margin="20">
@@ -21,7 +21,7 @@
                    FontSize="18" 
                    FontWeight="Bold" 
                    TextAlignment="Center"
-                   Foreground="DarkBlue"
+                   Foreground="{StaticResource PrimaryAccentBrush}"
                    TextWrapping="Wrap"
                    Margin="0,0,0,20"/>
 
@@ -35,8 +35,8 @@
             <Button Grid.Column="0" 
                     x:Name="LeftButton"
                     Click="LeftButton_Click"
-                    Background="#F0F8FF"
-                    BorderBrush="DarkBlue"
+                    Background="{StaticResource MonitorSelectionBackgroundBrush}"
+                    BorderBrush="{StaticResource PrimaryAccentBrush}"
                     BorderThickness="1"
                     Cursor="Hand">
                 <StackPanel VerticalAlignment="Center">
@@ -48,8 +48,8 @@
             <Button Grid.Column="2" 
                     x:Name="RightButton"
                     Click="RightButton_Click"
-                    Background="#F0F8FF"
-                    BorderBrush="DarkBlue"
+                    Background="{StaticResource MonitorSelectionBackgroundBrush}"
+                    BorderBrush="{StaticResource PrimaryAccentBrush}"
                     BorderThickness="1"
                     Cursor="Hand">
                 <StackPanel VerticalAlignment="Center">
@@ -64,7 +64,7 @@
                    FontSize="11" 
                    FontStyle="Italic"
                    TextAlignment="Center"
-                   Foreground="Gray"
+                   Foreground="{StaticResource MutedTextBrush}"
                    Margin="0,20,0,0"/>
     </Grid>
 </Window>

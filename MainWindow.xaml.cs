@@ -127,13 +127,14 @@ public partial class MainWindow : Window, IDisplayController
     /// <param name="ct">Cancellation token — set when app is closing to prevent resource leaks.</param>
     private async Task InitializeVlcAsync(CancellationToken ct)
     {
+        LibVLC? libVLC = null;
         try
         {
             // --- Step A: Heavy VLC init on background thread ---
             // Core.Initialize() loads native libraries and can take 1-3 seconds.
             // new LibVLC() creates the engine instance.
             // These MUST run on the same thread (VLC thread affinity requirement).
-            var libVLC = await Task.Run(() =>
+            libVLC = await Task.Run(() =>
             {
                 ct.ThrowIfCancellationRequested();
 
@@ -313,8 +314,9 @@ public partial class MainWindow : Window, IDisplayController
         catch (OperationCanceledException)
         {
             // RELIABILITY FIX #1: App is shutting down during VLC init.
-            // This is expected — silently exit. Any LibVLC instance created
-            // in Task.Run has been disposed above.
+            // Dispose any LibVLC created on the background thread that wasn't
+            // consumed by the UI thread dispatcher callback.
+            libVLC?.Dispose();
             Log.Information("VLC initialization cancelled — app is shutting down.");
         }
         catch (Exception ex)
@@ -401,7 +403,7 @@ public partial class MainWindow : Window, IDisplayController
 
         if (successfulPort > 0)
         {
-            VerifyFirewallRule(successfulPort);
+            await VerifyFirewallRuleAsync(successfulPort);
             UpdateRemoteQrCode(successfulPort);
             Log.Information("Remote control server running on port {Port}", successfulPort);
         }
@@ -421,7 +423,7 @@ public partial class MainWindow : Window, IDisplayController
         StartupProfiler.Instance.DumpSummary();
     }
 
-    private static void VerifyFirewallRule(int port)
+    private static async Task VerifyFirewallRuleAsync(int port)
     {
         try
         {
@@ -439,10 +441,21 @@ public partial class MainWindow : Window, IDisplayController
                     UseShellExecute = false,
                     CreateNoWindow = true
                 });
-                // Read stdout BEFORE WaitForExit to avoid deadlock when the
-                // child process fills its output buffer.
-                var output = proc?.StandardOutput.ReadToEnd() ?? "";
-                proc?.WaitForExit(3000);
+                if (proc == null)
+                    continue;
+
+                var outputTask = proc.StandardOutput.ReadToEndAsync();
+                var errorTask = proc.StandardError.ReadToEndAsync();
+
+                if (!proc.WaitForExit(3000))
+                {
+                    try { proc.Kill(); } catch { }
+                    Log.Warning("Timed out while checking firewall rule '{RuleName}'", ruleName);
+                    continue;
+                }
+
+                var output = await outputTask;
+                _ = await errorTask;
 
                 if (output.Contains(ruleName))
                 {
@@ -542,6 +555,21 @@ public partial class MainWindow : Window, IDisplayController
         return null;
     }
 
+    /// <summary>
+    /// Configures a FileDialog's InitialDirectory based on user settings.
+    /// Prefers the playlist directory for playlist operations, otherwise uses media directory.
+    /// </summary>
+    private void ConfigureDialogDirectory(Microsoft.Win32.FileDialog dlg, bool preferPlaylistDir = false)
+    {
+        if (preferPlaylistDir && !string.IsNullOrEmpty(_settings.LastPlaylistDirectory) && Directory.Exists(_settings.LastPlaylistDirectory))
+        {
+            dlg.InitialDirectory = _settings.LastPlaylistDirectory;
+        }
+        else if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
+        {
+            dlg.InitialDirectory = _settings.LastMediaDirectory;
+        }
+    }
 
     private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
@@ -588,7 +616,7 @@ public partial class MainWindow : Window, IDisplayController
                 }
                 
                 // Ensure any pending changes are saved immediately
-                _settings.SaveImmediate();
+                _settings.SaveImmediate(force: true);
             }
             catch (Exception ex)
             {
@@ -691,8 +719,7 @@ public partial class MainWindow : Window, IDisplayController
             Multiselect = true
         };
 
-        if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
-            dlg.InitialDirectory = _settings.LastMediaDirectory;
+        ConfigureDialogDirectory(dlg, preferPlaylistDir: false);
 
         if (dlg.ShowDialog() == true)
         {
@@ -792,7 +819,6 @@ public partial class MainWindow : Window, IDisplayController
     }
 
     // Drag and Drop Event Handlers for Playlist
-    private void Playlist_Drop(object sender, DragEventArgs e) => _playlistDragDropManager?.HandlePlaylistDrop(sender, e);
     private void PlaylistListBox_DragOver(object sender, DragEventArgs e) => _playlistDragDropManager?.HandleListBoxDragOver(sender, e);
     private void PlaylistListBox_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => _playlistDragDropManager?.HandleListBoxPreviewMouseLeftButtonDown(sender, e);
     private void PlaylistListBox_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e) => _playlistDragDropManager?.HandleListBoxPreviewMouseMove(sender, e);
@@ -934,25 +960,6 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private void DeleteSelected_Click(object sender, RoutedEventArgs e)
-    {
-        if (PlaylistListBox.SelectedItem is PlaylistItem item)
-        {
-            var result = MessageBox.Show($"Delete '{item.FileName}'?", "Confirm Delete",
-                MessageBoxButton.YesNo, MessageBoxImage.Question);
-            
-            if (result == MessageBoxResult.Yes)
-            {
-                _playlistManager.RemoveItem(item);
-            }
-        }
-        else
-        {
-            MessageBox.Show("Select an item to delete.", "No Selection",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-    }
-
     private void ProgressSlider_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (ViewModel != null)
@@ -1042,14 +1049,7 @@ public partial class MainWindow : Window, IDisplayController
             DefaultExt = ".pls"
         };
 
-        if (!string.IsNullOrEmpty(_settings.LastPlaylistDirectory) && Directory.Exists(_settings.LastPlaylistDirectory))
-        {
-            dlg.InitialDirectory = _settings.LastPlaylistDirectory;
-        }
-        else if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
-        {
-            dlg.InitialDirectory = _settings.LastMediaDirectory;
-        }
+        ConfigureDialogDirectory(dlg, preferPlaylistDir: true);
 
         if (dlg.ShowDialog() == true)
         {
@@ -1076,20 +1076,15 @@ public partial class MainWindow : Window, IDisplayController
             Filter = MediaConstants.GetPlaylistFilter()
         };
 
-        if (!string.IsNullOrEmpty(_settings.LastPlaylistDirectory) && Directory.Exists(_settings.LastPlaylistDirectory))
-        {
-            dlg.InitialDirectory = _settings.LastPlaylistDirectory;
-        }
-        else if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
-        {
-            dlg.InitialDirectory = _settings.LastMediaDirectory;
-        }
+        ConfigureDialogDirectory(dlg, preferPlaylistDir: true);
 
         if (dlg.ShowDialog() == true)
         {
             try
             {
                 _playlistManager.LoadPlaylist(dlg.FileName);
+                _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
+                _settings.Save();
                 MessageBox.Show($"Playlist loaded successfully. {_playlistManager.Items.Count} files added.", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -1134,14 +1129,7 @@ public partial class MainWindow : Window, IDisplayController
                 Title = "Save Playlist Before Closing"
             };
 
-            if (!string.IsNullOrEmpty(_settings.LastPlaylistDirectory) && Directory.Exists(_settings.LastPlaylistDirectory))
-            {
-                dlg.InitialDirectory = _settings.LastPlaylistDirectory;
-            }
-            else if (!string.IsNullOrEmpty(_settings.LastMediaDirectory) && Directory.Exists(_settings.LastMediaDirectory))
-            {
-                dlg.InitialDirectory = _settings.LastMediaDirectory;
-            }
+            ConfigureDialogDirectory(dlg, preferPlaylistDir: true);
 
             if (dlg.ShowDialog() == true)
             {
@@ -1285,7 +1273,6 @@ public partial class MainWindow : Window, IDisplayController
         return result;
     }
 
-    /// <summary>
     /// <summary>
     /// Guards VLC-dependent actions. Returns the ViewModel if VLC is ready,
     /// or null if VLC is still initializing or failed to initialize.

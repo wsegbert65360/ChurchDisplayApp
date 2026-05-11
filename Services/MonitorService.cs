@@ -151,7 +151,9 @@ public class MonitorService
         if (selectionWindow.ShowDialog() == true)
         {
             return selectionWindow.Result == MonitorSelectionWindow.SelectionResult.Right
+                // OrderByDescending(m => m.Right) → monitor with largest Right *coordinate* (rightmost on screen)
                 ? monitors.OrderByDescending(m => m.Right).First()
+                // OrderBy(m => m.Right) → monitor with smallest Right *coordinate* (leftmost on screen)
                 : monitors.OrderBy(m => m.Right).First();
         }
 

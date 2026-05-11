@@ -94,9 +94,11 @@ public class MainViewModel : BaseViewModel
 
                 _mediaControlService.SetVolume(clampedValue);
                 _settings.MainMediaVolume = clampedValue;
+                _settings.Save();
                 
                 // Save it back to the currently loaded item so its volume persists!
-                if (_currentlyLoadedItem != null)
+                // Verify the item is still valid (not removed from playlist)
+                if (_currentlyLoadedItem != null && _playlistManager.Items.Contains(_currentlyLoadedItem))
                 {
                     _currentlyLoadedItem.Volume = clampedValue;
                     Serilog.Log.Debug(
@@ -126,7 +128,7 @@ public class MainViewModel : BaseViewModel
             if (SetProperty(ref _playlistFontSize, value))
             {
                 _settings.PlaylistFontSize = value;
-                // Settings are saved on debounce/shutdown
+                _settings.Save();
             }
         }
     }
@@ -384,6 +386,10 @@ public class MainViewModel : BaseViewModel
 
     public string FormatTime(TimeSpan time)
     {
-        return $"{(int)time.TotalMinutes:D2}:{time.Seconds:D2}";
+        if (time.TotalHours >= 1)
+        {
+            return $"{(int)time.TotalHours:D2}:{time.Minutes:D2}:{time.Seconds:D2}";
+        }
+        return $"{time.Minutes:D2}:{time.Seconds:D2}";
     }
 }

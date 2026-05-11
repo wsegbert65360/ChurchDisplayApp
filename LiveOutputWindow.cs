@@ -31,6 +31,7 @@ public class LiveOutputWindow : Window, IDisposable
     private int _targetVolume = 100; // Stored volume to apply when VLC starts playing
     private Media? _currentMedia; // Track current media for proper disposal
     private readonly string _snapshotTempPath;
+    private int _mediaVersion;
     public bool IsDisposed { get; private set; }
 
     /// <summary>Occurs when a media file finishes playing.</summary>
@@ -322,10 +323,11 @@ public class LiveOutputWindow : Window, IDisposable
         _isPlaying = false;
         _timer.Stop();
         _currentMediaPath = filePath;
+        var mediaVersion = ++_mediaVersion;
 
         if (MediaConstants.IsImage(filePath))
         {
-            _ = ShowImageAsync(filePath);
+            _ = ShowImageAsync(filePath, mediaVersion);
         }
         else if (MediaConstants.IsSupported(filePath))
         {
@@ -333,7 +335,7 @@ public class LiveOutputWindow : Window, IDisposable
         }
     }
 
-    private async Task ShowImageAsync(string imagePath)
+    private async Task ShowImageAsync(string imagePath, int mediaVersion)
     {
         if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
         {
@@ -354,12 +356,15 @@ public class LiveOutputWindow : Window, IDisposable
             _filenameLabel.Visibility = Visibility.Collapsed;
             _progressBar.Visibility = Visibility.Collapsed;
 
+            // Release the previous image source to free memory before loading a new one
+            _imageDisplay.Source = null;
+
             // Prevent UI freeze from disk I/O by reading the file bytes asynchronously
             byte[] fileBytes = await File.ReadAllBytesAsync(imagePath);
 
             // Race-condition guard: if the operator loaded a different media item
             // while we were suspended at the await, discard this stale result.
-            if (_currentMediaPath != imagePath) return;
+            if (_currentMediaPath != imagePath || _mediaVersion != mediaVersion) return;
 
             var bitmap = new BitmapImage();
             using (var ms = new System.IO.MemoryStream(fileBytes))
@@ -369,7 +374,10 @@ public class LiveOutputWindow : Window, IDisposable
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
                 bitmap.EndInit();
+                bitmap.Freeze();  // Freeze for thread-safety and WPF resource optimization
             }
+
+            if (_currentMediaPath != imagePath || _mediaVersion != mediaVersion) return;
 
             _imageDisplay.Source = bitmap;
             _isPlaying = false;
@@ -404,19 +412,23 @@ public class LiveOutputWindow : Window, IDisposable
 
     public void Pause()
     {
-        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero && _mediaPlayer.CanPause)
+        // Check _mediaPlayer for null before accessing properties
+        var mp = _mediaPlayer;
+        if (mp != null && mp.NativeReference != IntPtr.Zero && mp.CanPause)
         {
-            _mediaPlayer.Pause();
+            mp.Pause();
             _isPlaying = false;
         }
     }
 
     public void Resume()
     {
-        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        // Check _mediaPlayer for null before accessing properties
+        var mp = _mediaPlayer;
+        if (mp != null && mp.NativeReference != IntPtr.Zero)
         {
             RestoreVisibility();
-            _mediaPlayer.Play();
+            mp.Play();
             _isPlaying = true;
             _timer.Start();
         }
@@ -427,11 +439,15 @@ public class LiveOutputWindow : Window, IDisposable
     /// </summary>
     public void Stop()
     {
-        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        // Capture reference to avoid race conditions
+        var mp = _mediaPlayer;
+        if (mp != null && mp.NativeReference != IntPtr.Zero)
         {
-            _mediaPlayer.Stop();
+            mp.Stop();
         }
         _isPlaying = false;
+        _mediaVersion++;
+        _currentMediaPath = null;
         _timer.Stop();
         _progressBar.Visibility = Visibility.Collapsed;
         
@@ -453,6 +469,7 @@ public class LiveOutputWindow : Window, IDisposable
         }
         
         _isPlaying = false;
+        _mediaVersion++;
         _timer.Stop();
 
         _videoView.Visibility = Visibility.Collapsed;

@@ -20,7 +20,10 @@ namespace ChurchDisplayApp.Services
                 var timing = new PhaseTiming { StartTicks = _total.ElapsedTicks };
                 _phases[name] = timing;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[StartupProfiler] Error in StartPhase({name}): {ex.Message}");
+            }
         }
 
         public void EndPhase(string name)
@@ -32,7 +35,10 @@ namespace ChurchDisplayApp.Services
                     timing.ElapsedTicks = _total.ElapsedTicks - timing.StartTicks;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[StartupProfiler] Error in EndPhase({name}): {ex.Message}");
+            }
         }
 
         public void DumpSummary()
@@ -63,7 +69,10 @@ namespace ChurchDisplayApp.Services
                 }
                 Console.WriteLine("");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[StartupProfiler] Error in DumpSummary: {ex.Message}");
+            }
         }
 
         private class PhaseTiming
