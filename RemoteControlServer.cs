@@ -116,6 +116,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/play/{index:int}", (int index) =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Play index {Index}", index);
             if (controller == null) return Results.Problem(statusCode: 500, detail: "Controller not initialized");
             dispatcher.BeginInvoke(() => controller.PlayIndex(index));
@@ -124,6 +125,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/play", () =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Play");
             if (controller == null) return Results.Problem(statusCode: 500, detail: "Controller not initialized");
             dispatcher.BeginInvoke(() => controller.Play());
@@ -132,6 +134,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/pause", () =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Pause");
             if (controller == null) return Results.Problem(statusCode: 500, detail: "Controller not initialized");
             dispatcher.BeginInvoke(() => controller.Pause());
@@ -148,6 +151,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/stop", () =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Stop");
             if (controller == null) return Results.Problem(statusCode: 500, detail: "Controller not initialized");
             dispatcher.BeginInvoke(() => controller.Stop());
@@ -156,6 +160,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/blank", () =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Blank");
             if (controller == null) return Results.Problem(statusCode: 500, detail: "Controller not initialized");
             dispatcher.BeginInvoke(() => controller.Blank());
@@ -182,6 +187,7 @@ public sealed class RemoteControlServer
 
         app.MapPost("/api/volume/{level:double}", (double level) =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             var clamped = Math.Clamp(level, 0.0, 1.0);
             if (Math.Abs(level - clamped) > 0.0001)
             {
@@ -200,6 +206,7 @@ public sealed class RemoteControlServer
         // Amen endpoint
         app.MapPost("/api/amen", () =>
         {
+            if (_isShuttingDown) return Results.StatusCode(503);
             Log.Information("Remote: Amen");
             if (controller == null) return Results.Problem(statusCode: 500, detail: "Controller not initialized");
             dispatcher.BeginInvoke(() => controller.Amen());

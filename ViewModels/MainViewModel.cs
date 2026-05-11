@@ -249,8 +249,15 @@ public class MainViewModel : BaseViewModel
                 _mediaControlService.SetVolume(SelectedItem.Volume);
                 Volume = SelectedItem.Volume;
 
-                _mediaControlService.Play();
-                IsPlaying = true;
+                if (_mediaControlService.Play())
+                {
+                    CurrentMediaTitle = SelectedItem.FileName;
+                    IsPlaying = true;
+                }
+                else
+                {
+                    ReconcilePlaybackStopped("Resume failed");
+                }
                 return;
             }
 

@@ -421,7 +421,7 @@ public class LiveOutputWindow : Window, IDisposable
         }
     }
 
-    public void Resume()
+    public bool Resume()
     {
         // Check _mediaPlayer for null before accessing properties
         var mp = _mediaPlayer;
@@ -431,7 +431,10 @@ public class LiveOutputWindow : Window, IDisposable
             mp.Play();
             _isPlaying = true;
             _timer.Start();
+            return true;
         }
+
+        return false;
     }
 
     /// <summary>
@@ -523,19 +526,37 @@ public class LiveOutputWindow : Window, IDisposable
         }
     }
 
-    public void Play()
+    public bool Play()
     {
-        if (_currentMediaPath != null)
+        if (_currentMediaPath == null)
+            return false;
+
+        if (MediaConstants.IsImage(_currentMediaPath))
         {
-            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+            if (_imageDisplay.Source == null)
             {
-                Resume();
-            }
-            else
-            {
+                if (!File.Exists(_currentMediaPath))
+                    return false;
+
                 ShowMedia(_currentMediaPath);
+                return true;
             }
+
+            RestoreVisibility();
+            _isPlaying = false;
+            return true;
         }
+
+        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        {
+            return Resume();
+        }
+
+        if (!File.Exists(_currentMediaPath) || !MediaConstants.IsSupported(_currentMediaPath))
+            return false;
+
+        ShowMedia(_currentMediaPath);
+        return true;
     }
 
     private void RestoreVisibility()

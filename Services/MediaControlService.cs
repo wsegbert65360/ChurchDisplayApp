@@ -60,10 +60,15 @@ public class MediaControlService
     /// <summary>
     /// Plays the current media.
     /// </summary>
-    public void Play()
+    public bool Play()
     {
-        _liveWindow.Play();
-        MediaStateChanged?.Invoke(this, EventArgs.Empty);
+        var accepted = _liveWindow.Play();
+        if (accepted)
+        {
+            MediaStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return accepted;
     }
 
     /// <summary>

@@ -443,13 +443,25 @@ public partial class MainWindow : Window, IDisplayController
                 });
                 if (proc == null)
                     continue;
+                using var procForDispose = proc;
 
                 var outputTask = proc.StandardOutput.ReadToEndAsync();
                 var errorTask = proc.StandardError.ReadToEndAsync();
 
-                if (!proc.WaitForExit(3000))
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                try
                 {
-                    try { proc.Kill(); } catch { }
+                    await proc.WaitForExitAsync(timeoutCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { }
+                    try
+                    {
+                        var exitTask = proc.WaitForExitAsync();
+                        await Task.WhenAny(exitTask, Task.Delay(1000));
+                    }
+                    catch { }
                     Log.Warning("Timed out while checking firewall rule '{RuleName}'", ruleName);
                     continue;
                 }
