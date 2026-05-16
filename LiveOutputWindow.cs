@@ -350,22 +350,29 @@ public class LiveOutputWindow : Window, IDisposable
             _filenameLabel.Visibility = Visibility.Collapsed;
             _progressBar.Visibility = Visibility.Collapsed;
 
-            // Prevent UI freeze from disk I/O by reading the file bytes asynchronously
-            byte[] fileBytes = await File.ReadAllBytesAsync(imagePath);
+            // Prevent UI freeze from disk I/O and image decoding by doing it on a background thread
+            var bitmap = await Task.Run(() =>
+            {
+                byte[] fileBytes = File.ReadAllBytes(imagePath);
+
+                var bmp = new BitmapImage();
+                using (var ms = new System.IO.MemoryStream(fileBytes))
+                {
+                    bmp.BeginInit();
+                    bmp.StreamSource = ms;
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
+                    bmp.EndInit();
+                }
+
+                // Freeze makes the bitmap cross-thread accessible
+                bmp.Freeze();
+                return bmp;
+            });
 
             // Race-condition guard: if the operator loaded a different media item
             // while we were suspended at the await, discard this stale result.
             if (_currentMediaPath != imagePath) return;
-
-            var bitmap = new BitmapImage();
-            using (var ms = new System.IO.MemoryStream(fileBytes))
-            {
-                bitmap.BeginInit();
-                bitmap.StreamSource = ms;
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
-                bitmap.EndInit();
-            }
 
             _imageDisplay.Source = bitmap;
             _isPlaying = false;
