@@ -1,0 +1,3 @@
+## 2024-05-24 - Async WPF Image Decoding
+**Learning:** In WPF, decoding large images (like 1080p JPEGs/PNGs) on the main UI thread via `BitmapImage.EndInit()` causes noticeable UI stutter, even if the file was loaded from disk asynchronously via `File.ReadAllBytesAsync`.
+**Action:** Always wrap `BitmapImage` initialization in `await Task.Run(() => { ... })` and call `bmp.Freeze()` before returning the `BitmapImage`. `Freeze()` is strictly required because WPF objects are thread-affine by default; calling it makes the object read-only and allows it to be accessed across threads (i.e., back on the main UI thread).

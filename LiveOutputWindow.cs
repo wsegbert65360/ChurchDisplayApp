@@ -357,15 +357,21 @@ public class LiveOutputWindow : Window, IDisposable
             // while we were suspended at the await, discard this stale result.
             if (_currentMediaPath != imagePath) return;
 
-            var bitmap = new BitmapImage();
-            using (var ms = new System.IO.MemoryStream(fileBytes))
+            // PERFORMANCE: Decode images on a background thread to prevent UI stutter
+            var bitmap = await Task.Run(() =>
             {
-                bitmap.BeginInit();
-                bitmap.StreamSource = ms;
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
-                bitmap.EndInit();
-            }
+                var bmp = new BitmapImage();
+                using (var ms = new System.IO.MemoryStream(fileBytes))
+                {
+                    bmp.BeginInit();
+                    bmp.StreamSource = ms;
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
+                    bmp.EndInit();
+                }
+                bmp.Freeze(); // Allow cross-thread access and optimize memory
+                return bmp;
+            });
 
             _imageDisplay.Source = bitmap;
             _isPlaying = false;
