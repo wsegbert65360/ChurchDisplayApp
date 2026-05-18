@@ -44,7 +44,7 @@
                             Click="Settings_Click"
                             ToolTip="Add, remove, or rename slots and set the default search folder"/>
                     <TextBlock Text="🔊" FontSize="12" VerticalAlignment="Center" Margin="10,0,4,0" Opacity="0.6" />
-                    <Slider x:Name="DefaultVolumeSlider" Width="80" Minimum="0" Maximum="1" Value="1.0" VerticalAlignment="Center" SmallChange="0.05" ToolTip="Default volume for items added to playlist (saved between sessions)" ValueChanged="DefaultVolumeSlider_ValueChanged" />
+                    <Slider AutomationProperties.Name="Default Volume" x:Name="DefaultVolumeSlider" Width="80" Minimum="0" Maximum="1" Value="1.0" VerticalAlignment="Center" SmallChange="0.05" ToolTip="Default volume for items added to playlist (saved between sessions)" ValueChanged="DefaultVolumeSlider_ValueChanged" />
                     <TextBlock x:Name="DefaultVolumeText" Text="100%" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" Width="30" />
                 </StackPanel>
 
