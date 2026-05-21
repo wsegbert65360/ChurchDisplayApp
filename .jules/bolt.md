@@ -1,0 +1,3 @@
+## 2024-05-18 - C# Span extensions in file path comparison
+**Learning:** Checking media file extensions in high frequency routines shouldn't use string allocations if they can be avoided, particularly when allocating a string with `ToLower()`. Using `Path.GetExtension(filePath.AsSpan())` returns a `ReadOnlySpan<char>` that doesn't allocate. `ReadOnlySpan<char>.Equals(string, StringComparison.OrdinalIgnoreCase)` can be used. Also, converting back to string is necessary for storing the extension if it is going to be used with WPF triggers.
+**Action:** When asked to improve performance related to strings, check for `.ToLower()` being used on file paths and use `AsSpan()` and `StringComparison.OrdinalIgnoreCase` to prevent allocations.

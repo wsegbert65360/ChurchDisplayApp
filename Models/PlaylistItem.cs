@@ -38,7 +38,9 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+
+            // PERF: Retrieve extension without allocating full substring first, then allocate and normalize.
+            Extension = Path.GetExtension(fullPath.AsSpan()).ToString().ToLowerInvariant();
             Volume = volume;
         }
 
