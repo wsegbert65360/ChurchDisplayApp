@@ -313,6 +313,26 @@ public class MainViewModel : BaseViewModel
 
     public string FormatTime(TimeSpan time)
     {
-        return $"{(int)time.TotalMinutes:D2}:{time.Seconds:D2}";
+        // ⚡ Bolt: [performance improvement]
+        // Avoid string interpolation allocations in high-frequency update path.
+        // string.Create is much faster and reduces GC pressure.
+        int mins = (int)time.TotalMinutes;
+
+        // Optimize the 99% case of < 100 minutes (exactly 5 chars "MM:SS")
+        if (mins <= 99)
+        {
+            return string.Create(5, time, (span, t) => {
+                int m = (int)t.TotalMinutes;
+                int s = t.Seconds;
+                span[0] = (char)('0' + (m / 10));
+                span[1] = (char)('0' + (m % 10));
+                span[2] = ':';
+                span[3] = (char)('0' + (s / 10));
+                span[4] = (char)('0' + (s % 10));
+            });
+        }
+
+        // Fallback for extremely long media (> 99 mins)
+        return $"{mins:D2}:{time.Seconds:D2}";
     }
 }
