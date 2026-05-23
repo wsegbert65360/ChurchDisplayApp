@@ -1,0 +1,3 @@
+## 2026-05-23 - Zero-allocation string comparison in high frequency paths
+**Learning:** High frequency operations like live preview timers can cause noticeable GC pressure by allocating new strings on every tick using `ToLower()` and LINQ methods like `Contains()` when checking file extensions. C# allows zero-allocation string checks using spans and `OrdinalIgnoreCase`.
+**Action:** Use `Path.GetExtension(filePath.AsSpan())` and `extSpan.Equals(ext, StringComparison.OrdinalIgnoreCase)` instead of `Path.GetExtension(filePath).ToLower()` for high-frequency string path operations to prevent memory allocations. Note: Keep `ToLower()` for strings bound to UI triggers that require exact matches.
