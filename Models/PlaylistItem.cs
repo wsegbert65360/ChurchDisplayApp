@@ -38,7 +38,7 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+            Extension = Path.GetExtension(fullPath).ToLowerInvariant();
             Volume = volume;
         }
 
