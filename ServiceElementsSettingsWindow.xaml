@@ -24,7 +24,7 @@
                 <Button DockPanel.Dock="Right" Content="Browse…" MinWidth="70" Padding="8,4"
                         Margin="4,0,0,0" Click="BrowseDefaultFolder_Click"/>
                 <TextBox x:Name="DefaultFolderBox" MinHeight="26" IsReadOnly="True"
-                         VerticalContentAlignment="Center"/>
+                         VerticalContentAlignment="Center" AutomationProperties.Name="Default media folder path"/>
             </DockPanel>
         </GroupBox>
 
