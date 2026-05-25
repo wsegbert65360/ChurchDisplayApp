@@ -38,7 +38,9 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+            // Bolt: [performance improvement] Using ReadOnlySpan<char> for extension extraction
+            // but preserving the .ToString().ToLowerInvariant() requirement for WPF UI DataTriggers
+            Extension = Path.GetExtension(fullPath.AsSpan()).ToString().ToLowerInvariant();
             Volume = volume;
         }
 

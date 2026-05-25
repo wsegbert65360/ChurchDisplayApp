@@ -1,0 +1,3 @@
+## 2024-05-24 - Zero-Allocation Tradeoffs in WPF Data Binding
+**Learning:** While zero-allocation techniques like `ReadOnlySpan<char>` are extremely beneficial for avoiding GC pressure in high-frequency string operations (e.g., `Path.GetExtension(filePath.AsSpan())`), properties bound to WPF UI DataTriggers often require standard strings. DataTriggers evaluating string values (like `Value=".mp4"`) will fail to match if the underlying property is a `ReadOnlySpan` or structural type.
+**Action:** When optimizing WPF C# models, use span-based operations to slice and extract strings efficiently, but use `.ToString().ToLowerInvariant()` or similar string finalizations before storing values exposed to the UI if they are required for trigger matching or visual styling.
