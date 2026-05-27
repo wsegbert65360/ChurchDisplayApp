@@ -38,7 +38,8 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+            // ⚡ Bolt: Use ToLowerInvariant() for culture-independent lowering, preserving UI trigger bindings
+            Extension = Path.GetExtension(fullPath).ToLowerInvariant();
             Volume = volume;
         }
 
