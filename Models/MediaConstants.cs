@@ -11,25 +11,50 @@ public static class MediaConstants
 
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var extension in ImageExtensions)
+        {
+            if (ext.Equals(extension, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var extension in VideoExtensions)
+        {
+            if (ext.Equals(extension, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var extension in AudioExtensions)
+        {
+            if (ext.Equals(extension, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
+    // ⚡ Bolt: [performance improvement]
+    // Extracted once to avoid 3 separate parsing/allocating calls, uses zero-allocation ReadOnlySpan
     public static bool IsSupported(string filePath)
     {
-        return IsImage(filePath) || IsVideo(filePath) || IsAudio(filePath);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+
+        foreach (var extension in ImageExtensions)
+            if (ext.Equals(extension, StringComparison.OrdinalIgnoreCase)) return true;
+
+        foreach (var extension in VideoExtensions)
+            if (ext.Equals(extension, StringComparison.OrdinalIgnoreCase)) return true;
+
+        foreach (var extension in AudioExtensions)
+            if (ext.Equals(extension, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
     }
 
     public static string GetImageFilter() => "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif|All Files|*.*";
