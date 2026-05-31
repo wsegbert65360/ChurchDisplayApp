@@ -9,22 +9,44 @@ public static class MediaConstants
     public static readonly string[] VideoExtensions = { ".mp4", ".mov", ".wmv", ".mkv" };
     public static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".wma", ".m4a" };
 
+    // ⚡ Bolt: Zero-allocation extension check to reduce GC pressure
+    // Impact: Avoids string allocations for .ToLower() and .GetExtension() on high-frequency paths
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        if (string.IsNullOrEmpty(filePath)) return false;
+        var extSpan = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var ext in ImageExtensions)
+        {
+            if (extSpan.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
+    // ⚡ Bolt: Zero-allocation extension check to reduce GC pressure
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        if (string.IsNullOrEmpty(filePath)) return false;
+        var extSpan = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var ext in VideoExtensions)
+        {
+            if (extSpan.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
+    // ⚡ Bolt: Zero-allocation extension check to reduce GC pressure
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        if (string.IsNullOrEmpty(filePath)) return false;
+        var extSpan = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var ext in AudioExtensions)
+        {
+            if (extSpan.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsSupported(string filePath)
