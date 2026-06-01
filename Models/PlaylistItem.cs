@@ -38,7 +38,8 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+            // Used for UI DataTriggers; requires cultural-agnostic lowercasing instead of Span<char>
+            Extension = Path.GetExtension(fullPath).ToLowerInvariant();
             Volume = volume;
         }
 
