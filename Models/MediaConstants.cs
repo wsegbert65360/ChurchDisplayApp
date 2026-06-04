@@ -9,27 +9,43 @@ public static class MediaConstants
     public static readonly string[] VideoExtensions = { ".mp4", ".mov", ".wmv", ".mkv" };
     public static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".wma", ".m4a" };
 
+    // Helper to check extensions without allocations
+    private static bool ContainsExt(ReadOnlySpan<char> ext, string[] extensions)
+    {
+        foreach (var e in extensions)
+        {
+            if (ext.Equals(e, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    // Performance Optimization: Use ReadOnlySpan<char> and StringComparison.OrdinalIgnoreCase
+    // to eliminate string allocations from .ToLower() and reduce GC pressure.
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        return ContainsExt(ext, ImageExtensions);
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        return ContainsExt(ext, VideoExtensions);
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        return ContainsExt(ext, AudioExtensions);
     }
 
     public static bool IsSupported(string filePath)
     {
-        return IsImage(filePath) || IsVideo(filePath) || IsAudio(filePath);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        return ContainsExt(ext, ImageExtensions) ||
+               ContainsExt(ext, VideoExtensions) ||
+               ContainsExt(ext, AudioExtensions);
     }
 
     public static string GetImageFilter() => "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif|All Files|*.*";

@@ -1,0 +1,3 @@
+## 2024-05-24 - Zero-Allocation Extension Checking in C#
+**Learning:** `MediaConstants.cs` was using allocating `.ToLower()` strings and LINQ `.Contains()` array checks on standard file formats repeatedly, accumulating unnecessary GC pressure in paths where media checking occurs often. Since `.NET Core 2.1+`, `ReadOnlySpan<char>` and `StringComparison.OrdinalIgnoreCase` offer clean, zero-allocation alternatives.
+**Action:** When validating file extensions or checking simple fixed string conditions against lists, leverage `Path.GetExtension(filePath.AsSpan())` alongside a custom allocation-free loop checking `ext.Equals(string, StringComparison.OrdinalIgnoreCase)`. This is a clean, standard pattern for avoiding `.ToLower()` garbage generation.
