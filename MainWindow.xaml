@@ -53,7 +53,8 @@
                     <TextBlock Text="SERVICE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <TextBlock Text="A" FontSize="8" VerticalAlignment="Center" Opacity="0.5" Margin="0,0,4,0" />
-                        <Slider Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1" />
+                        <Slider Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1"
+                                ToolTip="Adjust Playlist Font Size" AutomationProperties.Name="Playlist Font Size" />
                         <TextBlock Text="A" FontSize="12" VerticalAlignment="Center" Opacity="0.8" Margin="4,0,0,0" />
                     </StackPanel>
                 </DockPanel>
@@ -138,7 +139,8 @@
                       ShowsPreview="False"
                       Background="#DDDDDD"
                       Cursor="SizeWE"
-                      ToolTip="Drag to resize">
+                      ToolTip="Drag to resize"
+                      AutomationProperties.Name="Resize Sidebar">
             <GridSplitter.Template>
                 <ControlTemplate TargetType="GridSplitter">
                     <Border Background="{TemplateBinding Background}"
@@ -208,7 +210,8 @@
                             Value="{Binding Progress, Mode=TwoWay}"
                             IsMoveToPointEnabled="True" Cursor="Hand"
                             PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
-                            PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
+                            PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp"
+                            ToolTip="Media Progress" AutomationProperties.Name="Media Progress" />
                     <TextBlock Text="{Binding DurationStr}" Grid.Column="2" FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
                     <TextBlock Text="{Binding CurrentTimeStr}" Grid.Column="0" FontSize="10" FontWeight="SemiBold"
@@ -238,7 +241,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                 <!-- Play -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PlayCommand}"
-                                        ToolTip="Play Current Media"
+                                        ToolTip="Play Current Media" AutomationProperties.Name="Play Current Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="34" Height="34" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="17">
@@ -248,7 +251,7 @@
 
                                 <!-- Pause -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PauseCommand}"
-                                        ToolTip="Pause Media"
+                                        ToolTip="Pause Media" AutomationProperties.Name="Pause Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="13">
@@ -258,7 +261,7 @@
 
                                 <!-- Stop -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding StopCommand}"
-                                        ToolTip="Stop Media"
+                                        ToolTip="Stop Media" AutomationProperties.Name="Stop Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="13">
@@ -292,7 +295,7 @@
                                 <Slider Width="300" Minimum="0" Maximum="1"
                                         VerticalAlignment="Center" Value="{Binding Volume, Mode=TwoWay}"
                                         IsMoveToPointEnabled="True" Cursor="Hand"
-                                        SmallChange="0.05" ToolTip="Volume of currently playing media" />
+                                        SmallChange="0.05" ToolTip="Volume of currently playing media" AutomationProperties.Name="Media Volume" />
                                 <TextBlock Text="{Binding VolumePercentage}" FontSize="12" FontWeight="SemiBold"
                                            VerticalAlignment="Center" Margin="8,0,0,0" Width="38" TextAlignment="Center" />
                             </StackPanel>
