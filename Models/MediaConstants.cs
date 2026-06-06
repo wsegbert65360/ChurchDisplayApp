@@ -9,22 +9,32 @@ public static class MediaConstants
     public static readonly string[] VideoExtensions = { ".mp4", ".mov", ".wmv", ".mkv" };
     public static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".wma", ".m4a" };
 
+    // ⚡ Bolt: Used ReadOnlySpan<char> and StringComparison.OrdinalIgnoreCase to eliminate string allocations when evaluating file extensions during high-frequency UI checks.
+    private static bool ContainsExtension(string[] extensions, ReadOnlySpan<char> ext)
+    {
+        foreach (var e in extensions)
+        {
+            if (ext.Equals(e, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        return ContainsExtension(ImageExtensions, ext);
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        return ContainsExtension(VideoExtensions, ext);
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        return ContainsExtension(AudioExtensions, ext);
     }
 
     public static bool IsSupported(string filePath)

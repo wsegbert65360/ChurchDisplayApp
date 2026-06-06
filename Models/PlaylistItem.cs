@@ -38,7 +38,8 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+            // ⚡ Bolt: Used ToLowerInvariant to avoid culture-specific string allocations and maintain predictability for WPF data triggers.
+            Extension = Path.GetExtension(fullPath).ToLowerInvariant();
             Volume = volume;
         }
 
