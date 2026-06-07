@@ -1,0 +1,3 @@
+## 2024-05-24 - Zero-Allocation String Matching vs WPF UI Triggers
+**Learning:** For C# codebase performance, particularly in high-frequency paths like file extension checks, zero-allocation techniques such as `ReadOnlySpan<char>` (e.g., `Path.GetExtension(filePath.AsSpan())`) and `StringComparison.OrdinalIgnoreCase` are ideal to prevent string allocations. However, properties bound to WPF UI data triggers must remain strings (and ideally use `.ToLowerInvariant()`) to preserve trigger functionality.
+**Action:** When optimizing string matching for performance, use `ReadOnlySpan<char>` for internal logic, but always leave string properties intact if they are potentially bound to UI elements.

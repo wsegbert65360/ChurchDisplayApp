@@ -38,7 +38,9 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+            // Use ToLowerInvariant() for safe, culture-independent string conversion.
+            // Note: Keep as string (instead of ReadOnlySpan) since it may be used in UI data triggers.
+            Extension = Path.GetExtension(fullPath).ToLowerInvariant();
             Volume = volume;
         }
 
