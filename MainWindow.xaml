@@ -53,7 +53,7 @@
                     <TextBlock Text="SERVICE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <TextBlock Text="A" FontSize="8" VerticalAlignment="Center" Opacity="0.5" Margin="0,0,4,0" />
-                        <Slider Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1" />
+                        <Slider AutomationProperties.Name="Playlist Font Size" Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1" />
                         <TextBlock Text="A" FontSize="12" VerticalAlignment="Center" Opacity="0.8" Margin="4,0,0,0" />
                     </StackPanel>
                 </DockPanel>
@@ -130,6 +130,7 @@
 
         <!-- Resizable splitter -->
         <GridSplitter Grid.Column="1"
+                      AutomationProperties.Name="Playlist and Media Splitter"
                       Width="8"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
@@ -205,6 +206,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="🕒" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.6" />
                     <Slider x:Name="ProgressSlider" Grid.Column="1" Minimum="0" Maximum="100"
+                            AutomationProperties.Name="Media Progress"
                             Value="{Binding Progress, Mode=TwoWay}"
                             IsMoveToPointEnabled="True" Cursor="Hand"
                             PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
@@ -238,6 +240,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                 <!-- Play -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PlayCommand}"
+                                        AutomationProperties.Name="Play"
                                         ToolTip="Play Current Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="34" Height="34" Padding="0" Margin="0,0,4,0">
@@ -248,6 +251,7 @@
 
                                 <!-- Pause -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PauseCommand}"
+                                        AutomationProperties.Name="Pause"
                                         ToolTip="Pause Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
@@ -258,6 +262,7 @@
 
                                 <!-- Stop -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding StopCommand}"
+                                        AutomationProperties.Name="Stop"
                                         ToolTip="Stop Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
@@ -290,6 +295,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🔊" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.7" />
                                 <Slider Width="300" Minimum="0" Maximum="1"
+                                        AutomationProperties.Name="Media Volume"
                                         VerticalAlignment="Center" Value="{Binding Volume, Mode=TwoWay}"
                                         IsMoveToPointEnabled="True" Cursor="Hand"
                                         SmallChange="0.05" ToolTip="Volume of currently playing media" />
