@@ -1,0 +1,3 @@
+## 2024-06-11 - WPF Screen Reader Accessibility for Interactive Elements
+**Learning:** In WPF, providing a `ToolTip` on standalone interactive components (like Sliders and GridSplitters) or icon-only buttons is insufficient for screen reader accessibility. These elements lack intrinsic text content or associated labels to define their purpose.
+**Action:** Always explicitly set `AutomationProperties.Name` on interactive UI components that do not have text context (such as Sliders, GridSplitters, and icon-only buttons) to ensure screen readers can accurately announce their function to users.
