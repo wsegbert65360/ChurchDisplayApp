@@ -9,22 +9,36 @@ public static class MediaConstants
     public static readonly string[] VideoExtensions = { ".mp4", ".mov", ".wmv", ".mkv" };
     public static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".wma", ".m4a" };
 
+    // ⚡ Bolt: Zero-allocation string matching. Replaced string allocations and LINQ .Contains()
+    // with ReadOnlySpan<char> and explicit loops for high-frequency path optimization.
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        ReadOnlySpan<char> ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var imgExt in ImageExtensions)
+        {
+            if (ext.Equals(imgExt, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        ReadOnlySpan<char> ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var vidExt in VideoExtensions)
+        {
+            if (ext.Equals(vidExt, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        ReadOnlySpan<char> ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var audExt in AudioExtensions)
+        {
+            if (ext.Equals(audExt, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     public static bool IsSupported(string filePath)
