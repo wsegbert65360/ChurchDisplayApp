@@ -1,7 +1,8 @@
 using System.IO;
 using System.Windows;
-using Serilog;
 using ChurchDisplayApp.Models;
+using ChurchDisplayApp.Services;
+using Serilog;
 
 namespace ChurchDisplayApp;
 
@@ -12,10 +13,21 @@ public partial class App : Application
 {
     // PHASE 1: Hold splash reference for dismissal
     private SplashScreen? _splash;
+    private SingleInstanceService? _singleInstance;
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        try { ChurchDisplayApp.Services.StartupProfiler.Instance.StartPhase("WpfStartup"); } catch { }
+        // Enforce single instance BEFORE showing anything. If another instance owns the
+        // mutex, it is asked to surface and this process exits immediately without ever
+        // creating a window or binding a port.
+        _singleInstance = new SingleInstanceService();
+        if (!_singleInstance.TryAcquire())
+        {
+            Shutdown(0);
+            return;
+        }
+
+        try { StartupProfiler.Instance.StartPhase("WpfStartup"); } catch { }
         // PHASE 1: Show splash screen FIRST (before any init)
         try
         {
@@ -60,7 +72,7 @@ public partial class App : Application
         {
             var ex = args.ExceptionObject as Exception;
             Log.Fatal(ex, "FATAL: Unhandled background exception (Terminating: {IsTerminating})", args.IsTerminating);
-            
+
             if (args.IsTerminating)
             {
                 MessageBox.Show(
@@ -70,7 +82,7 @@ public partial class App : Application
                     "Fatal Application Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Stop);
-                
+
                 Log.CloseAndFlush();
             }
         };
@@ -78,7 +90,7 @@ public partial class App : Application
         DispatcherUnhandledException += (s, args) =>
         {
             Log.Error(args.Exception, "Unhandled UI Dispatcher exception");
-            
+
             MessageBox.Show(
                 "An unexpected error occurred in the user interface:\n\n" +
                 $"{args.Exception.Message}\n\n" +
@@ -117,7 +129,34 @@ public partial class App : Application
             });
         };
 
-        try { ChurchDisplayApp.Services.StartupProfiler.Instance.EndPhase("WpfStartup"); } catch { }
+        // Surface the main window when a second launch signals this instance.
+        _singleInstance.ActivationRequested += (s, args) =>
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    var w = MainWindow;
+                    if (w == null) return;
+                    if (w.WindowState == WindowState.Minimized)
+                        w.WindowState = WindowState.Normal;
+                    w.Show();
+                    w.Activate();
+                    // Topmost toggle forces it above windows that otherwise resist Activate()
+                    // (Windows blocks background focus stealing; the launcher granted us
+                    // foreground rights via AllowSetForegroundWindow before signaling).
+                    w.Topmost = true;
+                    w.Topmost = false;
+                    w.Focus();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to activate the main window for a second launch.");
+                }
+            }));
+        };
+
+        try { StartupProfiler.Instance.EndPhase("WpfStartup"); } catch { }
         mainWindow.Show();
 
         // PHASE 1: Safety timeout - close splash after 15s
@@ -138,6 +177,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         Log.Information("Application exiting...");
+        try { _singleInstance?.Dispose(); } catch { }
         Log.CloseAndFlush();
         base.OnExit(e);
 
