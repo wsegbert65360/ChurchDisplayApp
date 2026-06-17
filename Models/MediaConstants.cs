@@ -11,20 +11,35 @@ public static class MediaConstants
 
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        var extSpan = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var ext in ImageExtensions)
+        {
+            if (extSpan.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        var extSpan = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var ext in VideoExtensions)
+        {
+            if (extSpan.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        var extSpan = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var ext in AudioExtensions)
+        {
+            if (extSpan.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsSupported(string filePath)
