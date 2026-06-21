@@ -11,20 +11,38 @@ public static class MediaConstants
 
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        // ⚡ Bolt: Use ReadOnlySpan<char> and explicit loop to avoid string allocation
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var imgExt in ImageExtensions)
+        {
+            if (ext.Equals(imgExt, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        // ⚡ Bolt: Use ReadOnlySpan<char> and explicit loop to avoid string allocation
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var vidExt in VideoExtensions)
+        {
+            if (ext.Equals(vidExt, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        // ⚡ Bolt: Use ReadOnlySpan<char> and explicit loop to avoid string allocation
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var audExt in AudioExtensions)
+        {
+            if (ext.Equals(audExt, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsSupported(string filePath)
