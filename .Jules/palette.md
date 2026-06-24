@@ -1,0 +1,3 @@
+## 2025-02-24 - WPF ToolTips vs AutomationProperties
+**Learning:** In WPF, standalone interactive elements (like `Slider` or `GridSplitter`) using only a `ToolTip` are insufficient for screen readers; they require an explicit `AutomationProperties.Name` to be fully accessible.
+**Action:** Always verify that interactive inputs have `AutomationProperties.Name` assigned when a visual `ToolTip` or adjacent visual label isn't automatically bound for screen readers.
