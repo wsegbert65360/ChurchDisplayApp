@@ -1,0 +1,3 @@
+## 2024-06-29 - Zero-Allocation String Matching in High-Frequency Paths
+**Learning:** Checking file extensions using `.ToLower()` and LINQ `.Contains()` against arrays of strings creates unnecessary string allocations and GC pressure, which can be problematic in high-frequency code paths. Additionally, calling `.ToLower()` on a null string throws a `NullReferenceException`.
+**Action:** Use `.AsSpan()` with `System.IO.Path.GetExtension` and explicit loops with `StringComparison.OrdinalIgnoreCase` to achieve zero-allocation string matching. This approach is not only faster and memory-efficient but also natively handles null strings safely by returning an empty span.
