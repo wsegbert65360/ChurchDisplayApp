@@ -53,7 +53,8 @@
                     <TextBlock Text="SERVICE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <TextBlock Text="A" FontSize="8" VerticalAlignment="Center" Opacity="0.5" Margin="0,0,4,0" />
-                        <Slider Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1" />
+                        <Slider Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1"
+                                AutomationProperties.Name="Playlist font size" ToolTip="Adjust playlist font size" />
                         <TextBlock Text="A" FontSize="12" VerticalAlignment="Center" Opacity="0.8" Margin="4,0,0,0" />
                     </StackPanel>
                 </DockPanel>
@@ -207,6 +208,7 @@
                     <Slider x:Name="ProgressSlider" Grid.Column="1" Minimum="0" Maximum="100"
                             Value="{Binding Progress, Mode=TwoWay}"
                             IsMoveToPointEnabled="True" Cursor="Hand"
+                            AutomationProperties.Name="Media playback progress" ToolTip="Media playback progress"
                             PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
                             PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp" />
                     <TextBlock Text="{Binding DurationStr}" Grid.Column="2" FontSize="10" FontWeight="SemiBold"
@@ -238,7 +240,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                 <!-- Play -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PlayCommand}"
-                                        ToolTip="Play Current Media"
+                                        AutomationProperties.Name="Play" ToolTip="Play Current Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="34" Height="34" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="17">
@@ -248,7 +250,7 @@
 
                                 <!-- Pause -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PauseCommand}"
-                                        ToolTip="Pause Media"
+                                        AutomationProperties.Name="Pause" ToolTip="Pause Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="13">
@@ -258,7 +260,7 @@
 
                                 <!-- Stop -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding StopCommand}"
-                                        ToolTip="Stop Media"
+                                        AutomationProperties.Name="Stop" ToolTip="Stop Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="13">
@@ -292,6 +294,7 @@
                                 <Slider Width="300" Minimum="0" Maximum="1"
                                         VerticalAlignment="Center" Value="{Binding Volume, Mode=TwoWay}"
                                         IsMoveToPointEnabled="True" Cursor="Hand"
+                                        AutomationProperties.Name="Volume control"
                                         SmallChange="0.05" ToolTip="Volume of currently playing media" />
                                 <TextBlock Text="{Binding VolumePercentage}" FontSize="12" FontWeight="SemiBold"
                                            VerticalAlignment="Center" Margin="8,0,0,0" Width="38" TextAlignment="Center" />
