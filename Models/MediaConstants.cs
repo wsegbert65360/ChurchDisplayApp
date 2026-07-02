@@ -11,20 +11,38 @@ public static class MediaConstants
 
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        // ⚡ Bolt: Zero-allocation extension checking using ReadOnlySpan<char> and StringComparison.OrdinalIgnoreCase to reduce GC pressure
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var extension in ImageExtensions)
+        {
+            if (ext.Equals(extension.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        // ⚡ Bolt: Zero-allocation extension checking using ReadOnlySpan<char> and StringComparison.OrdinalIgnoreCase to reduce GC pressure
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var extension in VideoExtensions)
+        {
+            if (ext.Equals(extension.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        // ⚡ Bolt: Zero-allocation extension checking using ReadOnlySpan<char> and StringComparison.OrdinalIgnoreCase to reduce GC pressure
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var extension in AudioExtensions)
+        {
+            if (ext.Equals(extension.AsSpan(), StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsSupported(string filePath)
