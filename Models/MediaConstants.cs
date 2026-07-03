@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 
 namespace ChurchDisplayApp.Models;
 
@@ -9,22 +8,40 @@ public static class MediaConstants
     public static readonly string[] VideoExtensions = { ".mp4", ".mov", ".wmv", ".mkv" };
     public static readonly string[] AudioExtensions = { ".mp3", ".wav", ".flac", ".wma", ".m4a" };
 
+    // Optimization: Zero-allocation string comparison
+    // Avoids LINQ .Contains() and string .ToLower() allocations on high-frequency paths
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var imageExt in ImageExtensions)
+        {
+            if (ext.Equals(imageExt, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
+    // Optimization: Zero-allocation string comparison
+    // Avoids LINQ .Contains() and string .ToLower() allocations on high-frequency paths
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var videoExt in VideoExtensions)
+        {
+            if (ext.Equals(videoExt, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
+    // Optimization: Zero-allocation string comparison
+    // Avoids LINQ .Contains() and string .ToLower() allocations on high-frequency paths
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var audioExt in AudioExtensions)
+        {
+            if (ext.Equals(audioExt, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
     }
 
     public static bool IsSupported(string filePath)
