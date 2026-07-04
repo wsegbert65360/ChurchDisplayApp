@@ -11,20 +11,38 @@ public static class MediaConstants
 
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return ImageExtensions.Contains(ext);
+        // ⚡ Bolt Performance: Use ReadOnlySpan and OrdinalIgnoreCase to prevent string allocations and reduce GC pressure.
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var supported in ImageExtensions)
+        {
+            if (ext.Equals(supported, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return VideoExtensions.Contains(ext);
+        // ⚡ Bolt Performance: Use ReadOnlySpan and OrdinalIgnoreCase to prevent string allocations and reduce GC pressure.
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var supported in VideoExtensions)
+        {
+            if (ext.Equals(supported, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
-        return AudioExtensions.Contains(ext);
+        // ⚡ Bolt Performance: Use ReadOnlySpan and OrdinalIgnoreCase to prevent string allocations and reduce GC pressure.
+        var ext = System.IO.Path.GetExtension(filePath.AsSpan());
+        foreach (var supported in AudioExtensions)
+        {
+            if (ext.Equals(supported, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public static bool IsSupported(string filePath)

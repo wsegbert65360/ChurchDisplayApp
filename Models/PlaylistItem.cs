@@ -38,7 +38,8 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
+            // ⚡ Bolt Performance: Use ToLowerInvariant to preserve UI data triggers while avoiding localization overhead.
+            Extension = Path.GetExtension(fullPath).ToLowerInvariant();
             Volume = volume;
         }
 
