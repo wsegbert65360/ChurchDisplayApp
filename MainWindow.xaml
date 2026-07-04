@@ -37,7 +37,7 @@
                 <!-- Add Media Button -->
                 <Button Grid.Row="0" 
                         Style="{StaticResource ModernButtonStyle}" 
-                        Click="AddFiles_Click"
+                        AutomationProperties.Name="Add Media" Click="AddFiles_Click"
                         Margin="15,5" 
                         Padding="8,4"
                         HorizontalAlignment="Stretch"
@@ -53,7 +53,7 @@
                     <TextBlock Text="SERVICE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <TextBlock Text="A" FontSize="8" VerticalAlignment="Center" Opacity="0.5" Margin="0,0,4,0" />
-                        <Slider Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1" />
+                        <Slider AutomationProperties.Name="Playlist Font Size" Width="50" Minimum="6" Maximum="24" Value="{Binding PlaylistFontSize, Mode=TwoWay}" VerticalAlignment="Center" SmallChange="1" />
                         <TextBlock Text="A" FontSize="12" VerticalAlignment="Center" Opacity="0.8" Margin="4,0,0,0" />
                     </StackPanel>
                 </DockPanel>
@@ -129,7 +129,8 @@
         </Border>
 
         <!-- Resizable splitter -->
-        <GridSplitter Grid.Column="1"
+        <GridSplitter AutomationProperties.Name="Resize Sidebar"
+                      Grid.Column="1"
                       Width="8"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
@@ -204,7 +205,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="🕒" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.6" />
-                    <Slider x:Name="ProgressSlider" Grid.Column="1" Minimum="0" Maximum="100"
+                    <Slider x:Name="ProgressSlider" AutomationProperties.Name="Media Progress" Grid.Column="1" Minimum="0" Maximum="100"
                             Value="{Binding Progress, Mode=TwoWay}"
                             IsMoveToPointEnabled="True" Cursor="Hand"
                             PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
@@ -238,7 +239,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                 <!-- Play -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PlayCommand}"
-                                        ToolTip="Play Current Media"
+                                        AutomationProperties.Name="Play" ToolTip="Play Current Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="34" Height="34" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="17">
@@ -248,7 +249,7 @@
 
                                 <!-- Pause -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PauseCommand}"
-                                        ToolTip="Pause Media"
+                                        AutomationProperties.Name="Pause" ToolTip="Pause Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="13">
@@ -258,7 +259,7 @@
 
                                 <!-- Stop -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding StopCommand}"
-                                        ToolTip="Stop Media"
+                                        AutomationProperties.Name="Stop" ToolTip="Stop Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
                                     <Border CornerRadius="13">
@@ -268,7 +269,7 @@
 
                                 <!-- Amen -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Click="AmenButton_Click"
-                                        ToolTip="Stop Media &amp; Play Amen Resolve"
+                                        AutomationProperties.Name="Amen Resolve" ToolTip="Stop Media &amp; Play Amen Resolve"
                                         Background="#E8B849" BorderThickness="0"
                                         Width="44" Height="26" Padding="0" Margin="0,0,12,0">
                                     <Border CornerRadius="13">
@@ -289,7 +290,7 @@
                             <!-- Bottom Row: Volume -->
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🔊" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.7" />
-                                <Slider Width="300" Minimum="0" Maximum="1"
+                                <Slider AutomationProperties.Name="Media Volume" Width="300" Minimum="0" Maximum="1"
                                         VerticalAlignment="Center" Value="{Binding Volume, Mode=TwoWay}"
                                         IsMoveToPointEnabled="True" Cursor="Hand"
                                         SmallChange="0.05" ToolTip="Volume of currently playing media" />

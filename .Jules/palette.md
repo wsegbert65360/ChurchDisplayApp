@@ -1,0 +1,1 @@
+## 2024-07-04 - Initial Setup\n**Learning:** This is a WPF application using C#. Accessibility properties are added via `AutomationProperties.Name` in XAML.\n**Action:** Apply `AutomationProperties.Name` to interactive elements, particularly icon-only buttons and sliders.
