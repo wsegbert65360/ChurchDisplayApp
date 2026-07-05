@@ -1,0 +1,3 @@
+## 2025-02-23 - Avoiding LINQ `.Contains` and `.ToLower()` allocations
+**Learning:** In C#, using `Path.GetExtension(filePath).ToLower()` coupled with LINQ `.Contains()` on arrays causes unnecessary string allocations and boxing, increasing GC pressure. Additionally, using `.ToLower()` throws a `NullReferenceException` if the string is null. Using `ReadOnlySpan<char>` via `.AsSpan()` provides an empty span if null, safely and efficiently handling the path without allocation.
+**Action:** In high-frequency path checking or file extension logic, replace `.ToLower()` + `.Contains()` with `ReadOnlySpan<char>` + explicit loops utilizing `StringComparison.OrdinalIgnoreCase` to maintain zero-allocation optimization.
