@@ -225,21 +225,6 @@ public class AppSettings
         }
     }
 
-    public string? GetSongFile(string settingsProperty) => settingsProperty switch
-    {
-        nameof(CallToWorshipFile) => CallToWorshipFile,
-        nameof(DoxologyFile) => DoxologyFile,
-        nameof(GloriaPatriFile) => GloriaPatriFile,
-        nameof(LordsPrayerFile) => LordsPrayerFile,
-        nameof(SongForBeginningFile) => SongForBeginningFile,
-        nameof(PraiseSongFile) => PraiseSongFile,
-        nameof(PrayerSongFile) => PrayerSongFile,
-        nameof(CommunionSongFile) => CommunionSongFile,
-        nameof(ChildrensMomentSongFile) => ChildrensMomentSongFile,
-        nameof(InvitationSongFile) => InvitationSongFile,
-        nameof(EndingSongFile) => EndingSongFile,
-        _ => null
-    };
 
     public void SetSongFile(string settingsProperty, string? value)
     {
