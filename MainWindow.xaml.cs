@@ -393,7 +393,7 @@ public partial class MainWindow : Window, IDisplayController
 
         if (successfulPort > 0)
         {
-            VerifyFirewallRule(successfulPort);
+            await VerifyFirewallRuleAsync(successfulPort);
             UpdateRemoteQrCode(successfulPort);
             Log.Information("Remote control server running on port {Port}", successfulPort);
         }
@@ -413,7 +413,7 @@ public partial class MainWindow : Window, IDisplayController
         StartupProfiler.Instance.DumpSummary();
     }
 
-    private static void VerifyFirewallRule(int port)
+    private static async Task VerifyFirewallRuleAsync(int port)
     {
         try
         {
@@ -422,7 +422,8 @@ public partial class MainWindow : Window, IDisplayController
 
             foreach (var ruleName in ruleNames)
             {
-                var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "netsh",
                     Arguments = $"advfirewall firewall show rule name=\"{ruleName}\"",
@@ -430,15 +431,22 @@ public partial class MainWindow : Window, IDisplayController
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
-                });
-                proc?.WaitForExit(3000);
-                var output = proc?.StandardOutput.ReadToEnd() ?? "";
+                };
 
-                if (output.Contains(ruleName))
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
                 {
-                    found = true;
-                    Log.Information("Firewall rule '{RuleName}' found — remote control accessible on port {Port}", ruleName, port);
-                    break;
+                    // Asynchronously read standard output and wait for process completion asynchronously to prevent thread blocking
+                    var outputTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
+                    await proc.WaitForExitAsync(cts.Token);
+                    var output = await outputTask;
+
+                    if (output.Contains(ruleName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        found = true;
+                        Log.Information("Firewall rule '{RuleName}' found — remote control accessible on port {Port}", ruleName, port);
+                        break;
+                    }
                 }
             }
 
