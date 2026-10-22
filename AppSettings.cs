@@ -241,23 +241,6 @@ public class AppSettings
         _ => null
     };
 
-    public void SetSongFile(string settingsProperty, string? value)
-    {
-        switch (settingsProperty)
-        {
-            case nameof(CallToWorshipFile): CallToWorshipFile = value; break;
-            case nameof(DoxologyFile): DoxologyFile = value; break;
-            case nameof(GloriaPatriFile): GloriaPatriFile = value; break;
-            case nameof(LordsPrayerFile): LordsPrayerFile = value; break;
-            case nameof(SongForBeginningFile): SongForBeginningFile = value; break;
-            case nameof(PraiseSongFile): PraiseSongFile = value; break;
-            case nameof(PrayerSongFile): PrayerSongFile = value; break;
-            case nameof(CommunionSongFile): CommunionSongFile = value; break;
-            case nameof(ChildrensMomentSongFile): ChildrensMomentSongFile = value; break;
-            case nameof(InvitationSongFile): InvitationSongFile = value; break;
-            case nameof(EndingSongFile): EndingSongFile = value; break;
-        }
-    }
 
     private static AppSettings? _instance;
 
