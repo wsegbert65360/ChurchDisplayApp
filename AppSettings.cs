@@ -42,19 +42,6 @@ public class AppSettings
     /// <summary>Gets or sets the proportional height of the top row (0.0 to 1.0).</summary>
     public double? MainWindowTopRowProportion { get; set; }
     
-    // Song file names
-    public string? CallToWorshipFile { get; set; }
-    public string? DoxologyFile { get; set; }
-    public string? GloriaPatriFile { get; set; }
-    public string? LordsPrayerFile { get; set; }
-    public string? SongForBeginningFile { get; set; }
-    public string? PraiseSongFile { get; set; }
-    public string? PrayerSongFile { get; set; }
-    public string? CommunionSongFile { get; set; }
-    public string? ChildrensMomentSongFile { get; set; }
-    public string? InvitationSongFile { get; set; }
-    public string? EndingSongFile { get; set; }
-    
     /// <summary>Gets or sets the last directory used to search for media files.</summary>
     public string? LastMediaDirectory { get; set; }
 
@@ -102,30 +89,29 @@ public class AppSettings
     }
 
     /// <summary>
-    /// If ServiceSlots is empty (first run or upgrade from old version),
-    /// seeds it from the legacy per-song properties. Called by Load().
+    /// If ServiceSlots is empty (first run), seeds default service element slots. Called by Load().
     /// </summary>
     public void MigrateToServiceSlots()
     {
         if (ServiceSlots.Count > 0)
             return;
 
-        var legacyMappings = new[]
+        var defaultSlotNames = new[]
         {
-            ("Call to Worship",              CallToWorshipFile),
-            ("Song for Beginning of Church", SongForBeginningFile),
-            ("Doxology",                     DoxologyFile),
-            ("Praise Song",                  PraiseSongFile),
-            ("Gloria Patri",                 GloriaPatriFile),
-            ("Lord's Prayer",                LordsPrayerFile),
-            ("Prayer Song",                  PrayerSongFile),
-            ("Communion Song",               CommunionSongFile),
-            ("Children's Moment Song",       ChildrensMomentSongFile),
-            ("Invitation Song",              InvitationSongFile),
-            ("Ending Song",                  EndingSongFile),
+            "Call to Worship",
+            "Song for Beginning of Church",
+            "Doxology",
+            "Praise Song",
+            "Gloria Patri",
+            "Lord's Prayer",
+            "Prayer Song",
+            "Communion Song",
+            "Children's Moment Song",
+            "Invitation Song",
+            "Ending Song"
         };
 
-        foreach (var (name, fileName) in legacyMappings)
+        foreach (var name in defaultSlotNames)
         {
             ServiceSlots.Add(new ServiceSlot
             {
@@ -156,17 +142,6 @@ public class AppSettings
             MainWindowTopRowProportion = Math.Clamp(MainWindowTopRowProportion.Value, 0.05, 0.95);
 
         // Ensure strings are not null
-        CallToWorshipFile ??= string.Empty;
-        DoxologyFile ??= string.Empty;
-        GloriaPatriFile ??= string.Empty;
-        LordsPrayerFile ??= string.Empty;
-        SongForBeginningFile ??= string.Empty;
-        PraiseSongFile ??= string.Empty;
-        PrayerSongFile ??= string.Empty;
-        CommunionSongFile ??= string.Empty;
-        ChildrensMomentSongFile ??= string.Empty;
-        InvitationSongFile ??= string.Empty;
-        EndingSongFile ??= string.Empty;
         LastMediaDirectory ??= string.Empty;
 
         // Note: LastPlaylistDirectory is intentionally allowed to be null so that
@@ -222,40 +197,6 @@ public class AppSettings
             {
                 Serilog.Log.Warning(ex, "Error saving settings");
             }
-        }
-    }
-
-    public string? GetSongFile(string settingsProperty) => settingsProperty switch
-    {
-        nameof(CallToWorshipFile) => CallToWorshipFile,
-        nameof(DoxologyFile) => DoxologyFile,
-        nameof(GloriaPatriFile) => GloriaPatriFile,
-        nameof(LordsPrayerFile) => LordsPrayerFile,
-        nameof(SongForBeginningFile) => SongForBeginningFile,
-        nameof(PraiseSongFile) => PraiseSongFile,
-        nameof(PrayerSongFile) => PrayerSongFile,
-        nameof(CommunionSongFile) => CommunionSongFile,
-        nameof(ChildrensMomentSongFile) => ChildrensMomentSongFile,
-        nameof(InvitationSongFile) => InvitationSongFile,
-        nameof(EndingSongFile) => EndingSongFile,
-        _ => null
-    };
-
-    public void SetSongFile(string settingsProperty, string? value)
-    {
-        switch (settingsProperty)
-        {
-            case nameof(CallToWorshipFile): CallToWorshipFile = value; break;
-            case nameof(DoxologyFile): DoxologyFile = value; break;
-            case nameof(GloriaPatriFile): GloriaPatriFile = value; break;
-            case nameof(LordsPrayerFile): LordsPrayerFile = value; break;
-            case nameof(SongForBeginningFile): SongForBeginningFile = value; break;
-            case nameof(PraiseSongFile): PraiseSongFile = value; break;
-            case nameof(PrayerSongFile): PrayerSongFile = value; break;
-            case nameof(CommunionSongFile): CommunionSongFile = value; break;
-            case nameof(ChildrensMomentSongFile): ChildrensMomentSongFile = value; break;
-            case nameof(InvitationSongFile): InvitationSongFile = value; break;
-            case nameof(EndingSongFile): EndingSongFile = value; break;
         }
     }
 
