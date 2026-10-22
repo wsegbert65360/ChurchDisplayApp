@@ -97,17 +97,25 @@ namespace ChurchDisplayApp.Services
                     var files = (string[])e.Data.GetData(DataFormats.FileDrop);
                     if (files != null && files.Length > 0)
                     {
+                        // Parallelize file validation (File.Exists / extension check) to prevent UI thread blocking during drag-and-drop file drops
+                        var validFiles = files
+                            .AsParallel()
+                            .AsOrdered()
+                            .Where(file => _playlistManager.ValidateFile(file))
+                            .ToList();
+
                         int insertIndex = dropIndex;
-                        foreach (var file in files)
+                        double defaultVolume = AppSettings.Current.DefaultServiceVolume;
+                        foreach (var file in validFiles)
                         {
-                            if (_playlistManager.ValidateFile(file))
-                            {
-                                var item = new PlaylistItem(file, AppSettings.Current.DefaultServiceVolume);
-                                _playlistManager.Items.Insert(insertIndex, item);
-                                insertIndex++;
-                            }
+                            var item = new PlaylistItem(file, defaultVolume);
+                            _playlistManager.Items.Insert(insertIndex, item);
+                            insertIndex++;
                         }
-                        _playlistListBox.SelectedIndex = Math.Min(insertIndex - 1, _playlistManager.Items.Count - 1);
+                        if (validFiles.Count > 0)
+                        {
+                            _playlistListBox.SelectedIndex = Math.Min(insertIndex - 1, _playlistManager.Items.Count - 1);
+                        }
                         _onPlaylistChanged?.Invoke();
                     }
                 }
