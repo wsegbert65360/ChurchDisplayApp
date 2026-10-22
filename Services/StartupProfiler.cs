@@ -44,7 +44,8 @@ namespace ChurchDisplayApp.Services
                 Debug.WriteLine("[StartupProfiler] ===== Startup Timing Summary =====");
                 Debug.WriteLine($"[StartupProfiler] Total startup: {_total.ElapsedMilliseconds}ms");
                 
-                var sortedPhases = _phases.OrderBy(p => p.Value.StartTicks);
+                // Materialize ordered phases to array to prevent deferred LINQ re-evaluation and re-sorting on multiple iterations
+                var sortedPhases = _phases.OrderBy(p => p.Value.StartTicks).ToArray();
                 foreach (var phase in sortedPhases)
                 {
                     long ms = phase.Value.ElapsedTicks * 1000 / Stopwatch.Frequency;
