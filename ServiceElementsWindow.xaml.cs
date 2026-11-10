@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ChurchDisplayApp.Models;
 using ChurchDisplayApp.Services;
 
@@ -18,12 +19,25 @@ public partial class ServiceElementsWindow : Window
     // refresh a single row without rebuilding the whole list.
     private readonly Dictionary<string, Grid> _slotRows = new();
 
+    // Asked before the playlist is replaced; returns false if the operator cancelled saving/discarding.
+    private readonly Func<bool>? _confirmDiscard;
+    private DispatcherTimer? _statusTimer;
+
+    /// <summary>Gets how many items this window has added to the playlist so far.</summary>
+    public int AddedCount { get; private set; }
+
     // ── Constructor ───────────────────────────────────────────────────────────
-    public ServiceElementsWindow(PlaylistManager playlistManager)
+    /// <param name="playlistManager">The playlist to add to.</param>
+    /// <param name="confirmDiscard">
+    /// Called before the existing playlist is replaced. Return false to cancel (for example, the operator
+    /// chose Cancel on the "save changes?" prompt).
+    /// </param>
+    public ServiceElementsWindow(PlaylistManager playlistManager, Func<bool>? confirmDiscard = null)
     {
         InitializeComponent();
         _playlistManager = playlistManager
             ?? throw new ArgumentNullException(nameof(playlistManager));
+        _confirmDiscard = confirmDiscard;
 
         ValidateStickyFiles();  // Check stored paths before building UI
         BuildSlotList();
@@ -176,7 +190,7 @@ public partial class ServiceElementsWindow : Window
             Value = effectiveVol,
             SmallChange = 0.05,
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "Default volume for this slot when added to playlist",
+            ToolTip = "Default volume for this slot when added to playlist (right-click to reset to the default)",
             Tag = slot.Id + "_volslider"
         };
         var volLabel = new TextBlock
@@ -195,6 +209,16 @@ public partial class ServiceElementsWindow : Window
             slot.DefaultVolume = pct;
             _settings.Save();
         };
+
+        var resetVolumeItem = new MenuItem { Header = "Use default volume" };
+        resetVolumeItem.Click += (s, e) =>
+        {
+            volSlider.Value = _settings.DefaultServiceVolume; // fires ValueChanged, which stores an override...
+            slot.DefaultVolume = -1.0;                        // ...so clear it again
+            _settings.Save();
+        };
+        volSlider.ContextMenu = new ContextMenu { Items = { resetVolumeItem } };
+
         volPanel.Children.Add(volSlider);
         volPanel.Children.Add(volLabel);
         Grid.SetColumn(volPanel, 5);
@@ -294,7 +318,7 @@ public partial class ServiceElementsWindow : Window
 
         var dlg = new OpenFileDialog
         {
-            Filter = "Media Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.mp4;*.mov;*.wmv;*.mkv;*.mp3;*.wav;*.flac;*.wma|All Files|*.*",
+            Filter = MediaConstants.GetAllMediaFilter(),
             Title  = $"Select: {slot.DisplayName}"
         };
 
@@ -350,9 +374,10 @@ public partial class ServiceElementsWindow : Window
         }
 
         var volume = EffectiveVolume(slot);
+        var before = _playlistManager.Items.Count;
         _playlistManager.AddFiles(new[] { slot.FilePath }, volume);
-        MessageBox.Show($"'{slot.DisplayName}' added to playlist at {(int)(volume * 100)}%.",
-            "Added", MessageBoxButton.OK, MessageBoxImage.Information);
+        AddedCount += _playlistManager.Items.Count - before;
+        SetStatus($"Added '{slot.DisplayName}' at {(int)(volume * 100)}%");
     }
 
     private void RememberCheck_Changed(object sender, RoutedEventArgs e)
@@ -379,11 +404,35 @@ public partial class ServiceElementsWindow : Window
             return;
         }
 
+        // Pressing this twice (or with a playlist already open) would otherwise duplicate everything.
+        if (_playlistManager.Items.Count > 0)
+        {
+            var choice = MessageBox.Show(
+                this,
+                $"The playlist already has {_playlistManager.Items.Count} item(s).\n\n" +
+                "Yes = replace the playlist with this service (stops anything playing now)\n" +
+                "No = add these to the end\n" +
+                "Cancel = go back",
+                "Send to Playlist",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (choice == MessageBoxResult.Cancel)
+                return;
+
+            if (choice == MessageBoxResult.Yes)
+            {
+                if (_confirmDiscard != null && !_confirmDiscard())
+                    return;
+
+                _playlistManager.Clear();
+            }
+        }
+
+        var countBefore = _playlistManager.Items.Count;
         foreach (var slot in validSlots)
             _playlistManager.AddFiles(new[] { slot.FilePath! }, EffectiveVolume(slot));
-
-        MessageBox.Show($"Service created! Added {validSlots.Count} items to the playlist.",
-            "Service Created", MessageBoxButton.OK, MessageBoxImage.Information);
+        AddedCount += _playlistManager.Items.Count - countBefore;
 
         DialogResult = true;
         Close();
@@ -413,6 +462,24 @@ public partial class ServiceElementsWindow : Window
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+    /// <summary>Shows a short confirmation next to the buttons instead of a pop-up.</summary>
+    private void SetStatus(string message)
+    {
+        StatusText.Text = message;
+
+        _statusTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _statusTimer.Stop();
+        _statusTimer.Tick -= StatusTimer_Tick;
+        _statusTimer.Tick += StatusTimer_Tick;
+        _statusTimer.Start();
+    }
+
+    private void StatusTimer_Tick(object? sender, EventArgs e)
+    {
+        _statusTimer?.Stop();
+        StatusText.Text = string.Empty;
+    }
+
     private ServiceSlot? GetSlot(string id) =>
         _settings.ServiceSlots.FirstOrDefault(s => s.Id == id);
 

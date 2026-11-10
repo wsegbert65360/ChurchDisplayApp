@@ -8,15 +8,9 @@
         Foreground="{StaticResource TextBrush}"
         Icon="icon.ico">
 
-    <Window.InputBindings>
-        <KeyBinding Key="Space" Command="{Binding TogglePlayPauseCommand}" />
-        <KeyBinding Key="Right" Command="{Binding NextCommand}" />
-        <KeyBinding Key="Left" Command="{Binding PreviousCommand}" />
-        <KeyBinding Key="B" Command="{Binding BlankCommand}" />
-        <KeyBinding Key="F11" Command="{Binding ToggleFullscreenCommand}" />
-        <KeyBinding Key="Escape" Command="{Binding ExitFullscreenCommand}" />
-    </Window.InputBindings>
-    
+    <!-- Keyboard shortcuts (Space, arrows, B, F11, Esc, Delete, Ctrl+S/O/Z) are handled in
+         MainWindow.OnPreviewKeyDown so they work no matter which control has focus. -->
+
     <Grid x:Name="RootGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="SidebarColumn" Width="280" MinWidth="220" />
@@ -80,7 +74,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock x:Name="FileTypeIcon" Text="🎵" FontSize="{Binding DataContext.PlaylistFontSize, RelativeSource={RelativeSource AncestorType=ListBox}}" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.7" />
-                                <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="{Binding DataContext.PlaylistFontSize, RelativeSource={RelativeSource AncestorType=ListBox}}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <TextBlock x:Name="FileNameText" Grid.Column="1" Text="{Binding FileName}" FontSize="{Binding DataContext.PlaylistFontSize, RelativeSource={RelativeSource AncestorType=ListBox}}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="2" Text="{Binding Volume, StringFormat={}{0:P0}}" FontSize="9" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" Margin="6,0,0,0" Opacity="0.7" />
                             </Grid>
                             <DataTemplate.Triggers>
@@ -91,12 +85,18 @@
                                 <DataTrigger Binding="{Binding Extension}" Value=".jpg"><Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" /></DataTrigger>
                                 <DataTrigger Binding="{Binding Extension}" Value=".jpeg"><Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" /></DataTrigger>
                                 <DataTrigger Binding="{Binding Extension}" Value=".png"><Setter TargetName="FileTypeIcon" Property="Text" Value="🖼️" /></DataTrigger>
+                                <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                                    <Setter TargetName="FileTypeIcon" Property="Text" Value="⚠" />
+                                    <Setter TargetName="FileNameText" Property="Foreground" Value="#C62828" />
+                                    <Setter TargetName="FileNameText" Property="TextDecorations" Value="Strikethrough" />
+                                    <Setter TargetName="FileNameText" Property="ToolTip" Value="File not found - check that the drive is connected. It stays in the playlist." />
+                                </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                     <ListBox.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="Delete" Click="DeleteMenuItem_Click" />
+                            <MenuItem Header="Remove from playlist" InputGestureText="Del" Click="DeleteMenuItem_Click" />
                         </ContextMenu>
                     </ListBox.ContextMenu>
                 </ListBox>
@@ -105,25 +105,31 @@
                 <Border Grid.Row="3" Margin="6,4,6,8" Background="White" CornerRadius="8"
                         Padding="6,5" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                     <StackPanel>
-                        <TextBlock Text="📂 PLAYLIST" FontSize="8" FontWeight="Bold"
-                                   Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,4" />
+                        <TextBlock x:Name="PlaylistNameText" Text="📂 PLAYLIST" FontSize="10" FontWeight="Bold"
+                                   Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,4"
+                                   TextTrimming="CharacterEllipsis" />
                         <UniformGrid Columns="2">
                             <Button Style="{StaticResource ModernButtonStyle}" Click="LoadPlaylist_Click"
-                                    Content="LOAD PLAYLIST" ToolTip="Load Saved Playlist"
-                                    MinWidth="0" Margin="0,0,2,2" Height="20" FontSize="7" Padding="4,0" />
+                                    Content="Open…" ToolTip="Open a saved playlist (Ctrl+O)"
+                                    MinWidth="0" Margin="0,0,2,4" Height="28" FontSize="11" Padding="4,0" />
                             <Button Style="{StaticResource ModernButtonStyle}" Click="SavePlaylist_Click"
-                                    Content="SAVE PLAYLIST" ToolTip="Save Current Playlist"
-                                    MinWidth="0" Margin="2,0,0,2" Height="20" FontSize="7" Padding="4,0" />
-                            <Button Style="{StaticResource ModernButtonStyle}" Click="CreatePlaylist_Click"
-                                    Content="NEW PLAYLIST"  ToolTip="Create Service Plan"
-                                    MinWidth="0" Margin="0,0,2,2" Height="20" FontSize="7" Padding="4,0" />
+                                    Content="Save" ToolTip="Save the playlist (Ctrl+S)"
+                                    MinWidth="0" Margin="2,0,0,4" Height="28" FontSize="11" Padding="4,0" />
+                            <Button Style="{StaticResource ModernButtonStyle}" Click="SavePlaylistAs_Click"
+                                    Content="Save As…" ToolTip="Save under a new name (Ctrl+Shift+S)"
+                                    MinWidth="0" Margin="0,0,2,4" Height="28" FontSize="11" Padding="4,0" />
                             <Button Style="{StaticResource ModernButtonStyle}" Click="ClosePlaylist_Click"
-                                    Content="CLOSE PLAYLIST" ToolTip="Close Current Playlist"
-                                    MinWidth="0" Margin="2,0,0,2" Height="20" FontSize="7" Padding="4,0" />
+                                    Content="Clear List" ToolTip="Close this playlist and start with an empty one"
+                                    MinWidth="0" Margin="2,0,0,4" Height="28" FontSize="11" Padding="4,0" />
                         </UniformGrid>
+                        <Button Style="{StaticResource ModernButtonStyle}" Click="CreatePlaylist_Click"
+                                Content="Build Service…" ToolTip="Pick the songs and elements for this service"
+                                MinWidth="0" Margin="0,0,0,4" Height="28" FontSize="11" Padding="4,0" />
                         <Button Style="{StaticResource PrimaryButtonStyle}" Click="ToggleDisplay_Click"
-                                Content="DISPLAY"
-                                MinWidth="0" Height="20" FontSize="7" Padding="4,0" Margin="0,2,0,0" />
+                                Focusable="False" Content="SHOW / HIDE DISPLAY"
+                                MinWidth="0" Height="28" FontSize="11" Padding="4,0" Margin="0,0,0,0" />
+                        <TextBlock x:Name="StatusText" FontSize="11" TextWrapping="Wrap"
+                                   Margin="2,6,2,0" Visibility="Collapsed" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -236,8 +242,19 @@
                             
                             <!-- Top Row: Transport buttons + Title -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <!-- Previous -->
+                                <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PreviousCommand}"
+                                        Focusable="False" ToolTip="Previous item (Left arrow)"
+                                        Background="{StaticResource ActionBrush}" BorderThickness="0"
+                                        Width="26" Height="26" Padding="0" Margin="0,0,4,0">
+                                    <Border CornerRadius="13">
+                                        <TextBlock Text="⏮" FontSize="11" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Border>
+                                </Button>
+
                                 <!-- Play -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PlayCommand}"
+                                        Focusable="False"
                                         ToolTip="Play Current Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="34" Height="34" Padding="0" Margin="0,0,4,0">
@@ -248,6 +265,7 @@
 
                                 <!-- Pause -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding PauseCommand}"
+                                        Focusable="False"
                                         ToolTip="Pause Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
@@ -258,6 +276,7 @@
 
                                 <!-- Stop -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding StopCommand}"
+                                        Focusable="False"
                                         ToolTip="Stop Media"
                                         Background="{StaticResource ActionBrush}" BorderThickness="0"
                                         Width="26" Height="26" Padding="0" Margin="0,0,4,0">
@@ -266,8 +285,19 @@
                                     </Border>
                                 </Button>
 
+                                <!-- Next -->
+                                <Button Style="{StaticResource ModernButtonStyle}" Command="{Binding NextCommand}"
+                                        Focusable="False" ToolTip="Next item (Right arrow)"
+                                        Background="{StaticResource ActionBrush}" BorderThickness="0"
+                                        Width="26" Height="26" Padding="0" Margin="0,0,4,0">
+                                    <Border CornerRadius="13">
+                                        <TextBlock Text="⏭" FontSize="11" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    </Border>
+                                </Button>
+
                                 <!-- Amen -->
                                 <Button Style="{StaticResource ModernButtonStyle}" Click="AmenButton_Click"
+                                        Focusable="False"
                                         ToolTip="Stop Media &amp; Play Amen Resolve"
                                         Background="{StaticResource AmenButtonBrush}" BorderThickness="0"
                                         Width="44" Height="26" Padding="0" Margin="0,0,12,0">
@@ -292,7 +322,7 @@
                                 <Slider Width="300" Minimum="0" Maximum="1"
                                         VerticalAlignment="Center" Value="{Binding Volume, Mode=TwoWay}"
                                         IsMoveToPointEnabled="True" Cursor="Hand"
-                                        SmallChange="0.05" ToolTip="Volume of currently playing media" />
+                                        SmallChange="0.05" ToolTip="Volume of the playing item, or the selected item when idle" />
                                 <TextBlock Text="{Binding VolumePercentage}" FontSize="12" FontWeight="SemiBold"
                                            VerticalAlignment="Center" Margin="8,0,0,0" Width="38" TextAlignment="Center" />
                             </StackPanel>

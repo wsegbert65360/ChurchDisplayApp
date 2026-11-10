@@ -149,15 +149,9 @@ public partial class ServiceElementsSettingsWindow : Window
     // ── Default folder ─────────────────────────────────────────────────────────
     private void BrowseDefaultFolder_Click(object sender, RoutedEventArgs e)
     {
-        // Use OpenFileDialog trick to pick a folder (FolderBrowserDialog requires WinForms)
-        var dlg = new OpenFileDialog
+        var dlg = new OpenFolderDialog
         {
-            Title            = "Select Default Media Folder",
-            CheckFileExists  = false,
-            FileName         = "Select Folder",
-            Filter           = "Folders|*.none",
-            ValidateNames    = false,
-            CheckPathExists  = true
+            Title = "Select Default Media Folder"
         };
 
         var current = DefaultFolderBox.Text.Trim();
@@ -166,7 +160,7 @@ public partial class ServiceElementsSettingsWindow : Window
 
         if (dlg.ShowDialog() == true)
         {
-            DefaultFolderBox.Text = Path.GetDirectoryName(dlg.FileName) ?? dlg.FileName;
+            DefaultFolderBox.Text = dlg.FolderName;
         }
     }
 }

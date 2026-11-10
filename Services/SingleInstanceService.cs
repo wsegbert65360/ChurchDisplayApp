@@ -22,6 +22,7 @@ public sealed class SingleInstanceService : IDisposable
     private const int SignalRetryDelayMs = 250;
 
     private Mutex? _mutex;
+    private bool _ownsMutex;
     private CancellationTokenSource? _cts;
     private Task? _listenTask;
 
@@ -67,6 +68,7 @@ public sealed class SingleInstanceService : IDisposable
             return false;
         }
 
+        _ownsMutex = true;
         StartPipeListener();
         return true;
     }
@@ -158,7 +160,11 @@ public sealed class SingleInstanceService : IDisposable
         try { _cts?.Cancel(); } catch { }
         try { _listenTask?.Wait(TimeSpan.FromSeconds(1)); } catch { }
         try { _cts?.Dispose(); } catch { }
-        try { if (_mutex != null && _mutex.WaitOne(0)) _mutex.ReleaseMutex(); } catch { }
+        if (_ownsMutex)
+        {
+            try { _mutex?.ReleaseMutex(); } catch { }
+            _ownsMutex = false;
+        }
         try { _mutex?.Dispose(); } catch { }
         _mutex = null;
     }

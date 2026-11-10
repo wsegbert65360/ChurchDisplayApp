@@ -1,10 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Threading;
 using System.Text.Json.Serialization;
 using ChurchDisplayApp.Models;
+using ChurchDisplayApp.Services;
 
 namespace ChurchDisplayApp;
 
@@ -14,6 +12,17 @@ namespace ChurchDisplayApp;
 /// </summary>
 public class AppSettings
 {
+    /// <summary>The settings schema version written by this build.</summary>
+    public const int CurrentSettingsVersion = 2;
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
+    /// <summary>
+    /// Schema version of the settings file. 0 means a file written before versioning existed.
+    /// Used so one-time migrations (such as seeding the default service slots) never run twice.
+    /// </summary>
+    public int SettingsVersion { get; set; }
+
     /// <summary>
     /// The list of user-configured service element slots.
     /// Replaces the old hardcoded per-song properties.
@@ -27,9 +36,6 @@ public class AppSettings
     [JsonPropertyName("LastPlaylistSaveDirectory")]
     public string? LastPlaylistDirectory { get; set; }
 
-    /// <summary>Gets or sets the volume level for the main media (0.0 to 1.0).</summary>
-    public double MainMediaVolume { get; set; } = 0.5;
-
     /// <summary>Gets or sets the default volume used by the Service Elements creator when adding items to the playlist (0.0 to 1.0).</summary>
     public double DefaultServiceVolume { get; set; } = 1.0;
 
@@ -41,20 +47,54 @@ public class AppSettings
 
     /// <summary>Gets or sets the proportional height of the top row (0.0 to 1.0).</summary>
     public double? MainWindowTopRowProportion { get; set; }
-    
-    // Song file names
+
+    // Legacy per-song file names. Only read so old settings files can be migrated into ServiceSlots.
+    // They are cleared after migration and not written back out.
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CallToWorshipFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DoxologyFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GloriaPatriFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LordsPrayerFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SongForBeginningFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PraiseSongFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PrayerSongFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CommunionSongFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ChildrensMomentSongFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? InvitationSongFile { get; set; }
+
+    /// <summary>Legacy setting; migrated into <see cref="ServiceSlots"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? EndingSongFile { get; set; }
-    
+
     /// <summary>Gets or sets the last directory used to search for media files.</summary>
     public string? LastMediaDirectory { get; set; }
 
@@ -66,6 +106,13 @@ public class AppSettings
     /// </summary>
     public string? VlcAudioDevice { get; set; }
 
+    /// <summary>
+    /// Set when the settings file was damaged at startup. The UI shows this once so the operator knows
+    /// why their settings may look different. Never written to disk.
+    /// </summary>
+    [JsonIgnore]
+    public string? LoadNotice { get; private set; }
+
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         AppConstants.Storage.AppDataFolderName,
@@ -73,74 +120,141 @@ public class AppSettings
     );
 
     /// <summary>
-    /// Loads the settings from the JSON file, or returns a default instance if the file does not exist.
+    /// Loads the settings from disk. If the main file is unreadable it is kept aside as
+    /// <c>settings.json.corrupt-*</c> and the last good backup (<c>.bak</c>) is tried.
+    /// Falls back to defaults only when nothing readable exists.
     /// </summary>
     public static AppSettings Load()
     {
+        string? notice = null;
+
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            if (File.Exists(SettingsPath))
+
+            foreach (var path in new[] { SettingsPath, SettingsPath + ".bak" })
             {
-                var json = File.ReadAllText(SettingsPath);
-                var settings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-                
-                // Validate and apply safe defaults
-                settings.Validate();
-                settings.MigrateToServiceSlots();
-                
-                return settings;
+                if (!File.Exists(path))
+                    continue;
+
+                try
+                {
+                    var settings = ReadFile(path);
+                    if (path != SettingsPath)
+                    {
+                        Serilog.Log.Warning("Settings restored from backup {Path}", path);
+                        notice ??= "Your settings file was damaged, so the last backup was restored.";
+                    }
+                    settings.LoadNotice = notice;
+                    return settings;
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning(ex, "Settings file {Path} could not be read", path);
+                    var kept = path == SettingsPath ? KeepCorruptFile(path) : null;
+                    notice = kept != null
+                        ? $"Your settings file was damaged and could not be read. The old file was kept as {Path.GetFileName(kept)}."
+                        : "Your settings file was damaged and could not be read.";
+                }
             }
         }
         catch (Exception ex)
         {
             Serilog.Log.Warning(ex, "Error loading settings");
         }
+
         var defaults = new AppSettings();
         defaults.MigrateToServiceSlots();
+        defaults.LoadNotice = notice;
         return defaults;
     }
 
-    /// <summary>
-    /// If ServiceSlots is empty (first run or upgrade from old version),
-    /// seeds it from the legacy per-song properties. Called by Load().
-    /// </summary>
-    public void MigrateToServiceSlots()
+    private static AppSettings ReadFile(string path)
     {
-        if (ServiceSlots.Count > 0)
-            return;
+        var json = File.ReadAllText(path);
+        var settings = JsonSerializer.Deserialize<AppSettings>(json)
+            ?? throw new InvalidDataException("Settings file is empty.");
 
-        var legacyMappings = new[]
-        {
-            ("Call to Worship",              CallToWorshipFile),
-            ("Song for Beginning of Church", SongForBeginningFile),
-            ("Doxology",                     DoxologyFile),
-            ("Praise Song",                  PraiseSongFile),
-            ("Gloria Patri",                 GloriaPatriFile),
-            ("Lord's Prayer",                LordsPrayerFile),
-            ("Prayer Song",                  PrayerSongFile),
-            ("Communion Song",               CommunionSongFile),
-            ("Children's Moment Song",       ChildrensMomentSongFile),
-            ("Invitation Song",              InvitationSongFile),
-            ("Ending Song",                  EndingSongFile),
-        };
+        // Validate and apply safe defaults
+        settings.Validate();
+        settings.MigrateToServiceSlots();
+        return settings;
+    }
 
-        foreach (var (name, fileName) in legacyMappings)
+    private static string? KeepCorruptFile(string path)
+    {
+        try
         {
-            ServiceSlots.Add(new ServiceSlot
-            {
-                DisplayName = name,
-                FilePath    = !string.IsNullOrEmpty(fileName) ? fileName : null,
-                IsSticky    = false,
-                LastUsedFolder = LastMediaDirectory
-            });
+            var target = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
+            File.Move(path, target, overwrite: true);
+            return target;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Could not set aside damaged settings file {Path}", path);
+            return null;
         }
     }
 
+    /// <summary>
+    /// One-time migration to the current settings schema. On a first run or an upgrade from a version
+    /// that used per-song properties, seeds the service slots. Does nothing once the file is up to date,
+    /// so slots the user deleted never come back.
+    /// </summary>
+    public void MigrateToServiceSlots()
+    {
+        if (SettingsVersion >= CurrentSettingsVersion)
+            return;
+
+        if (ServiceSlots.Count == 0)
+        {
+            var legacyMappings = new[]
+            {
+                ("Call to Worship",              CallToWorshipFile),
+                ("Song for Beginning of Church", SongForBeginningFile),
+                ("Doxology",                     DoxologyFile),
+                ("Praise Song",                  PraiseSongFile),
+                ("Gloria Patri",                 GloriaPatriFile),
+                ("Lord's Prayer",                LordsPrayerFile),
+                ("Prayer Song",                  PrayerSongFile),
+                ("Communion Song",               CommunionSongFile),
+                ("Children's Moment Song",       ChildrensMomentSongFile),
+                ("Invitation Song",              InvitationSongFile),
+                ("Ending Song",                  EndingSongFile),
+            };
+
+            foreach (var (name, fileName) in legacyMappings)
+            {
+                ServiceSlots.Add(new ServiceSlot
+                {
+                    DisplayName = name,
+                    FilePath    = !string.IsNullOrEmpty(fileName) ? fileName : null,
+                    IsSticky    = false,
+                    LastUsedFolder = LastMediaDirectory
+                });
+            }
+        }
+
+        // The legacy values now live in the slots; stop carrying them around.
+        CallToWorshipFile = null;
+        DoxologyFile = null;
+        GloriaPatriFile = null;
+        LordsPrayerFile = null;
+        SongForBeginningFile = null;
+        PraiseSongFile = null;
+        PrayerSongFile = null;
+        CommunionSongFile = null;
+        ChildrensMomentSongFile = null;
+        InvitationSongFile = null;
+        EndingSongFile = null;
+
+        SettingsVersion = CurrentSettingsVersion;
+    }
+
+    /// <summary>Clamps values to safe ranges and fills in defaults.</summary>
     public void Validate()
     {
         // Volume validation (0.0 to 1.0)
-        MainMediaVolume = Math.Clamp(MainMediaVolume, 0.0, 1.0);
         DefaultServiceVolume = Math.Clamp(DefaultServiceVolume, 0.0, 1.0);
         PlaylistFontSize = Math.Clamp(PlaylistFontSize, 6.0, 30.0);
 
@@ -155,18 +269,7 @@ public class AppSettings
         else
             MainWindowTopRowProportion = Math.Clamp(MainWindowTopRowProportion.Value, 0.05, 0.95);
 
-        // Ensure strings are not null
-        CallToWorshipFile ??= string.Empty;
-        DoxologyFile ??= string.Empty;
-        GloriaPatriFile ??= string.Empty;
-        LordsPrayerFile ??= string.Empty;
-        SongForBeginningFile ??= string.Empty;
-        PraiseSongFile ??= string.Empty;
-        PrayerSongFile ??= string.Empty;
-        CommunionSongFile ??= string.Empty;
-        ChildrensMomentSongFile ??= string.Empty;
-        InvitationSongFile ??= string.Empty;
-        EndingSongFile ??= string.Empty;
+        ServiceSlots ??= new List<ServiceSlot>();
         LastMediaDirectory ??= string.Empty;
 
         // Note: LastPlaylistDirectory is intentionally allowed to be null so that
@@ -176,33 +279,46 @@ public class AppSettings
     private CancellationTokenSource? _saveCts;
     private readonly object _saveLock = new();
     private bool _isDirty = false;
+    private string? _pendingJson;
 
     /// <summary>
-    /// Saves the settings to the JSON file with a debounce delay to prevent excessive disk writes.
+    /// Saves the settings with a short debounce delay to prevent excessive disk writes.
+    /// The settings are serialized immediately on the calling thread, so later edits on the UI thread
+    /// cannot corrupt the write that happens half a second later.
     /// </summary>
     public void Save()
     {
         lock (_saveLock)
         {
+            try
+            {
+                Validate();
+                _pendingJson = Serialize();
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "Could not prepare settings for saving");
+                return;
+            }
+
             _isDirty = true;
             _saveCts?.Cancel();
             _saveCts?.Dispose();
             _saveCts = new CancellationTokenSource();
             var token = _saveCts.Token;
 
-            Task.Delay(500, token).ContinueWith(t =>
-            {
-                if (t.IsCompletedSuccessfully)
-                {
-                    SaveImmediate();
-                }
-            }, token);
+            Task.Delay(500, token).ContinueWith(
+                _ => FlushPending(),
+                token,
+                TaskContinuationOptions.OnlyOnRanToCompletion,
+                TaskScheduler.Default);
         }
     }
 
     /// <summary>
     /// Saves the settings immediately to the JSON file.
     /// </summary>
+    /// <param name="force">Write even if nothing changed (used at shutdown).</param>
     public void SaveImmediate(bool force = false)
     {
         lock (_saveLock)
@@ -212,11 +328,11 @@ public class AppSettings
             try
             {
                 Validate();
-                Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-                var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(SettingsPath, json);
-                _isDirty = false;
-                Serilog.Log.Information("Settings saved successfully.");
+                if (WriteToDisk(Serialize()))
+                {
+                    _pendingJson = null;
+                    _isDirty = false;
+                }
             }
             catch (Exception ex)
             {
@@ -225,37 +341,34 @@ public class AppSettings
         }
     }
 
-    public string? GetSongFile(string settingsProperty) => settingsProperty switch
+    private void FlushPending()
     {
-        nameof(CallToWorshipFile) => CallToWorshipFile,
-        nameof(DoxologyFile) => DoxologyFile,
-        nameof(GloriaPatriFile) => GloriaPatriFile,
-        nameof(LordsPrayerFile) => LordsPrayerFile,
-        nameof(SongForBeginningFile) => SongForBeginningFile,
-        nameof(PraiseSongFile) => PraiseSongFile,
-        nameof(PrayerSongFile) => PrayerSongFile,
-        nameof(CommunionSongFile) => CommunionSongFile,
-        nameof(ChildrensMomentSongFile) => ChildrensMomentSongFile,
-        nameof(InvitationSongFile) => InvitationSongFile,
-        nameof(EndingSongFile) => EndingSongFile,
-        _ => null
-    };
-
-    public void SetSongFile(string settingsProperty, string? value)
-    {
-        switch (settingsProperty)
+        lock (_saveLock)
         {
-            case nameof(CallToWorshipFile): CallToWorshipFile = value; break;
-            case nameof(DoxologyFile): DoxologyFile = value; break;
-            case nameof(GloriaPatriFile): GloriaPatriFile = value; break;
-            case nameof(LordsPrayerFile): LordsPrayerFile = value; break;
-            case nameof(SongForBeginningFile): SongForBeginningFile = value; break;
-            case nameof(PraiseSongFile): PraiseSongFile = value; break;
-            case nameof(PrayerSongFile): PrayerSongFile = value; break;
-            case nameof(CommunionSongFile): CommunionSongFile = value; break;
-            case nameof(ChildrensMomentSongFile): ChildrensMomentSongFile = value; break;
-            case nameof(InvitationSongFile): InvitationSongFile = value; break;
-            case nameof(EndingSongFile): EndingSongFile = value; break;
+            if (_pendingJson == null) return;
+
+            if (WriteToDisk(_pendingJson))
+            {
+                _pendingJson = null;
+                _isDirty = false;
+            }
+        }
+    }
+
+    private string Serialize() => JsonSerializer.Serialize(this, JsonOptions);
+
+    private static bool WriteToDisk(string json)
+    {
+        try
+        {
+            SafeFile.WriteAllTextAtomic(SettingsPath, json);
+            Serilog.Log.Information("Settings saved successfully.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Error saving settings");
+            return false;
         }
     }
 

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Media;
 using Serilog;
 
 namespace ChurchDisplayApp.Services;
@@ -11,6 +12,11 @@ public class MonitorService
 
     [DllImport("user32.dll")]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfoEx lpmi);
+
+    [DllImport("Shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    private const int MDT_EFFECTIVE_DPI = 0;
 
     private delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData);
 
@@ -41,6 +47,7 @@ public class MonitorService
         public int Right { get; set; }
         public int Bottom { get; set; }
         public bool IsPrimary { get; set; }
+        public IntPtr Handle { get; set; }
 
         public int Width => Right - Left;
         public int Height => Bottom - Top;
@@ -71,7 +78,8 @@ public class MonitorService
                 Top = mi.rcMonitor.top,
                 Right = mi.rcMonitor.right,
                 Bottom = mi.rcMonitor.bottom,
-                IsPrimary = isPrimary
+                IsPrimary = isPrimary,
+                Handle = hMonitor
             });
 
             return true;
@@ -127,16 +135,34 @@ public class MonitorService
 
         try
         {
-            window.Left = monitor.Left;
-            window.Top = monitor.Top;
-            window.Width = monitor.Width;
-            window.Height = monitor.Height;
+            var (scaleX, scaleY) = GetMonitorDipScale(window, monitor);
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            window.WindowState = WindowState.Normal;
+            window.Left = monitor.Left / scaleX;
+            window.Top = monitor.Top / scaleY;
+            window.Width = monitor.Width / scaleX;
+            window.Height = monitor.Height / scaleY;
             window.WindowState = WindowState.Maximized;
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Error positioning window on monitor");
         }
+    }
+
+    private static (double ScaleX, double ScaleY) GetMonitorDipScale(Window window, MonitorBounds monitor)
+    {
+        if (monitor.Handle != IntPtr.Zero &&
+            GetDpiForMonitor(monitor.Handle, MDT_EFFECTIVE_DPI, out var dpiX, out var dpiY) == 0 &&
+            dpiX > 0 && dpiY > 0)
+        {
+            return (dpiX / 96.0, dpiY / 96.0);
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(window);
+        var scaleX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1;
+        var scaleY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1;
+        return (scaleX, scaleY);
     }
 
     public MonitorBounds? SelectDisplayMonitor(List<MonitorBounds> monitors)

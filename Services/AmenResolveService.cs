@@ -23,6 +23,7 @@ namespace ChurchDisplayApp.Services
         private bool _disposed = false;
         private readonly object _initLock = new();
         private readonly object _synthLock = new();
+        private readonly object _ctsLock = new();
 
         public AmenResolveService(string soundFontPath)
         {
@@ -52,7 +53,6 @@ namespace ChurchDisplayApp.Services
                 
                     _waveOut = new WaveOutEvent();
                     _waveOut.Init(_sampleProvider);
-                    // Audio output is started/stopped per-execution (Issue #7)
                 }
                 catch (Exception ex)
                 {
@@ -83,21 +83,44 @@ namespace ChurchDisplayApp.Services
 
         public void Cancel()
         {
-            _cts.Cancel();
+            lock (_ctsLock)
+            {
+                try { _cts.Cancel(); } catch (ObjectDisposedException) { }
+            }
             try { _waveOut?.Stop(); } catch { }
         }
 
         public async Task ExecuteResolveAsync(float volume = 1.0f)
         {
-            if (!await _semaphore.WaitAsync(0))
+            if (_disposed) return;
+
+            try
             {
-                Log.Information("Amen resolve already in progress, skipping");
+                if (!await _semaphore.WaitAsync(0))
+                {
+                    Log.Information("Amen resolve already in progress, skipping");
+                    return;
+                }
+            }
+            catch (ObjectDisposedException)
+            {
                 return;
             }
 
-            _cts?.Dispose();
-            _cts = new CancellationTokenSource();
-            var token = _cts.Token;
+            CancellationToken token;
+            lock (_ctsLock)
+            {
+                if (_disposed)
+                {
+                    try { _semaphore.Release(); } catch (ObjectDisposedException) { }
+                    return;
+                }
+
+                try { _cts.Cancel(); } catch (ObjectDisposedException) { }
+                try { _cts.Dispose(); } catch (ObjectDisposedException) { }
+                _cts = new CancellationTokenSource();
+                token = _cts.Token;
+            }
 
             try
             {
@@ -150,7 +173,6 @@ namespace ChurchDisplayApp.Services
             catch (OperationCanceledException)
             {
                 Log.Information("Amen resolve was cancelled");
-                // Reset synth state so next Amen starts clean (Issue #3)
                 try { SafeMidi(0, 0xB0, 7, 100); } catch { }
                 try { SafeReset(); } catch { }
                 try { _waveOut?.Stop(); } catch { }
@@ -163,7 +185,7 @@ namespace ChurchDisplayApp.Services
             }
             finally
             {
-                _semaphore.Release();
+                try { _semaphore.Release(); } catch (ObjectDisposedException) { }
             }
         }
 
@@ -174,19 +196,20 @@ namespace ChurchDisplayApp.Services
 
             try
             {
-                _cts.Cancel();
-                _cts.Dispose();
+                lock (_ctsLock)
+                {
+                    try { _cts.Cancel(); } catch (ObjectDisposedException) { }
+                    try { _cts.Dispose(); } catch (ObjectDisposedException) { }
+                }
 
                 if (_waveOut != null)
                 {
-                    _waveOut.Stop();
+                    try { _waveOut.Stop(); } catch { }
                     _waveOut.Dispose();
+                    _waveOut = null;
                 }
 
                 _semaphore.Dispose();
-                
-                // Synthesizer doesn't implement IDisposable in MeltySynth, 
-                // but we null it out for safety.
                 _synth = null;
             }
             catch (Exception ex)
@@ -212,13 +235,12 @@ namespace ChurchDisplayApp.Services
             public int Read(float[] buffer, int offset, int count)
             {
                 int half = count / 2;
-                // Grow buffers only if needed (Issue #4)
-                if (_leftBuf.Length < half)
+                if (_leftBuf.Length != half)
                 {
                     _leftBuf = new float[half];
                     _rightBuf = new float[half];
                 }
-                
+
                 lock (_synthLock)
                 {
                     _synth.Render(_leftBuf, _rightBuf);

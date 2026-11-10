@@ -50,6 +50,8 @@
 
                 <!-- Right side: action buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock x:Name="StatusText" VerticalAlignment="Center" Margin="0,0,10,0"
+                               Foreground="DarkGreen" FontWeight="SemiBold" />
                     <Button x:Name="MakeServiceButton" Content="▶ Send to Playlist" MinWidth="110" Padding="8,4" Margin="4,0" Click="MakeService_Click"
                             Background="{StaticResource SendToPlaylistBrush}" Foreground="White" FontWeight="Bold"
                             ToolTip="Add all assigned slots to the playlist in order"/>

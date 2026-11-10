@@ -39,7 +39,7 @@ public static class AppConstants
     {
         public const string AppDataFolderName = "ChurchDisplayApp";
         public const string SettingsFileName = "settings.json";
-        public const string ServicePlanFileName = "service_plan.json";
+        public const string RecoveryFileName = "recovery.cdplaylist";
     }
 
     public static class Timeouts

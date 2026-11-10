@@ -32,8 +32,9 @@ public class MediaControlService
     /// Plays the specified media file on the live output window.
     /// </summary>
     /// <param name="filePath">The media file to play.</param>
-    /// <param name="itemVolume">Per-item volume (0.0 to 1.0). Falls back to MainMediaVolume if not specified.</param>
-    public void PlayMedia(string filePath, double? itemVolume = null)
+    /// <param name="itemVolume">Per-item volume (0.0 to 1.0). Falls back to DefaultServiceVolume if not specified.</param>
+    /// <returns>False when the live window could not start the media.</returns>
+    public bool PlayMedia(string filePath, double? itemVolume = null)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("File path cannot be empty", nameof(filePath));
@@ -41,20 +42,19 @@ public class MediaControlService
         if (!File.Exists(filePath))
             throw new FileNotFoundException("Media file not found", filePath);
 
-        // Set volume BEFORE starting playback so _targetVolume is correct
-        // when VLC's Playing event fires. Use item volume if provided, else global setting.
-        var mainVolume = Math.Clamp(itemVolume ?? _settings.MainMediaVolume, 0.0, 1.0);
+        var volume = Math.Clamp(itemVolume ?? _settings.DefaultServiceVolume, 0.0, 1.0);
         Serilog.Log.Debug(
-            "PlayMedia {Path}; requested itemVolume={ItemVolume}; effective volume={Effective:P0}; settings main volume={Settings:P0}",
+            "PlayMedia {Path}; requested itemVolume={ItemVolume}; effective volume={Effective:P0}",
             filePath,
             itemVolume,
-            mainVolume,
-            _settings.MainMediaVolume);
-        _liveWindow.SetVolume(mainVolume);
+            volume);
+        _liveWindow.SetVolume(volume);
 
-        _liveWindow.ShowMedia(filePath);
-        
+        if (!_liveWindow.ShowMedia(filePath))
+            return false;
+
         MediaStateChanged?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     /// <summary>

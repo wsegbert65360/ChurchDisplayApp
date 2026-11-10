@@ -224,53 +224,11 @@ public class LiveOutputWindow : Window, IDisposable
         };
         _timer.Tick += Timer_Tick;
 
-        // Subscribe to media player events
         if (_mediaPlayer != null)
         {
-            _mediaPlayer.EndReached += (s, e) =>
-            {
-                Dispatcher.BeginInvoke(() =>
-                {
-                    _isPlaying = false;
-                    _progressBar.Visibility = Visibility.Collapsed;
-                    _timer.Stop();
-                    MediaEnded?.Invoke(this, EventArgs.Empty);
-                });
-            };
-
-            // When VLC starts playing and audio output is ready,
-            // re-apply the stored volume for reliable audio initialization
-            _mediaPlayer.Playing += (s, e) =>
-            {
-                System.Threading.Tasks.Task.Run(async () =>
-                {
-                    try
-                    {
-                        // Set immediately (VLC thread-safe)
-                        if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
-                            _mediaPlayer.Volume = _targetVolume;
-                        
-                        // Re-apply after audio output initializes
-                        await System.Threading.Tasks.Task.Delay(150);
-                        if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
-                            _mediaPlayer.Volume = _targetVolume;
-                    }
-                    catch (ObjectDisposedException) { /* Window closed during delay */ }
-                    catch (Exception ex) { Serilog.Log.Debug(ex, "Delayed volume set failed"); }
-                });
-            };
-
-            _mediaPlayer.EncounteredError += (s, e) =>
-            {
-                Serilog.Log.Error("MediaPlayer encountered an error playback of {Path}", _currentMediaPath);
-                Dispatcher.BeginInvoke(() =>
-                {
-                    _isPlaying = false;
-                    _timer.Stop();
-                    _progressBar.Visibility = Visibility.Collapsed;
-                    MediaError?.Invoke(this, EventArgs.Empty);
-                });
-            };
+            _mediaPlayer.EndReached += MediaPlayer_EndReached;
+            _mediaPlayer.Playing += MediaPlayer_Playing;
+            _mediaPlayer.EncounteredError += MediaPlayer_EncounteredError;
         }
 
         Closing += (s, e) =>
@@ -291,18 +249,70 @@ public class LiveOutputWindow : Window, IDisposable
     public void Dispose()
     {
         if (IsDisposed) return;
-        // Clean up the reusable snapshot temp file
-        try { File.Delete(_snapshotTempPath); } catch { }
         IsDisposed = true;
 
-        _timer?.Stop();
+        _timer.Stop();
+        _timer.Tick -= Timer_Tick;
+
+        if (_mediaPlayer != null)
+        {
+            _mediaPlayer.EndReached -= MediaPlayer_EndReached;
+            _mediaPlayer.Playing -= MediaPlayer_Playing;
+            _mediaPlayer.EncounteredError -= MediaPlayer_EncounteredError;
+        }
+
+        try { _videoView.MediaPlayer = null; } catch { }
+
         if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
         {
-            _mediaPlayer.Stop();
+            try { _mediaPlayer.Stop(); } catch { }
             _mediaPlayer.Dispose();
         }
         _currentMedia?.Dispose();
         _currentMedia = null;
+        try { File.Delete(_snapshotTempPath); } catch { }
+        GC.SuppressFinalize(this);
+    }
+
+    private void MediaPlayer_EndReached(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _isPlaying = false;
+            _progressBar.Visibility = Visibility.Collapsed;
+            _timer.Stop();
+            MediaEnded?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void MediaPlayer_Playing(object? sender, EventArgs e)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                    _mediaPlayer.Volume = _targetVolume;
+
+                await Task.Delay(150);
+                if (!IsDisposed && _mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+                    _mediaPlayer.Volume = _targetVolume;
+            }
+            catch (ObjectDisposedException) { }
+            catch (Exception ex) { Serilog.Log.Debug(ex, "Delayed volume set failed"); }
+        });
+    }
+
+    private void MediaPlayer_EncounteredError(object? sender, EventArgs e)
+    {
+        Serilog.Log.Error("MediaPlayer encountered an error playback of {Path}", _currentMediaPath);
+        Dispatcher.BeginInvoke(() =>
+        {
+            _isPlaying = false;
+            _timer.Stop();
+            _progressBar.Visibility = Visibility.Collapsed;
+            MediaError?.Invoke(this, EventArgs.Empty);
+        });
     }
 
     private void Timer_Tick(object? sender, EventArgs e)
@@ -318,7 +328,7 @@ public class LiveOutputWindow : Window, IDisposable
     /// Displays the specified media file. Detects if it is an image or video based on file extension.
     /// </summary>
     /// <param name="filePath">The absolute path to the media file.</param>
-    public void ShowMedia(string filePath)
+    public bool ShowMedia(string filePath)
     {
         _isPlaying = false;
         _timer.Stop();
@@ -328,11 +338,14 @@ public class LiveOutputWindow : Window, IDisposable
         if (MediaConstants.IsImage(filePath))
         {
             _ = ShowImageAsync(filePath, mediaVersion);
+            return true;
         }
-        else if (MediaConstants.IsSupported(filePath))
-        {
-            PlayVideo(filePath);
-        }
+
+        if (MediaConstants.IsSupported(filePath))
+            return PlayVideo(filePath);
+
+        MediaError?.Invoke(this, EventArgs.Empty);
+        return false;
     }
 
     private async Task ShowImageAsync(string imagePath, int mediaVersion)
@@ -391,12 +404,13 @@ public class LiveOutputWindow : Window, IDisposable
         }
     }
 
-    private void PlayVideo(string videoPath)
+    private bool PlayVideo(string videoPath)
     {
         if (_libVLC == null || _mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero)
         {
             MessageBox.Show("Video playback is unavailable because LibVLC failed to initialize. Please ensure VLC and its dependencies are correctly installed.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
+            MediaError?.Invoke(this, EventArgs.Empty);
+            return false;
         }
 
         _imageDisplay.Visibility = Visibility.Collapsed;
@@ -405,11 +419,13 @@ public class LiveOutputWindow : Window, IDisposable
         _progressBar.Visibility = Visibility.Visible;
         _progressBar.Value = 0;
 
+        try { _mediaPlayer.Stop(); } catch { }
         _currentMedia?.Dispose();
         _currentMedia = new Media(_libVLC, videoPath, FromType.FromPath);
         _mediaPlayer.Play(_currentMedia);
         _isPlaying = true;
         _timer.Start();
+        return true;
     }
 
     public void Pause()

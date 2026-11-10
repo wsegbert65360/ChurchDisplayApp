@@ -568,10 +568,17 @@
 
                 // 2. Update Player
                 const playerTitle = document.getElementById('player-title');
-                if (playerTitle) playerTitle.textContent = data.title === 'Idle' ? 'Church Display Standby' : data.title;
-
                 const playerSubtitle = document.getElementById('player-subtitle');
-                if (playerSubtitle) playerSubtitle.textContent = data.title === 'Idle' ? 'Ready for service' : 'Current active media';
+                if (data.isBlanked) {
+                    if (playerTitle) playerTitle.textContent = 'Blanked';
+                    if (playerSubtitle) playerSubtitle.textContent = data.title && data.title !== 'Idle' ? data.title : 'Output hidden';
+                } else if (data.title === 'Idle') {
+                    if (playerTitle) playerTitle.textContent = 'Church Display Standby';
+                    if (playerSubtitle) playerSubtitle.textContent = 'Ready for service';
+                } else {
+                    if (playerTitle) playerTitle.textContent = data.title;
+                    if (playerSubtitle) playerSubtitle.textContent = 'Current active media';
+                }
 
                 const progressBar = document.getElementById('progress-bar');
                 if (progressBar) progressBar.style.width = (data.progressPercent || 0) + '%';
@@ -584,10 +591,8 @@
 
                 // 3. Active media highlighter in playlist
                 document.querySelectorAll('.card.playlist-item').forEach(card => {
-                    const titleEl = card.querySelector('.card-title');
-                    if (titleEl) {
-                        card.classList.toggle('playing', titleEl.textContent === data.title);
-                    }
+                    const index = Number(card.dataset.index);
+                    card.classList.toggle('playing', Number.isInteger(index) && index === data.playingIndex && data.playingIndex >= 0);
                 });
 
                 if (typeof lucide !== 'undefined') {
@@ -618,6 +623,7 @@
                 items.forEach(it => {
                     const card = document.createElement('div');
                     card.className = 'card playlist-item';
+                    card.dataset.index = String(it.index);
                     card.onclick = () => post('/api/play/' + it.index);
 
                     const ext = it.fileName.split('.').pop()?.toLowerCase();

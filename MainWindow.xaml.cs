@@ -47,6 +47,11 @@ public partial class MainWindow : Window, IDisplayController
     private bool _isClosing = false;
     private Task? _amenTask;
 
+    private const string BaseTitle = "Church Display Control";
+    private DispatcherTimer? _statusTimer;
+    private readonly DispatcherTimer _autosaveTimer;
+    private (PlaylistItem Item, int Index)? _lastRemoved;
+
     // Adaptive preview tracking
     private string? _lastPreviewMediaPath;
     private string? _lastPreviewMediaType;  // "image" or "video" or null
@@ -78,6 +83,27 @@ public partial class MainWindow : Window, IDisplayController
 
         // Bind playlist (works immediately — no VLC dependency)
         PlaylistListBox.ItemsSource = _playlistManager.Items;
+
+        // Keep the window title / playlist header in step with the playlist's name and unsaved state.
+        _playlistManager.IsDirtyChanged += (s, e) => UpdatePlaylistTitle();
+        _playlistManager.CurrentFilePathChanged += (s, e) => UpdatePlaylistTitle();
+        _playlistManager.Items.CollectionChanged += (s, e) => UpdatePlaylistTitle();
+
+        // Crash recovery: snapshot an unsaved playlist every 30 seconds.
+        _playlistManager.RecoveryPath = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            AppConstants.Storage.AppDataFolderName,
+            AppConstants.Storage.RecoveryFileName);
+        _autosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _autosaveTimer.Tick += (s, e) =>
+        {
+            if (_playlistManager.IsDirty)
+                _playlistManager.SaveRecovery();
+        };
+        _autosaveTimer.Start();
+
+        // A USB drive may have been plugged in or removed while another window had focus.
+        Activated += async (s, e) => await _playlistManager.RefreshMissingAsync();
 
         Closing += MainWindow_Closing;
         SizeChanged += MainWindow_SizeChanged;
@@ -183,7 +209,7 @@ public partial class MainWindow : Window, IDisplayController
                     {
                         case LogLevel.Error:   Log.Error(message);   break;
                         case LogLevel.Warning: Log.Warning(message); break;
-                        default:               Log.Information(message); break;
+                        default:               Log.Debug(message); break;
                     }
                 };
 
@@ -217,7 +243,6 @@ public partial class MainWindow : Window, IDisplayController
                 try { StartupProfiler.Instance.StartPhase("LiveOutputWindow"); } catch { }
                 LoadingStatusText.Text = "Configuring display output...";
                 _liveWindow = new LiveOutputWindow(_libVLC);
-                _liveWindow.Owner = this;
                 try { StartupProfiler.Instance.EndPhase("LiveOutputWindow"); } catch { }
 
                 // Create MediaControlService and ViewModel
@@ -240,14 +265,6 @@ public partial class MainWindow : Window, IDisplayController
                     Log.Warning("Live output media error detected. Forcing ViewModel stop-state reconciliation.");
                     ViewModel.StopCommand.Execute(null);
                 };
-
-                // RELIABILITY FIX #4: Update the drag-drop replay callback now that
-                // we have a real ViewModel. The no-op callback set in the constructor
-                // is replaced with one that actually triggers playback.
-                _playlistDragDropManager = new PlaylistDragDropManager(
-                    PlaylistListBox,
-                    _playlistManager,
-                    () => ViewModel.PlayCommand.Execute(null));
 
                 // Restore sidebar width
                 ApplySavedSidebarWidth();
@@ -309,6 +326,11 @@ public partial class MainWindow : Window, IDisplayController
                 InitializationComplete?.Invoke(this, EventArgs.Empty);
 
                 Log.Information("VLC initialization complete — media engine ready.");
+
+                if (_settings.LoadNotice != null)
+                    ShowStatus(_settings.LoadNotice, isError: true);
+
+                Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(OfferPlaylistRecovery));
             });
         }
         catch (OperationCanceledException)
@@ -357,6 +379,20 @@ public partial class MainWindow : Window, IDisplayController
         // RELIABILITY FIX #2: Cancel any previous init attempt before retrying.
         _vlcInitCts?.Cancel();
         _vlcInitCts?.Dispose();
+
+        // Tear down anything the failed attempt left behind so the retry does not leak native handles
+        // or leave a stale black window on the projector.
+        _progressUpdateTimer?.Stop();
+        _progressUpdateTimer = null;
+        if (_liveWindow != null)
+        {
+            _liveWindow.Dispose();
+            _liveWindow.Close(); // allowed now that it is disposed
+            _liveWindow = null;
+        }
+        _mediaControlService = null;
+        _libVLC?.Dispose();
+        _libVLC = null;
 
         // Reset error state
         _vlcInitFailed = false;
@@ -606,9 +642,19 @@ public partial class MainWindow : Window, IDisplayController
             return;
         }
 
+        if (!ConfirmDiscardOrSavePlaylist())
+        {
+            e.Cancel = true;
+            return;
+        }
+
         // Prevent immediate close to allow for cleanup
         e.Cancel = true;
         _isClosing = true;
+
+        // The operator has either saved or chosen to discard, so the crash-recovery snapshot is obsolete.
+        _autosaveTimer.Stop();
+        _playlistManager.DeleteRecovery();
 
         // PHASE 2 RELIABILITY FIX #1: Cancel VLC init if it's still running.
         // This prevents a race where VLC is created on the background thread
@@ -732,9 +778,10 @@ public partial class MainWindow : Window, IDisplayController
                 sidebarCol.Width = new GridLength(newPixelWidth, GridUnitType.Pixel);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Non-critical
+            // Non-critical: the sidebar just keeps its current width.
+            Log.Debug(ex, "Sidebar resize adjustment skipped");
         }
     }
 
@@ -814,10 +861,7 @@ public partial class MainWindow : Window, IDisplayController
         
         if (_libVLC == null) return; // PHASE 2: Safety guard
 
-        _liveWindow = new LiveOutputWindow(_libVLC)
-        {
-            Owner = this
-        };
+        _liveWindow = new LiveOutputWindow(_libVLC);
         
         if (ViewModel != null)
         {
@@ -840,9 +884,17 @@ public partial class MainWindow : Window, IDisplayController
 
     private void CreatePlaylist_Click(object sender, RoutedEventArgs e)
     {
-        var elementsWindow = new ServiceElementsWindow(_playlistManager);
-        elementsWindow.Owner = this;
+        var elementsWindow = new ServiceElementsWindow(_playlistManager, ConfirmDiscardOrSavePlaylist)
+        {
+            Owner = this
+        };
         elementsWindow.ShowDialog();
+
+        if (elementsWindow.AddedCount > 0)
+        {
+            _lastRemoved = null;
+            ShowStatus($"Added {elementsWindow.AddedCount} item(s) to the playlist");
+        }
     }
 
     // Drag and Drop Event Handlers for Playlist
@@ -969,22 +1021,50 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
+    private void DeleteMenuItem_Click(object sender, RoutedEventArgs e) => RemoveSelectedItem();
+
+    /// <summary>
+    /// Removes the selected playlist item. No confirmation (Ctrl+Z brings it back), except for the item that
+    /// is playing right now, because removing it stops the projection.
+    /// </summary>
+    private void RemoveSelectedItem()
     {
-        var menuItem = sender as MenuItem;
-        var contextMenu = menuItem?.Parent as ContextMenu;
-        var listBox = contextMenu?.PlacementTarget as ListBox;
-        
-        if (listBox?.SelectedItem is PlaylistItem item)
+        if (PlaylistListBox.SelectedItem is not PlaylistItem item)
+            return;
+
+        var index = _playlistManager.Items.IndexOf(item);
+        var isNowPlaying = ViewModel != null && ViewModel.NowPlayingIndex == index;
+
+        if (isNowPlaying)
         {
-            var result = MessageBox.Show($"Delete '{item.FileName}'?", "Confirm Delete",
-                MessageBoxButton.YesNo, MessageBoxImage.Question);
-            
-            if (result == MessageBoxResult.Yes)
-            {
-                _playlistManager.RemoveItem(item);
-            }
+            var answer = MessageBox.Show(
+                $"'{item.FileName}' is playing now. Remove it and stop playback?",
+                "Remove Playing Item",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes)
+                return;
         }
+
+        _playlistManager.RemoveItem(item);
+        _lastRemoved = (item, index);
+
+        if (_playlistManager.Items.Count > 0)
+            PlaylistListBox.SelectedIndex = Math.Min(index, _playlistManager.Items.Count - 1);
+
+        ShowStatus($"Removed '{item.FileName}'. Press Ctrl+Z to undo.");
+    }
+
+    private void UndoRemove()
+    {
+        if (_lastRemoved is not { } removed)
+            return;
+
+        _lastRemoved = null;
+        var index = Math.Clamp(removed.Index, 0, _playlistManager.Items.Count);
+        _playlistManager.Items.Insert(index, removed.Item);
+        PlaylistListBox.SelectedItem = removed.Item;
+        ShowStatus($"Restored '{removed.Item.FileName}'");
     }
 
     private void ProgressSlider_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1038,6 +1118,9 @@ public partial class MainWindow : Window, IDisplayController
         var vm = EnsureVlcReady();
         if (vm == null) return;
 
+        // Capture the volume of what is playing now; Stop clears the now-playing item.
+        float amenVolume = (float)vm.Volume;
+
         // Stop current media and clear all state (including _currentlyLoadedPath)
         vm.StopCommand.Execute(null);
 
@@ -1049,8 +1132,6 @@ public partial class MainWindow : Window, IDisplayController
             {
                 try
                 {
-                    // Use current volume or selected item volume
-                    float amenVolume = (float)(vm.SelectedItem?.Volume ?? vm.Volume);
                     await _amenResolveService.ExecuteResolveAsync(amenVolume);
                 }
                 catch (Exception ex)
@@ -1061,65 +1142,122 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private void SavePlaylist_Click(object sender, RoutedEventArgs e)
+    private void SavePlaylist_Click(object sender, RoutedEventArgs e) => SavePlaylistInteractive(forceSaveAs: false);
+
+    private void SavePlaylistAs_Click(object sender, RoutedEventArgs e) => SavePlaylistInteractive(forceSaveAs: true);
+
+    private void LoadPlaylist_Click(object sender, RoutedEventArgs e) => OpenPlaylistFromDialog();
+
+    /// <summary>
+    /// Saves the playlist. Saves straight to the current file when there is one, otherwise (or for Save As)
+    /// asks where to save. Shows a short status message instead of a pop-up on success.
+    /// </summary>
+    /// <returns>True when the playlist was saved.</returns>
+    private bool SavePlaylistInteractive(bool forceSaveAs)
     {
-        if (PlaylistListBox.Items.Count == 0)
+        if (_playlistManager.Items.Count == 0)
         {
-            MessageBox.Show("Playlist is empty. Add files before saving.", "Empty Playlist",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+            ShowStatus("The playlist is empty. Add files before saving.", isError: true);
+            return false;
         }
 
-        var dlg = new SaveFileDialog
-        {
-            Filter = MediaConstants.GetPlaylistFilter(),
-            DefaultExt = ".pls"
-        };
+        var target = _playlistManager.CurrentFilePath;
 
-        ConfigureDialogDirectory(dlg, preferPlaylistDir: true);
-
-        if (dlg.ShowDialog() == true)
+        if (forceSaveAs || string.IsNullOrEmpty(target))
         {
-            try
+            var dlg = new SaveFileDialog
             {
-                _playlistManager.SavePlaylist(dlg.FileName);
-                _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
-                _settings.Save();
-                MessageBox.Show("Playlist saved successfully.", "Success",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
+                Title = "Save Playlist",
+                Filter = MediaConstants.GetPlaylistSaveFilter(),
+                DefaultExt = MediaConstants.PlaylistExtension,
+                AddExtension = true,
+                OverwritePrompt = true
+            };
+
+            ConfigureDialogDirectory(dlg, preferPlaylistDir: true);
+
+            if (!string.IsNullOrEmpty(target))
             {
-                MessageBox.Show($"Error saving playlist: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                var currentDir = Path.GetDirectoryName(target);
+                if (currentDir != null && Directory.Exists(currentDir))
+                    dlg.InitialDirectory = currentDir;
+                dlg.FileName = Path.GetFileNameWithoutExtension(target);
             }
+            else
+            {
+                dlg.FileName = $"Service {DateTime.Now:yyyy-MM-dd}";
+            }
+
+            if (dlg.ShowDialog() != true)
+                return false;
+
+            target = dlg.FileName;
+        }
+
+        if (string.IsNullOrEmpty(target))
+            return false;
+
+        try
+        {
+            _playlistManager.SavePlaylist(target);
+            _settings.LastPlaylistDirectory = Path.GetDirectoryName(target);
+            _settings.Save();
+            ShowStatus($"Saved {Path.GetFileName(target)}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not save playlist to {Path}", target);
+            MessageBox.Show($"Error saving playlist: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
         }
     }
 
-    private void LoadPlaylist_Click(object sender, RoutedEventArgs e)
+    private void OpenPlaylistFromDialog()
     {
+        if (!ConfirmDiscardOrSavePlaylist())
+            return;
+
         var dlg = new OpenFileDialog
         {
-            Filter = MediaConstants.GetPlaylistFilter()
+            Title = "Open Playlist",
+            Filter = MediaConstants.GetPlaylistOpenFilter()
         };
 
         ConfigureDialogDirectory(dlg, preferPlaylistDir: true);
 
         if (dlg.ShowDialog() == true)
+            LoadPlaylistFile(dlg.FileName);
+    }
+
+    private void LoadPlaylistFile(string path)
+    {
+        try
         {
-            try
+            var problems = _playlistManager.LoadPlaylist(path);
+            _lastRemoved = null;
+            _settings.LastPlaylistDirectory = Path.GetDirectoryName(path);
+            _settings.Save();
+
+            var name = Path.GetFileName(path);
+            var count = _playlistManager.Items.Count;
+            if (problems.Count > 0)
             {
-                _playlistManager.LoadPlaylist(dlg.FileName);
-                _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
-                _settings.Save();
-                MessageBox.Show($"Playlist loaded successfully. {_playlistManager.Items.Count} files added.", "Success",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowStatus(
+                    $"Opened {name}: {count} item(s), {problems.Count} could not be found. Missing files are shown in red and stay in the playlist.",
+                    isError: true);
             }
-            catch (Exception ex)
+            else
             {
-                MessageBox.Show($"Error loading playlist: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowStatus($"Opened {name} ({count} item(s))");
             }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not open playlist {Path}", path);
+            MessageBox.Show($"Error opening playlist: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1131,57 +1269,169 @@ public partial class MainWindow : Window, IDisplayController
             return;
         }
 
-        if (!_playlistManager.IsDirty)
-        {
-            ViewModel?.StopCommand.Execute(null);
-            _playlistManager.Clear();
-            PlaylistListBox.SelectedIndex = -1;
+        if (!ConfirmDiscardOrSavePlaylist())
             return;
-        }
 
+        ViewModel?.StopCommand.Execute(null);
+        _playlistManager.Clear();
+        _lastRemoved = null;
+        PlaylistListBox.SelectedIndex = -1;
+    }
+
+    /// <returns>False when the operator cancelled the action.</returns>
+    private bool ConfirmDiscardOrSavePlaylist()
+    {
+        // Nothing to lose when the list is empty or unchanged.
+        if (!_playlistManager.IsDirty || _playlistManager.Items.Count == 0)
+            return true;
+
+        var name = _playlistManager.DisplayName ?? "The current playlist";
         var result = MessageBox.Show(
-            "The current playlist has unsaved changes.\n\nWould you like to save before closing?",
+            $"'{name}' has unsaved changes.\n\nWould you like to save before continuing?",
             "Save Playlist?",
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Question);
 
-        if (result == MessageBoxResult.Cancel) return;
+        if (result == MessageBoxResult.Cancel)
+            return false;
 
-        if (result == MessageBoxResult.Yes)
+        if (result != MessageBoxResult.Yes)
+            return true;
+
+        return SavePlaylistInteractive(forceSaveAs: false);
+    }
+
+    /// <summary>
+    /// Offers to restore the playlist that was open when the app last closed unexpectedly.
+    /// </summary>
+    private void OfferPlaylistRecovery()
+    {
+        if (_isClosing || !_playlistManager.HasRecovery || _playlistManager.Items.Count > 0)
+            return;
+
+        var answer = MessageBox.Show(
+            this,
+            "The app closed unexpectedly last time with an unsaved playlist.\n\nWould you like to restore it?",
+            "Restore Playlist?",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        try
         {
-            var dlg = new SaveFileDialog
+            if (answer == MessageBoxResult.Yes)
             {
-                Filter = MediaConstants.GetPlaylistFilter(),
-                DefaultExt = ".pls",
-                Title = "Save Playlist Before Closing"
-            };
-
-            ConfigureDialogDirectory(dlg, preferPlaylistDir: true);
-
-            if (dlg.ShowDialog() == true)
-            {
-                try
-                {
-                    _playlistManager.SavePlaylist(dlg.FileName);
-                    _settings.LastPlaylistDirectory = Path.GetDirectoryName(dlg.FileName);
-                    _settings.Save();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Error saving playlist: {ex.Message}", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
+                _playlistManager.RestoreRecovery();
+                ShowStatus($"Restored your unsaved playlist ({_playlistManager.Items.Count} item(s)). Press Ctrl+S to save it.");
             }
             else
             {
-                return;
+                _playlistManager.DeleteRecovery();
             }
         }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not restore the recovery playlist");
+            MessageBox.Show($"The recovered playlist could not be loaded: {ex.Message}", "Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            _playlistManager.DeleteRecovery();
+        }
+    }
 
-        ViewModel?.StopCommand.Execute(null);
-        _playlistManager.Clear();
-        PlaylistListBox.SelectedIndex = -1;
+    /// <summary>Shows the playlist name (and a dot when it has unsaved changes) in the title bar and sidebar header.</summary>
+    private void UpdatePlaylistTitle()
+    {
+        var name = _playlistManager.DisplayName;
+        var dirtyMark = _playlistManager.IsDirty ? " •" : string.Empty;
+
+        Title = name == null ? BaseTitle : $"{name}{dirtyMark} — {BaseTitle}";
+        PlaylistNameText.Text = name == null ? "📂 PLAYLIST" : $"📂 {name}{dirtyMark}";
+    }
+
+    /// <summary>Shows a short message under the playlist buttons that disappears by itself.</summary>
+    private void ShowStatus(string message, bool isError = false)
+    {
+        StatusText.Text = message;
+        StatusText.Foreground = isError ? Brushes.Firebrick : Brushes.DarkGreen;
+        StatusText.Visibility = Visibility.Visible;
+
+        _statusTimer ??= new DispatcherTimer();
+        _statusTimer.Stop();
+        _statusTimer.Interval = TimeSpan.FromSeconds(isError ? 10 : 5);
+        _statusTimer.Tick -= StatusTimer_Tick;
+        _statusTimer.Tick += StatusTimer_Tick;
+        _statusTimer.Start();
+    }
+
+    private void StatusTimer_Tick(object? sender, EventArgs e)
+    {
+        _statusTimer?.Stop();
+        StatusText.Text = string.Empty;
+        StatusText.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Handles the operator shortcuts at window level so they work whichever control has focus
+    /// (a focused button or slider would otherwise swallow Space and the arrow keys).
+    /// </summary>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+
+        if (e.Handled || Keyboard.FocusedElement is TextBox)
+            return;
+
+        // A held key auto-repeats; during a service that would skip several songs or toggle play/pause rapidly.
+        if (e.IsRepeat)
+        {
+            if (e.Key is Key.Space or Key.Left or Key.Right or Key.B or Key.Delete)
+                e.Handled = true;
+            return;
+        }
+
+        var modifiers = Keyboard.Modifiers;
+
+        if (modifiers == ModifierKeys.Control)
+        {
+            switch (e.Key)
+            {
+                case Key.S: SavePlaylistInteractive(forceSaveAs: false); e.Handled = true; break;
+                case Key.O: OpenPlaylistFromDialog(); e.Handled = true; break;
+                case Key.Z: UndoRemove(); e.Handled = true; break;
+            }
+            return;
+        }
+
+        if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            if (e.Key == Key.S)
+            {
+                SavePlaylistInteractive(forceSaveAs: true);
+                e.Handled = true;
+            }
+            return;
+        }
+
+        if (modifiers != ModifierKeys.None)
+            return;
+
+        var vm = _vlcReady ? ViewModel : null;
+
+        switch (e.Key)
+        {
+            case Key.Space: vm?.TogglePlayPauseCommand.Execute(null); e.Handled = true; break;
+            case Key.Right: vm?.NextCommand.Execute(null); e.Handled = true; break;
+            case Key.Left: vm?.PreviousCommand.Execute(null); e.Handled = true; break;
+            case Key.B: vm?.BlankCommand.Execute(null); e.Handled = true; break;
+            case Key.F11: vm?.ToggleFullscreenCommand.Execute(null); e.Handled = true; break;
+            case Key.Escape: vm?.ExitFullscreenCommand.Execute(null); e.Handled = true; break;
+            case Key.Delete:
+                if (PlaylistListBox.IsKeyboardFocusWithin)
+                {
+                    RemoveSelectedItem();
+                    e.Handled = true;
+                }
+                break;
+        }
     }
 
     #region IDisplayController Implementation
@@ -1265,27 +1515,18 @@ public partial class MainWindow : Window, IDisplayController
         {
             var progress = _mediaControlService.GetProgress();
 
-            if (progress == null)
-            {
-                return new RemoteStatus(
-                    ViewModel.CurrentMediaTitle,
-                    0,
-                    "00:00",
-                    "00:00",
-                    ViewModel.Volume
-                );
-            }
-
             return new RemoteStatus(
                 ViewModel.CurrentMediaTitle,
-                progress.ProgressPercent,
-                ViewModel.FormatTime(progress.CurrentTime),
-                ViewModel.FormatTime(progress.Duration),
-                ViewModel.Volume
+                progress?.ProgressPercent ?? 0,
+                progress != null ? ViewModel.FormatTime(progress.CurrentTime) : "00:00",
+                progress != null ? ViewModel.FormatTime(progress.Duration) : "00:00",
+                ViewModel.Volume,
+                ViewModel.NowPlayingIndex,
+                ViewModel.IsPlaying,
+                ViewModel.IsBlanked
             );
         }
 
-        // PHASE 2: Return idle status when VLC not ready
         return new RemoteStatus("Loading...", 0, "00:00", "00:00", 0.5);
     }
 

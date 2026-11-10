@@ -14,8 +14,16 @@ namespace ChurchDisplayApp.Services;
 /// </summary>
 public class PlaylistManager
 {
+    private const int CurrentPlaylistVersion = 2;
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
+    /// <summary>Gets the items in the playlist, in play order.</summary>
     public ObservableCollection<PlaylistItem> Items { get; } = new();
+
+    /// <summary>
+    /// Gets or sets the file used for crash-recovery snapshots. When null, recovery snapshots are disabled.
+    /// </summary>
+    public string? RecoveryPath { get; set; }
 
     private bool _isDirty;
     /// <summary>
@@ -39,13 +47,42 @@ public class PlaylistManager
     /// </summary>
     public event EventHandler? IsDirtyChanged;
 
+    private string? _currentFilePath;
+    /// <summary>
+    /// Gets the file the playlist was last loaded from or saved to, or null for an unsaved playlist.
+    /// </summary>
+    public string? CurrentFilePath
+    {
+        get => _currentFilePath;
+        private set
+        {
+            if (_currentFilePath != value)
+            {
+                _currentFilePath = value;
+                CurrentFilePathChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    /// <summary>Raised when <see cref="CurrentFilePath"/> changes.</summary>
+    public event EventHandler? CurrentFilePathChanged;
+
+    /// <summary>
+    /// Gets a short name for the playlist: the file name, "Untitled playlist" for unsaved content,
+    /// or null when there is nothing to name.
+    /// </summary>
+    public string? DisplayName =>
+        CurrentFilePath != null
+            ? Path.GetFileNameWithoutExtension(CurrentFilePath)
+            : (Items.Count > 0 || IsDirty ? "Untitled playlist" : null);
+
     /// <summary>
     /// Default volume for newly created playlist items.
     /// </summary>
     public const double DefaultItemVolume = 1.0;
 
     /// <summary>
-    /// Adds multiple files to the playlist.
+    /// Creates an empty playlist manager.
     /// </summary>
     public PlaylistManager()
     {
@@ -104,6 +141,7 @@ public class PlaylistManager
         }
     }
 
+    /// <summary>Adds files to the playlist using the default service volume.</summary>
     public void AddFiles(string[] filePaths)
     {
         AddFiles(filePaths, AppSettings.Current.DefaultServiceVolume);
@@ -149,13 +187,15 @@ public class PlaylistManager
     }
 
     /// <summary>
-    /// Clears all items from the playlist and resets the dirty flag.
+    /// Clears all items from the playlist, forgets the current file, and resets the dirty flag.
     /// </summary>
     public void Clear()
     {
         UnhookAllItems();
         Items.Clear();
+        CurrentFilePath = null;
         IsDirty = false;
+        DeleteRecovery();
     }
 
     /// <summary>
@@ -181,26 +221,43 @@ public class PlaylistManager
     }
 
     /// <summary>
-    /// Saves the current playlist to a JSON file.
-    /// New format: { "version": 2, "items": [{ "fullPath": "...", "volume": 0.8 }] }
+    /// Re-checks every item against the disk (off the UI thread) and updates <see cref="PlaylistItem.IsMissing"/>,
+    /// so a drive that was plugged in or removed since the last check shows correctly. Call from the UI thread.
+    /// </summary>
+    public async Task RefreshMissingAsync()
+    {
+        var snapshot = Items.ToList();
+        if (snapshot.Count == 0)
+            return;
+
+        try
+        {
+            var missing = await Task.Run(() => snapshot.Select(i => !File.Exists(i.FullPath)).ToArray());
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                snapshot[i].IsMissing = missing[i];
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "Could not refresh missing-file state");
+        }
+    }
+
+    /// <summary>
+    /// Saves the current playlist to a JSON file (written atomically, with a .bak of the previous version)
+    /// and makes it the current file.
+    /// New format: { "version": 2, "items": [{ "fullPath": "...", "relativePath": "...", "volume": 0.8 }] }
     /// </summary>
     public void SavePlaylist(string filePath)
     {
         try
         {
-            var playlistData = new PlaylistDataV2
-            {
-                Version = 2,
-                Items = Items.Select(item => new PlaylistItemData
-                {
-                    FullPath = item.FullPath,
-                    Volume = item.Volume
-                }).ToList()
-            };
-
-            var json = JsonSerializer.Serialize(playlistData, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(filePath, json);
+            var fullPath = Path.GetFullPath(filePath);
+            WritePlaylistFile(fullPath, Path.GetDirectoryName(fullPath));
+            CurrentFilePath = fullPath;
             IsDirty = false;
+            DeleteRecovery();
         }
         catch (Exception ex)
         {
@@ -209,11 +266,100 @@ public class PlaylistManager
     }
 
     /// <summary>
+    /// Writes a crash-recovery snapshot of the playlist to <see cref="RecoveryPath"/>.
+    /// Does not change the dirty flag or the current file. Never throws.
+    /// </summary>
+    public void SaveRecovery()
+    {
+        if (string.IsNullOrEmpty(RecoveryPath) || Items.Count == 0)
+            return;
+
+        try
+        {
+            WritePlaylistFile(RecoveryPath, relativeTo: null);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Could not write playlist recovery file");
+        }
+    }
+
+    /// <summary>Gets whether a crash-recovery snapshot exists.</summary>
+    public bool HasRecovery => !string.IsNullOrEmpty(RecoveryPath) && File.Exists(RecoveryPath);
+
+    /// <summary>Deletes the crash-recovery snapshot, if any. Never throws.</summary>
+    public void DeleteRecovery()
+    {
+        if (string.IsNullOrEmpty(RecoveryPath))
+            return;
+
+        try
+        {
+            File.Delete(RecoveryPath);
+            File.Delete(RecoveryPath + ".bak");
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "Could not delete playlist recovery file");
+        }
+    }
+
+    /// <summary>
+    /// Loads the crash-recovery snapshot as an unsaved (dirty, untitled) playlist.
+    /// </summary>
+    /// <returns>Paths that were in the snapshot but are missing or unusable.</returns>
+    public IReadOnlyList<string> RestoreRecovery()
+    {
+        if (string.IsNullOrEmpty(RecoveryPath))
+            throw new InvalidOperationException("No recovery file is configured.");
+
+        return LoadCore(RecoveryPath, fromRecovery: true);
+    }
+
+    private void WritePlaylistFile(string filePath, string? relativeTo)
+    {
+        var playlistData = new PlaylistDataV2
+        {
+            Version = CurrentPlaylistVersion,
+            Items = Items.Select(item => new PlaylistItemData
+            {
+                FullPath = item.FullPath,
+                RelativePath = GetRelativePath(relativeTo, item.FullPath),
+                Volume = item.Volume
+            }).ToList()
+        };
+
+        SafeFile.WriteAllTextAtomic(filePath, JsonSerializer.Serialize(playlistData, JsonOptions));
+    }
+
+    private static string? GetRelativePath(string? baseDirectory, string fullPath)
+    {
+        if (string.IsNullOrEmpty(baseDirectory))
+            return null;
+
+        try
+        {
+            var relative = Path.GetRelativePath(baseDirectory, fullPath);
+            // Different drive: no relative path exists.
+            return Path.IsPathRooted(relative) ? null : relative;
+        }
+        catch (ArgumentException ex)
+        {
+            Serilog.Log.Debug(ex, "No relative path for {Path}", fullPath);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Loads a playlist from a JSON file using a transaction approach.
     /// Supports both old format (array of path strings) and new format (array of objects with volume).
+    /// Files that cannot be found are kept in the list, flagged as missing, so saving does not lose them.
     /// On error, the original playlist is preserved.
     /// </summary>
-    public void LoadPlaylist(string filePath)
+    /// <returns>Paths that were in the file but are missing or unusable.</returns>
+    public IReadOnlyList<string> LoadPlaylist(string filePath) => LoadCore(filePath, fromRecovery: false);
+
+    private IReadOnlyList<string> LoadCore(string filePath, bool fromRecovery)
     {
         try
         {
@@ -221,20 +367,34 @@ public class PlaylistManager
                 throw new FileNotFoundException("Playlist file not found", filePath);
 
             var json = File.ReadAllText(filePath);
+            var baseDirectory = fromRecovery ? null : Path.GetDirectoryName(Path.GetFullPath(filePath));
 
-            // Parse and validate first without modifying existing playlist
-            var loadedItems = ParsePlaylist(json, filePath);
+            var parsed = ParsePlaylist(json, baseDirectory);
 
-            // Atomically swap the collections only after successful parse
+            if (parsed.Items.Count == 0 && parsed.Invalid.Count > 0)
+                throw new InvalidOperationException(
+                    $"None of the {parsed.Invalid.Count} entries in this playlist could be used.");
+
             UnhookAllItems();
             Items.Clear();
 
-            foreach (var item in loadedItems)
+            foreach (var item in parsed.Items)
             {
                 Items.Add(item);
             }
 
-            IsDirty = false;
+            CurrentFilePath = fromRecovery ? null : Path.GetFullPath(filePath);
+
+            // Dirty when the list no longer matches the file: entries were dropped, paths were re-resolved,
+            // or this is a recovered unsaved playlist.
+            IsDirty = fromRecovery || parsed.Invalid.Count > 0 || parsed.PathsUpdated;
+
+            if (!fromRecovery)
+                DeleteRecovery();
+
+            return parsed.Invalid
+                .Concat(parsed.Items.Where(i => i.IsMissing).Select(i => i.FullPath))
+                .ToList();
         }
         catch (JsonException ex)
         {
@@ -246,72 +406,124 @@ public class PlaylistManager
         }
     }
 
+    private sealed class ParsedPlaylist
+    {
+        public List<PlaylistItem> Items { get; } = new();
+        public List<string> Invalid { get; } = new();
+        public bool PathsUpdated { get; set; }
+    }
+
     /// <summary>
     /// Parses playlist JSON without modifying the collection.
     /// Returns the parsed items or throws an exception.
     /// </summary>
-    private List<PlaylistItem> ParsePlaylist(string json, string filePath)
+    private ParsedPlaylist ParsePlaylist(string json, string? baseDirectory)
     {
-        var loadedItems = new List<PlaylistItem>();
+        var result = new ParsedPlaylist();
 
-        using (var doc = JsonDocument.Parse(json))
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (root.ValueKind == JsonValueKind.Array)
         {
-            var root = doc.RootElement;
-
-            if (root.ValueKind == JsonValueKind.Array)
+            foreach (var entry in root.EnumerateArray())
             {
-                // Legacy format: plain array of path strings
-                foreach (var itemElement in root.EnumerateArray())
-                {
-                    var itemPath = itemElement.GetString();
-                    if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
-                    {
-                        loadedItems.Add(new PlaylistItem(itemPath, DefaultItemVolume));
-                    }
-                }
+                AddEntry(entry, result, baseDirectory);
             }
-            else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("items", out var itemsArray))
+        }
+        else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("items", out var itemsArray))
+        {
+            if (root.TryGetProperty("version", out var versionProp)
+                && versionProp.ValueKind == JsonValueKind.Number
+                && versionProp.TryGetInt32(out var version)
+                && version > CurrentPlaylistVersion)
             {
-                if (itemsArray.ValueKind != JsonValueKind.Array)
-                {
-                    throw new InvalidDataException("Playlist items must be an array");
-                }
-
-                // New format: { "version": 2, "items": [...] }
-                foreach (var itemElement in itemsArray.EnumerateArray())
-                {
-                    string? itemPath = null;
-                    double itemVolume = DefaultItemVolume;
-
-                    if (itemElement.ValueKind == JsonValueKind.String)
-                    {
-                        // Items array contains plain strings (edge case)
-                        itemPath = itemElement.GetString();
-                    }
-                    else if (itemElement.ValueKind == JsonValueKind.Object)
-                    {
-                        itemPath = itemElement.TryGetProperty("fullPath", out var fpProp) ? fpProp.GetString() : null;
-                        if (itemElement.TryGetProperty("volume", out var volProp))
-                        {
-                            itemVolume = volProp.GetDouble();
-                        }
-                    }
-
-                    itemVolume = Math.Clamp(itemVolume, 0.0, 1.0);
-
-                    if (!string.IsNullOrEmpty(itemPath) && ValidateFile(itemPath))
-                    {
-                        loadedItems.Add(new PlaylistItem(itemPath, itemVolume));
-                    }
-                }
+                throw new InvalidDataException(
+                    "This playlist was saved by a newer version of the app. Please update the app to open it.");
             }
-            else
+
+            if (itemsArray.ValueKind != JsonValueKind.Array)
             {
-                throw new InvalidDataException("Unrecognized playlist format");
+                throw new InvalidDataException("Playlist items must be an array");
+            }
+
+            foreach (var entry in itemsArray.EnumerateArray())
+            {
+                AddEntry(entry, result, baseDirectory);
+            }
+        }
+        else
+        {
+            throw new InvalidDataException("Unrecognized playlist format");
+        }
+
+        return result;
+    }
+
+    private static void AddEntry(JsonElement entry, ParsedPlaylist result, string? baseDirectory)
+    {
+        string? path = null;
+        string? relative = null;
+        double volume = DefaultItemVolume;
+
+        if (entry.ValueKind == JsonValueKind.String)
+        {
+            path = entry.GetString();
+        }
+        else if (entry.ValueKind == JsonValueKind.Object)
+        {
+            if (entry.TryGetProperty("fullPath", out var fp) && fp.ValueKind == JsonValueKind.String)
+                path = fp.GetString();
+
+            if (entry.TryGetProperty("relativePath", out var rp) && rp.ValueKind == JsonValueKind.String)
+                relative = rp.GetString();
+
+            if (entry.TryGetProperty("volume", out var vp)
+                && vp.ValueKind == JsonValueKind.Number
+                && vp.TryGetDouble(out var parsedVolume)
+                && double.IsFinite(parsedVolume))
+            {
+                volume = parsedVolume;
             }
         }
 
-        return loadedItems;
+        if (string.IsNullOrWhiteSpace(path) && string.IsNullOrWhiteSpace(relative))
+        {
+            result.Invalid.Add("(empty path)");
+            return;
+        }
+
+        // If the saved absolute path is gone (drive letter changed, folder moved together with the playlist),
+        // try the path relative to the playlist file.
+        var resolved = path;
+        if ((string.IsNullOrWhiteSpace(resolved) || !File.Exists(resolved))
+            && !string.IsNullOrWhiteSpace(relative) && baseDirectory != null)
+        {
+            try
+            {
+                var candidate = Path.GetFullPath(Path.Combine(baseDirectory, relative));
+                if (File.Exists(candidate))
+                {
+                    resolved = candidate;
+                    result.PathsUpdated = true;
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                Serilog.Log.Debug(ex, "Relative path {Path} could not be resolved", relative);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(resolved) || !MediaConstants.IsSupported(resolved))
+        {
+            result.Invalid.Add(resolved ?? relative ?? "(empty path)");
+            return;
+        }
+
+        result.Items.Add(new PlaylistItem(resolved, Math.Clamp(volume, 0.0, 1.0))
+        {
+            IsMissing = !File.Exists(resolved)
+        });
     }
 
     /// <summary>
@@ -324,14 +536,13 @@ public class PlaylistManager
         return null;
     }
 
-
     /// <summary>
-    /// New playlist format with per-item volume support.
+    /// Playlist file format with per-item volume support.
     /// </summary>
     private class PlaylistDataV2
     {
         [JsonPropertyName("version")]
-        public int Version { get; set; } = 2;
+        public int Version { get; set; } = CurrentPlaylistVersion;
 
         [JsonPropertyName("items")]
         public List<PlaylistItemData> Items { get; set; } = new();
@@ -341,6 +552,11 @@ public class PlaylistManager
     {
         [JsonPropertyName("fullPath")]
         public string FullPath { get; set; } = string.Empty;
+
+        // Added after v2 shipped; older versions of the app ignore it.
+        [JsonPropertyName("relativePath")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? RelativePath { get; set; }
 
         [JsonPropertyName("volume")]
         public double Volume { get; set; } = DefaultItemVolume;

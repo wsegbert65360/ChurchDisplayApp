@@ -15,8 +15,8 @@ public class LoadingPlaceholderViewModel : BaseViewModel
     public ObservableCollection<PlaylistItem> PlaylistItems { get; } = new();
 
     public PlaylistItem? SelectedItem { get; set; }
-    public double Volume { get; set; } = 0.5;
-    public string VolumePercentage => "50%";
+    public double Volume { get; set; } = AppSettings.Current.DefaultServiceVolume;
+    public string VolumePercentage => $"{(int)(Volume * 100)}%";
     public double Progress { get; set; }
     public double PlaylistFontSize { get; set; } = 13;
     public bool IsScrubbing { get; set; }

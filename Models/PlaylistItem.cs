@@ -1,6 +1,5 @@
-using System;
-using System.IO;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace ChurchDisplayApp.Models
@@ -12,10 +11,33 @@ namespace ChurchDisplayApp.Models
     public class PlaylistItem : INotifyPropertyChanged
     {
         private double _volume;
+        private bool _isMissing;
 
+        /// <summary>Gets the full path of the media file.</summary>
         public string FullPath { get; init; }
+
+        /// <summary>Gets the file name (without folder).</summary>
         public string FileName { get; init; }
+
+        /// <summary>Gets the lower-case file extension including the dot.</summary>
         public string Extension { get; init; }
+
+        /// <summary>
+        /// Gets or sets whether the file was not found the last time it was checked
+        /// (for example, the USB drive is unplugged). The item stays in the playlist so it is not lost on save.
+        /// </summary>
+        public bool IsMissing
+        {
+            get => _isMissing;
+            set
+            {
+                if (_isMissing != value)
+                {
+                    _isMissing = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         /// <summary>
         /// Per-item playback volume (0.0 to 1.0). Default is 1.0 (100%).
