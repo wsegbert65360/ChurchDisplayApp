@@ -13,10 +13,10 @@ build_job:
     # Recommended tag for GitLab.com SaaS Windows runners
     - saas-windows-medium-amd64
   script:
-    # Ensure dependencies are restored
-    - dotnet restore
-    # Build the project in Release mode
-    - dotnet build --configuration Release --no-restore
+    # The root folder holds both the .sln and the .csproj, so name the solution explicitly.
+    - dotnet restore ChurchDisplayApp.sln
+    - dotnet build ChurchDisplayApp.sln --configuration Release --no-restore
+    - dotnet test tests/ChurchDisplayApp.Tests/ChurchDisplayApp.Tests.csproj --configuration Release --no-build
   artifacts:
     name: "ChurchDisplayApp-Release-$CI_COMMIT_SHORT_SHA"
     paths:

@@ -47,6 +47,10 @@ namespace ChurchDisplayApp.Models
             get => _volume;
             set
             {
+                // NaN would be saved as invalid JSON and make the playlist unsaveable.
+                if (!double.IsFinite(value))
+                    return;
+
                 var clamped = Math.Clamp(value, 0.0, 1.0);
                 if (Math.Abs(_volume - clamped) > 0.001)
                 {
@@ -60,8 +64,8 @@ namespace ChurchDisplayApp.Models
         {
             FullPath = fullPath;
             FileName = Path.GetFileName(fullPath);
-            Extension = Path.GetExtension(fullPath).ToLower();
-            Volume = volume;
+            Extension = Path.GetExtension(fullPath).ToLowerInvariant();
+            Volume = double.IsFinite(volume) ? volume : 1.0;
         }
 
         public override string ToString()

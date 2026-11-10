@@ -99,6 +99,15 @@ public class AppSettings
     public string? LastMediaDirectory { get; set; }
 
     /// <summary>
+    /// Which monitor the operator chose for the projector output ("Left" or "Right").
+    /// Null until the operator has chosen. Asked again only when the number of monitors changes.
+    /// </summary>
+    public string? DisplayMonitorSide { get; set; }
+
+    /// <summary>How many monitors were connected when <see cref="DisplayMonitorSide"/> was chosen.</summary>
+    public int DisplayMonitorCount { get; set; }
+
+    /// <summary>
     /// Optional VLC audio output device name to override auto-detection.
     /// When null or empty, VLC selects the default Windows audio device.
     /// Set this to the device name shown in the log file if VLC picks the
@@ -271,6 +280,9 @@ public class AppSettings
 
         ServiceSlots ??= new List<ServiceSlot>();
         LastMediaDirectory ??= string.Empty;
+
+        if (DisplayMonitorSide is not (null or "Left" or "Right"))
+            DisplayMonitorSide = null;
 
         // Note: LastPlaylistDirectory is intentionally allowed to be null so that
         // it can fall back to LastMediaDirectory on the first run of the app.

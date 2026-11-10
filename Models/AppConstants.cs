@@ -14,7 +14,8 @@ public static class AppConstants
 
     public static class UI
     {
-        public const int LivePreviewIntervalMs = 42;
+        // About 5 frames a second: smooth enough for a preview, light enough not to make the projected video stutter.
+        public const int LivePreviewIntervalMs = 200;
         public const int LivePreviewIdleIntervalMs = 500;
         public const int LivePreviewImageIntervalMs = 2000;
         public const int ProgressUpdateIntervalMs = 200;

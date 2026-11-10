@@ -1,9 +1,5 @@
 using Microsoft.Win32;
-using QRCoder;
 using System.IO;
-using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -23,11 +19,9 @@ namespace ChurchDisplayApp;
 
 public partial class MainWindow : Window, IDisplayController
 {
-    private AppSettings _settings;
-    private readonly DispatcherTimer _livePreviewTimer;
-    private readonly RemoteControlServer _remoteControlServer = new();
-    private const int RemoteControlPortPreferred = AppConstants.Network.RemoteControlPortPreferred;
-    private const int RemoteControlPortFallback = AppConstants.Network.RemoteControlPortFallback;
+    private readonly AppSettings _settings;
+    private readonly LivePreviewController _livePreview;
+    private readonly RemoteControlCoordinator _remoteControl;
     // PHASE 2: Nullable — set asynchronously when VLC init completes
     private LibVLC? _libVLC;
     private LiveOutputWindow? _liveWindow;
@@ -52,11 +46,6 @@ public partial class MainWindow : Window, IDisplayController
     private readonly DispatcherTimer _autosaveTimer;
     private (PlaylistItem Item, int Index)? _lastRemoved;
 
-    // Adaptive preview tracking
-    private string? _lastPreviewMediaPath;
-    private string? _lastPreviewMediaType;  // "image" or "video" or null
-    private long _previewDroppedFrames;
-
     // PHASE 2: VLC readiness tracking
     private volatile bool _vlcReady = false;
     private bool _vlcInitFailed = false;
@@ -73,12 +62,13 @@ public partial class MainWindow : Window, IDisplayController
 
     public MainWindow()
     {
-        try { StartupProfiler.Instance.StartPhase("MainWindowInit"); } catch { }
-        try { StartupProfiler.Instance.StartPhase("AppSettingsLoad"); } catch { }
+        StartupProfiler.Instance.StartPhase("MainWindowInit");
+        StartupProfiler.Instance.StartPhase("AppSettingsLoad");
         _settings = AppSettings.Current;
-        try { StartupProfiler.Instance.EndPhase("AppSettingsLoad"); } catch { }
+        StartupProfiler.Instance.EndPhase("AppSettingsLoad");
 
         InitializeComponent();
+        _remoteControl = new RemoteControlCoordinator(Dispatcher, this);
         LoadingStatusText.Text = "Initializing application...";
 
         // Bind playlist (works immediately — no VLC dependency)
@@ -114,36 +104,16 @@ public partial class MainWindow : Window, IDisplayController
 
         _playlistDragDropManager = new PlaylistDragDropManager(PlaylistListBox, _playlistManager, () => { });
 
-        // Set up live preview timer (safe — checks _liveWindow for null)
-        _livePreviewTimer = new DispatcherTimer 
-        { 
-            Interval = TimeSpan.FromMilliseconds(AppConstants.UI.LivePreviewIntervalMs) 
-        };
-        _livePreviewTimer.Tick += UpdateLivePreview;
-        _livePreviewTimer.Start();
+        // Live preview (safe before VLC is ready — it shows "Loading..." until the live window exists)
+        _livePreview = new LivePreviewController(() => _liveWindow, PreviewImage, PreviewLabel);
+        _livePreview.Start();
 
         // PHASE 2: Start VLC initialization on a background thread.
         // Store the task and CTS so we can cancel it during shutdown.
         _vlcInitCts = new CancellationTokenSource();
         _vlcInitTask = InitializeVlcAsync(_vlcInitCts.Token);
-        
-        try { StartupProfiler.Instance.EndPhase("MainWindowInit"); } catch { }
-    }
 
-    protected override void OnContentRendered(EventArgs e)
-    {
-        base.OnContentRendered(e);
-
-        // PHASE 2: If VLC is already ready (fast path — initialized before window rendered),
-        // this shouldn't normally happen, but handle it for safety.
-        if (_vlcReady && _liveWindow != null)
-        {
-            return; // InitializeVlcAsync already handled everything
-        }
-
-        // If VLC failed, the loading overlay shows the error — nothing to do here.
-        // If VLC is still initializing, the loading overlay is visible and the
-        // InitializeVlcAsync callback will handle everything when it completes.
+        StartupProfiler.Instance.EndPhase("MainWindowInit");
     }
 
     /// <summary>
@@ -164,7 +134,7 @@ public partial class MainWindow : Window, IDisplayController
             {
                 ct.ThrowIfCancellationRequested();
 
-                try { StartupProfiler.Instance.StartPhase("AssemblyLoad"); } catch { }
+                StartupProfiler.Instance.StartPhase("AssemblyLoad");
                 try
                 {
                     var vlcAssembly = System.Runtime.Loader.AssemblyLoadContext.Default
@@ -174,9 +144,9 @@ public partial class MainWindow : Window, IDisplayController
                 {
                     System.Diagnostics.Debug.WriteLine("[VLC] Explicit assembly load failed, using default");
                 }
-                try { StartupProfiler.Instance.EndPhase("AssemblyLoad"); } catch { }
+                StartupProfiler.Instance.EndPhase("AssemblyLoad");
 
-                try { StartupProfiler.Instance.StartPhase("VlcInitialization"); } catch { }
+                StartupProfiler.Instance.StartPhase("VlcInitialization");
                 // BeginInvoke (non-blocking) to avoid deadlock: the UI thread may
                 // be blocked by _vlcInitTask.Wait() during shutdown.  Invoke() would
                 // deadlock because both threads would wait on each other.
@@ -240,10 +210,10 @@ public partial class MainWindow : Window, IDisplayController
                 }
 
                 // Create LiveOutputWindow (must be on UI thread — it's a WPF Window)
-                try { StartupProfiler.Instance.StartPhase("LiveOutputWindow"); } catch { }
+                StartupProfiler.Instance.StartPhase("LiveOutputWindow");
                 LoadingStatusText.Text = "Configuring display output...";
                 _liveWindow = new LiveOutputWindow(_libVLC);
-                try { StartupProfiler.Instance.EndPhase("LiveOutputWindow"); } catch { }
+                StartupProfiler.Instance.EndPhase("LiveOutputWindow");
 
                 // Create MediaControlService and ViewModel
                 _mediaControlService = new MediaControlService(_liveWindow, _settings);
@@ -256,7 +226,7 @@ public partial class MainWindow : Window, IDisplayController
                 ViewModel = new MainViewModel(_playlistManager, _mediaControlService, _settings);
                 DataContext = ViewModel;
 
-                try { StartupProfiler.Instance.EndPhase("VlcInitialization"); } catch { }
+                StartupProfiler.Instance.EndPhase("VlcInitialization");
 
                 // Subscribe to playback lifecycle events
                 _liveWindow.MediaEnded += (s, e) => ViewModel.StopCommand.Execute(null);
@@ -273,7 +243,7 @@ public partial class MainWindow : Window, IDisplayController
                 var monitors = _monitorService.GetMonitors();
                 if (monitors.Count >= 2)
                 {
-                    var liveMonitor = _monitorService.SelectDisplayMonitor(monitors);
+                    var liveMonitor = _monitorService.SelectDisplayMonitor(monitors, _settings);
                     if (liveMonitor != null)
                     {
                         _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -309,6 +279,7 @@ public partial class MainWindow : Window, IDisplayController
                 if (System.IO.File.Exists(soundFontPath))
                 {
                     _amenResolveService = new AmenResolveService(soundFontPath);
+                    _ = _amenResolveService.PreloadAsync(); // so the first Amen press has no delay
                 }
                 else
                 {
@@ -411,211 +382,26 @@ public partial class MainWindow : Window, IDisplayController
 
     private async Task StartRemoteControlAsync()
     {
-        try { StartupProfiler.Instance.StartPhase("KestrelStart"); } catch { }
-        int successfulPort = 0;
+        StartupProfiler.Instance.StartPhase("KestrelStart");
 
-        try
+        var port = await _remoteControl.StartAsync();
+        if (port is int activePort)
         {
-            await _remoteControlServer.StartAsync(Dispatcher, this, RemoteControlPortPreferred);
-            successfulPort = RemoteControlPortPreferred;
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Failed to start remote control server on preferred port {Port}", RemoteControlPortPreferred);
-        }
-
-        if (successfulPort == 0)
-        {
-            try
-            {
-                await _remoteControlServer.StartAsync(Dispatcher, this, RemoteControlPortFallback);
-                successfulPort = RemoteControlPortFallback;
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to start remote control server on fallback port {Port}. Remote control will be unavailable.", RemoteControlPortFallback);
-            }
-        }
-
-        if (successfulPort > 0)
-        {
-            await VerifyFirewallRuleAsync(successfulPort);
-            UpdateRemoteQrCode(successfulPort);
-            Log.Information("Remote control server running on port {Port}", successfulPort);
+            var url = RemoteControlCoordinator.GetRemoteUrl(activePort);
+            RemoteUrlText.Text = url;
+            RemoteQrImage.Source = RemoteControlCoordinator.CreateQrImage(url);
         }
         else
         {
-            _ = Dispatcher.BeginInvoke(() =>
-            {
-                RemoteUrlText.Text = "Remote control unavailable";
-                RemoteUrlText.ToolTip = $"Ports {RemoteControlPortPreferred} and {RemoteControlPortFallback} are in use or blocked. " +
-                    "Try running as administrator or closing other applications.";
-                RemoteQrImage.Source = null;
-            });
-            Log.Error("Remote control server failed to start on any port");
+            RemoteUrlText.Text = "Remote control unavailable";
+            RemoteUrlText.ToolTip =
+                $"Ports {AppConstants.Network.RemoteControlPortPreferred} and {AppConstants.Network.RemoteControlPortFallback} are in use or blocked. " +
+                "Try running as administrator or closing other applications.";
+            RemoteQrImage.Source = null;
         }
-        
-        try { StartupProfiler.Instance.EndPhase("KestrelStart"); } catch { }
+
+        StartupProfiler.Instance.EndPhase("KestrelStart");
         StartupProfiler.Instance.DumpSummary();
-    }
-
-    private static async Task VerifyFirewallRuleAsync(int port)
-    {
-        try
-        {
-            var ruleNames = new[] { "ChurchDisplayApp Remote", "ChurchDisplayApp Remote Fallback" };
-            bool found = false;
-
-            foreach (var ruleName in ruleNames)
-            {
-                var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "netsh",
-                    Arguments = $"advfirewall firewall show rule name=\"{ruleName}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
-                if (proc == null)
-                    continue;
-                using var procForDispose = proc;
-
-                var outputTask = proc.StandardOutput.ReadToEndAsync();
-                var errorTask = proc.StandardError.ReadToEndAsync();
-
-                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                try
-                {
-                    await proc.WaitForExitAsync(timeoutCts.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    try { proc.Kill(entireProcessTree: true); } catch { }
-                    try
-                    {
-                        var exitTask = proc.WaitForExitAsync();
-                        await Task.WhenAny(exitTask, Task.Delay(1000));
-                    }
-                    catch { }
-                    try
-                    {
-                        var drainTask = Task.WhenAll(outputTask, errorTask);
-                        if (await Task.WhenAny(drainTask, Task.Delay(1000)) == drainTask)
-                        {
-                            await drainTask;
-                        }
-                        else
-                        {
-                            _ = outputTask.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
-                            _ = errorTask.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
-                        }
-                    }
-                    catch { }
-
-                    Log.Warning("Timed out while checking firewall rule '{RuleName}'", ruleName);
-                    continue;
-                }
-
-                var output = await outputTask;
-                _ = await errorTask;
-
-                if (output.Contains(ruleName))
-                {
-                    found = true;
-                    Log.Information("Firewall rule '{RuleName}' found — remote control accessible on port {Port}", ruleName, port);
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                Log.Warning("No firewall rule found for remote control port {Port}. " +
-                    "The rule is normally created during installation. " +
-                    "Users on other devices may not be able to connect. " +
-                    "Reinstall the app or manually create a firewall rule for TCP port {Port}.", port);
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Could not verify firewall rule for port {Port}", port);
-        }
-    }
-
-    private void UpdateRemoteQrCode(int portInUse)
-    {
-        Dispatcher.BeginInvoke(() =>
-        {
-            var url = GetRemoteUrl(portInUse);
-            RemoteUrlText.Text = url;
-
-            try
-            {
-                using var generator = new QRCodeGenerator();
-                using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.Q);
-                var qrCode = new PngByteQRCode(data);
-                var pngBytes = qrCode.GetGraphic(10);
-
-                var image = new BitmapImage();
-                using (var ms = new MemoryStream(pngBytes))
-                {
-                    image.BeginInit();
-                    image.CacheOption = BitmapCacheOption.OnLoad;
-                    image.StreamSource = ms;
-                    image.EndInit();
-                    image.Freeze();
-                }
-
-                RemoteQrImage.Source = image;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Failed to generate QR code");
-                RemoteQrImage.Source = null;
-            }
-        });
-    }
-
-    private string GetRemoteUrl(int portInUse)
-    {
-        var portSuffix = portInUse == 80 ? string.Empty : $":{portInUse}";
-        var ip = GetLocalIPv4Address();
-        if (!string.IsNullOrWhiteSpace(ip))
-        {
-            return $"http://{ip}{portSuffix}/";
-        }
-        return $"http://{Environment.MachineName}{portSuffix}/";
-    }
-
-
-    private static string? GetLocalIPv4Address()
-    {
-        try
-        {
-            foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                if (ni.OperationalStatus != OperationalStatus.Up) continue;
-                if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-
-                var props = ni.GetIPProperties();
-                foreach (var ua in props.UnicastAddresses)
-                {
-                    if (ua.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                    if (IPAddress.IsLoopback(ua.Address)) continue;
-
-                    var address = ua.Address.ToString();
-                    if (address.StartsWith("169.254.")) continue;
-
-                    return address;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Failed to enumerate local IP addresses");
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -697,9 +483,7 @@ public partial class MainWindow : Window, IDisplayController
             }
 
             // 2. Stop background services
-            if (_previewDroppedFrames > 0)
-                Log.Information("Live preview dropped {Count} frames during this session", _previewDroppedFrames);
-            _livePreviewTimer?.Stop();
+            _livePreview.Stop();
             _progressUpdateTimer?.Stop();
 
             // 3. Cancel Amen Resolve if running
@@ -711,11 +495,7 @@ public partial class MainWindow : Window, IDisplayController
             _amenResolveService?.Dispose();
 
             // 4. Stop Remote Control Server
-            if (_remoteControlServer != null && _remoteControlServer.IsRunning)
-            {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
-                await _remoteControlServer.StopAsync(cts.Token);
-            }
+            await _remoteControl.StopAsync(TimeSpan.FromSeconds(AppConstants.Timeouts.ShutdownTimeoutSeconds));
 
             // 5. Stop and dispose VLC resources
             if (_liveWindow != null)
@@ -835,14 +615,39 @@ public partial class MainWindow : Window, IDisplayController
         }
     }
 
-    private void PositionDisplayWindow()
+    /// <summary>Right-click menu on the Display button: let the operator pick the projector monitor again.</summary>
+    private void ChooseDisplayMonitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (EnsureVlcReady() == null) return;
+
+        var monitors = _monitorService.GetMonitors();
+        if (monitors.Count < 2)
+        {
+            ShowStatus("Only one monitor is connected, so there is nothing to choose.", isError: true);
+            return;
+        }
+
+        if (_liveWindow == null || _liveWindow.IsDisposed)
+        {
+            RecreateLiveOutputWindow(forceAskMonitor: true);
+            return;
+        }
+
+        PositionDisplayWindow(forceAskMonitor: true);
+        if (!_liveWindow.IsVisible)
+            _liveWindow.Show();
+        _liveWindow.WindowState = WindowState.Maximized;
+        _liveWindow.Topmost = true;
+    }
+
+    private void PositionDisplayWindow(bool forceAskMonitor = false)
     {
         if (_liveWindow == null) return;
 
         var monitors = _monitorService.GetMonitors();
         if (monitors.Count >= 2)
         {
-            var liveMonitor = _monitorService.SelectDisplayMonitor(monitors);
+            var liveMonitor = _monitorService.SelectDisplayMonitor(monitors, _settings, forceAskMonitor);
             if (liveMonitor != null)
             {
                 _liveWindow.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -855,7 +660,7 @@ public partial class MainWindow : Window, IDisplayController
         _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
     }
 
-    private void RecreateLiveOutputWindow()
+    private void RecreateLiveOutputWindow(bool forceAskMonitor = false)
     {
         _liveWindow?.Dispose();
         
@@ -876,7 +681,7 @@ public partial class MainWindow : Window, IDisplayController
             ViewModel.ReconcilePlaybackStopped("Live output window recreated");
         }
         
-        PositionDisplayWindow();
+        PositionDisplayWindow(forceAskMonitor);
         
         _liveWindow.Show();
         _liveWindow.ShowBlank();
@@ -908,117 +713,6 @@ public partial class MainWindow : Window, IDisplayController
         var vm = EnsureVlcReady();
         if (vm == null) return;
         vm.PlayCommand.Execute(null);
-    }
-
-    private bool _previewUpdateInProgress = false;
-
-    private async void UpdateLivePreview(object? sender, EventArgs e)
-    {
-        // Reentrancy guard — drop frame if previous snapshot still in flight
-        if (_previewUpdateInProgress)
-        {
-            _previewDroppedFrames++;
-            return;
-        }
-        _previewUpdateInProgress = true;
-        try
-        {
-            if (_liveWindow == null || !_liveWindow.IsLoaded)
-            {
-                PreviewImage.Source = null;
-                PreviewLabel.Text = "Live Output (Loading...)";
-                return;
-            }
-
-            var currentPath = _liveWindow.CurrentMediaPath;
-
-            // --- Adaptive timer: detect what changed and adjust frequency ---
-            if (currentPath != _lastPreviewMediaPath)
-            {
-                // New media loaded — determine type and set timer speed
-                _lastPreviewMediaPath = currentPath;
-                _lastPreviewMediaType = null; // force re-detect below
-            }
-
-            // Detect media type from path
-            bool isImage = currentPath != null && MediaConstants.IsImage(currentPath);
-            bool isVideo = currentPath != null && MediaConstants.IsVideo(currentPath);
-            string mediaType = isImage ? "image" : isVideo ? "video" : "none";
-
-            if (mediaType != _lastPreviewMediaType)
-            {
-                _lastPreviewMediaType = mediaType;
-
-                if (mediaType == "image")
-                {
-                    // Static image — no need for fast updates.
-                    // Timer just keeps the preview alive.
-                    _livePreviewTimer.Interval = TimeSpan.FromMilliseconds(
-                        AppConstants.UI.LivePreviewImageIntervalMs);
-                }
-                else if (mediaType == "video")
-                {
-                    // Playing video — full speed for smooth preview
-                    _livePreviewTimer.Interval = TimeSpan.FromMilliseconds(
-                        AppConstants.UI.LivePreviewIntervalMs);
-                }
-                else
-                {
-                    // No media or blank — slow idle
-                    _livePreviewTimer.Interval = TimeSpan.FromMilliseconds(
-                        AppConstants.UI.LivePreviewIdleIntervalMs);
-                }
-            }
-
-            // --- Skip snapshot for unchanged images ---
-            // For images, GetCurrentSnapshotAsync() returns _imageDisplay.Source
-            // which is a cheap property access (no disk I/O), so we can safely
-            // call it to check if the bitmap actually changed.
-            if (isImage)
-            {
-                var imageSnapshot = await _liveWindow.GetCurrentSnapshotAsync();
-                if (imageSnapshot != null && !ReferenceEquals(imageSnapshot, PreviewImage.Source))
-                {
-                    PreviewImage.Source = imageSnapshot;
-                    PreviewLabel.Text = "Live Output Preview";
-                }
-                return;
-            }
-
-            // --- Skip snapshot for paused video ---
-            // VLC snapshot returns null when paused, no point trying every 42ms
-            if (isVideo && PreviewImage.Source != null && !_liveWindow.IsPlaying)
-            {
-                return;
-            }
-
-            // --- Capture snapshot ---
-            var snapshot = await _liveWindow.GetCurrentSnapshotAsync();
-
-            if (snapshot != null)
-            {
-                PreviewImage.Source = snapshot;
-                PreviewLabel.Text = "Live Output Preview";
-            }
-            else
-            {
-                // No snapshot available (blank, loading, paused video)
-                // Don't clear the preview if we already have content — keeps last frame visible
-                if (string.IsNullOrEmpty(currentPath))
-                {
-                    PreviewImage.Source = null;
-                    PreviewLabel.Text = "Live Output (No Media)";
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Serilog.Log.Warning(ex, "Live preview snapshot failed (dropped frame #{Count})", _previewDroppedFrames);
-        }
-        finally
-        {
-            _previewUpdateInProgress = false;
-        }
     }
 
     private void DeleteMenuItem_Click(object sender, RoutedEventArgs e) => RemoveSelectedItem();
@@ -1348,7 +1042,7 @@ public partial class MainWindow : Window, IDisplayController
     }
 
     /// <summary>Shows a short message under the playlist buttons that disappears by itself.</summary>
-    private void ShowStatus(string message, bool isError = false)
+    internal void ShowStatus(string message, bool isError = false)
     {
         StatusText.Text = message;
         StatusText.Foreground = isError ? Brushes.Firebrick : Brushes.DarkGreen;
@@ -1475,7 +1169,7 @@ public partial class MainWindow : Window, IDisplayController
     public void SetVolume(double volume)
     {
         var vm = EnsureVlcReady();
-        if (vm == null) return;
+        if (vm == null || !double.IsFinite(volume)) return;
         var clamped = Math.Clamp(volume, 0.0, 1.0);
         Log.Debug("IDisplayController.SetVolume called with {Volume:P0} (clamped to {Clamped:P0})", volume, clamped);
         vm.Volume = clamped;
@@ -1492,21 +1186,32 @@ public partial class MainWindow : Window, IDisplayController
         if (vm == null) return;
         vm.Volume = Math.Clamp(vm.Volume - 0.02, 0.0, 1.0);
     }
-    public void PlayIndex(int index)
+    public RemotePlayResult PlayIndex(int index, int? expectedPlaylistVersion = null)
     {
         var vm = EnsureVlcReady();
-        if (vm == null) return;
-        if (index >= 0 && index < _playlistManager.Items.Count)
+        if (vm == null) return RemotePlayResult.NotReady;
+
+        // The remote's list is out of date: the operator added, removed, or reordered items since it loaded.
+        if (expectedPlaylistVersion is int expected && expected != _playlistManager.Version)
         {
-            vm.SelectedItem = _playlistManager.Items[index];
-            vm.PlayCommand.Execute(null);
+            Log.Information("Remote play of index {Index} rejected: playlist version {Expected} is stale (now {Current})",
+                index, expected, _playlistManager.Version);
+            return RemotePlayResult.StalePlaylist;
         }
+
+        if (index < 0 || index >= _playlistManager.Items.Count)
+            return RemotePlayResult.NotFound;
+
+        vm.SelectedItem = _playlistManager.Items[index];
+        vm.PlayCommand.Execute(null);
+        return RemotePlayResult.Started;
     }
 
     public void Amen()
     {
+        // Already on the UI thread (the remote server dispatches here).
         if (EnsureVlcReady() == null) return;
-        Dispatcher.BeginInvoke(() => AmenButton_Click(this, new RoutedEventArgs()));
+        AmenButton_Click(this, new RoutedEventArgs());
     }
 
     public RemoteStatus GetStatus()
@@ -1523,22 +1228,20 @@ public partial class MainWindow : Window, IDisplayController
                 ViewModel.Volume,
                 ViewModel.NowPlayingIndex,
                 ViewModel.IsPlaying,
-                ViewModel.IsBlanked
+                ViewModel.IsBlanked,
+                _playlistManager.Version
             );
         }
 
-        return new RemoteStatus("Loading...", 0, "00:00", "00:00", 0.5);
+        return new RemoteStatus("Loading...", 0, "00:00", "00:00", 0.5, PlaylistVersion: _playlistManager.Version);
     }
 
-    public List<RemotePlaylistItem> GetPlaylistItems()
+    public RemotePlaylist GetPlaylist()
     {
-        var result = new List<RemotePlaylistItem>();
-        for (int i = 0; i < _playlistManager.Items.Count; i++)
-        {
-            var item = _playlistManager.Items[i];
-            result.Add(new RemotePlaylistItem(i, item.FileName));
-        }
-        return result;
+        var items = _playlistManager.Items
+            .Select((item, i) => new RemotePlaylistItem(i, item.FileName))
+            .ToList();
+        return new RemotePlaylist(_playlistManager.Version, items);
     }
 
     /// <summary>

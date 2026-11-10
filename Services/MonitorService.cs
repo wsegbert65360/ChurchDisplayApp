@@ -165,7 +165,11 @@ public class MonitorService
         return (scaleX, scaleY);
     }
 
-    public MonitorBounds? SelectDisplayMonitor(List<MonitorBounds> monitors)
+    /// <summary>
+    /// Picks the monitor for the projector output. Uses the operator's saved Left/Right choice and only
+    /// asks again when nothing is saved, the number of monitors has changed, or <paramref name="forceAsk"/> is set.
+    /// </summary>
+    public MonitorBounds? SelectDisplayMonitor(List<MonitorBounds> monitors, AppSettings settings, bool forceAsk = false)
     {
         if (monitors == null || monitors.Count == 0)
             return null;
@@ -173,16 +177,34 @@ public class MonitorService
         if (monitors.Count == 1)
             return monitors[0];
 
-        var selectionWindow = new MonitorSelectionWindow();
-        if (selectionWindow.ShowDialog() == true)
+        var side = settings.DisplayMonitorSide;
+        var needsAsk = forceAsk || side == null || settings.DisplayMonitorCount != monitors.Count;
+
+        if (needsAsk)
         {
-            return selectionWindow.Result == MonitorSelectionWindow.SelectionResult.Right
-                // OrderByDescending(m => m.Right) → monitor with largest Right *coordinate* (rightmost on screen)
-                ? monitors.OrderByDescending(m => m.Right).First()
-                // OrderBy(m => m.Right) → monitor with smallest Right *coordinate* (leftmost on screen)
-                : monitors.OrderBy(m => m.Right).First();
+            var selectionWindow = new MonitorSelectionWindow();
+            if (Application.Current?.MainWindow is { IsLoaded: true } owner)
+                selectionWindow.Owner = owner;
+
+            if (selectionWindow.ShowDialog() == true)
+            {
+                side = selectionWindow.Result == MonitorSelectionWindow.SelectionResult.Left ? "Left" : "Right";
+                settings.DisplayMonitorSide = side;
+                settings.DisplayMonitorCount = monitors.Count;
+                settings.Save();
+                Log.Information("Display monitor set to {Side} ({Count} monitors)", side, monitors.Count);
+            }
         }
 
-        return monitors.OrderByDescending(m => m.Right).First();
+        return PickBySide(monitors, side ?? "Right");
+    }
+
+    /// <summary>Returns the leftmost or rightmost monitor on the desktop.</summary>
+    public static MonitorBounds PickBySide(IReadOnlyList<MonitorBounds> monitors, string side)
+    {
+        // Ordered by the Right *coordinate*: smallest = leftmost on screen, largest = rightmost.
+        return side == "Left"
+            ? monitors.OrderBy(m => m.Right).First()
+            : monitors.OrderByDescending(m => m.Right).First();
     }
 }

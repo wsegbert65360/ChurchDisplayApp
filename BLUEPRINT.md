@@ -28,8 +28,8 @@ The current program is centered on one playlist and one active media playback pa
    - `MainViewModel`
    - `PlaylistDragDropManager`
    - `AmenResolveService` if the SoundFont exists
-5. The live output window is positioned on a selected external monitor when available.
-6. The remote control server starts on port `8088`, falling back to `8090`.
+5. The live output window is positioned on the external monitor. The operator's Left/Right choice is saved and asked again only when the number of monitors changes (or via right-click → "Choose Display Monitor…" on the Display button).
+6. The remote control server starts on port `8088`, falling back to `8090`. The Amen SoundFont is preloaded in the background.
 7. The operator uses the playlist, media controls, service elements window, or remote browser UI to control playback.
 
 ## Core Components
@@ -58,8 +58,8 @@ Settings use debounced saves through `Save()` and immediate saves through `SaveI
 - Initializes VLC on a background thread and creates WPF media objects on the UI thread.
 - Owns the `PlaylistManager`.
 - Creates the real `MainViewModel` after VLC is ready.
-- Starts and stops the remote control server.
-- Updates the live preview image on an adaptive timer.
+- Starts and stops the remote control server through `RemoteControlCoordinator` (ports, firewall check, URL and QR code).
+- Hosts the live preview through `LivePreviewController` (about 5 fps for video, slower for images and idle).
 - Handles playlist dialogs, drag/drop handlers, display toggling, Amen, and shutdown cleanup.
 - Verifies expected firewall rules without blocking startup indefinitely.
 
@@ -161,17 +161,21 @@ Ports:
 Endpoints:
 
 - `GET /`
-- `GET /api/playlist`
-- `GET /api/status`
+- `GET /api/playlist` → `{ version, items: [{ index, fileName }] }`
+- `GET /api/status` (includes `playlistVersion`)
 - `POST /api/play`
-- `POST /api/play/{index:int}`
+- `POST /api/play/{index:int}?v={version}` — returns `409` when the playlist changed since the remote loaded it, so a stale tap never plays the wrong item
 - `POST /api/pause`
 - `POST /api/stop`
 - `POST /api/blank`
 - `POST /api/amen`
 - `POST /api/volume/up`
 - `POST /api/volume/down`
-- `POST /api/volume/{level:double}`
+- `POST /api/volume/{level:double}` (non-numeric values such as `NaN` return `400`)
+
+The remote page reloads the playlist whenever `playlistVersion` in the status changes.
+
+The remote has no authentication; it is intended for a trusted local network.
 
 The controller boundary checks whether the media engine is ready before executing VLC-dependent actions. During shutdown, applicable endpoints return `503`.
 
@@ -265,7 +269,7 @@ Audio:
 Project file:
 
 - `ChurchDisplayApp.csproj`
-- Version: `1.3.0`
+- Version: `1.4.0`
 - Target: `net8.0-windows`
 
 Build scripts:
@@ -285,6 +289,14 @@ Installer:
 - Creates firewall rules for ports `8088` and `8090`
 - Removes those rules on uninstall
 
+## Tests
+
+`tests/ChurchDisplayApp.Tests` (xUnit) covers playlist parsing/saving, the playlist version counter, volume validation, settings validation and migration, and monitor selection. Run with:
+
+```
+dotnet test tests/ChurchDisplayApp.Tests/ChurchDisplayApp.Tests.csproj
+```
+
 ## Current Reliability Notes
 
 - VLC initialization can be cancelled during shutdown.
@@ -300,4 +312,4 @@ Installer:
 
 ---
 
-Last updated: May 11, 2026
+Last updated: November 9, 2026

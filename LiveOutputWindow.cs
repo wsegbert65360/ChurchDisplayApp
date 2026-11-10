@@ -30,7 +30,9 @@ public class LiveOutputWindow : Window, IDisposable
     private string? _currentMediaPath;
     private int _targetVolume = 100; // Stored volume to apply when VLC starts playing
     private Media? _currentMedia; // Track current media for proper disposal
-    private readonly string _snapshotTempPath;
+    private readonly string[] _snapshotTempPaths;
+    private int _snapshotSlot;
+    private readonly object _playerLock = new();
     private int _mediaVersion;
     public bool IsDisposed { get; private set; }
 
@@ -67,72 +69,99 @@ public class LiveOutputWindow : Window, IDisposable
     /// </summary>
     private async Task<BitmapSource?> GetVideoSnapshotAsync()
     {
-        if (_mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero || !_mediaPlayer.IsPlaying)
+        var mp = _mediaPlayer;
+        if (mp == null || mp.NativeReference == IntPtr.Zero || !mp.IsPlaying)
             return null;
+
+        // Alternate between two files so we never read a file VLC is overwriting for the next frame.
+        _snapshotSlot ^= 1;
+        var path = _snapshotTempPaths[_snapshotSlot];
 
         try
         {
-            // Use explicit small dimensions — a 640x360 PNG is ~50-100KB
-            // vs a 1080p PNG at ~2-4MB. Massive reduction in encode+decode time.
-            if (!_mediaPlayer.TakeSnapshot(0, _snapshotTempPath,
-                    AppConstants.UI.PreviewSnapshotWidth,
-                    AppConstants.UI.PreviewSnapshotHeight))
+            // All file work and the VLC call run off the UI thread.
+            return await Task.Run(async () =>
             {
-                return null;
-            }
+                // Remove the old frame first, so that a file that exists afterwards is known to be the new one.
+                try { File.Delete(path); }
+                catch (IOException) { return null; } // Still locked from a previous read; skip this frame.
 
-            // Wait for VLC to finish writing (non-blocking, same file reused)
-            for (int i = 0; i < 10; i++)
-            {
-                if (File.Exists(_snapshotTempPath))
+                // Dispose takes the same lock, so the player cannot be freed while VLC is taking the snapshot.
+                lock (_playerLock)
                 {
-                    // Check file is not still being written by VLC
-                    try
-                    {
-                        using (var fs = File.OpenRead(_snapshotTempPath))
-                        {
-                            if (fs.Length > 0) break;
-                        }
-                    }
-                    catch (IOException)
-                    {
-                        await Task.Delay(5);
-                        continue;
-                    }
+                    if (IsDisposed || mp.NativeReference == IntPtr.Zero)
+                        return null;
+
+                    // Small explicit size: a 640x360 PNG is ~50-100 KB versus several MB at 1080p.
+                    if (!mp.TakeSnapshot(0, path, AppConstants.UI.PreviewSnapshotWidth, AppConstants.UI.PreviewSnapshotHeight))
+                        return null;
                 }
-                await Task.Delay(5);
-            }
 
-            if (!File.Exists(_snapshotTempPath))
-                return null;
-
-            // Read file bytes into memory, then decode from MemoryStream.
-            // This avoids WPF's URI parsing overhead when using UriSource.
-            var bitmap = await Task.Run(() =>
-            {
-                byte[] fileBytes = File.ReadAllBytes(_snapshotTempPath);
-                var bmp = new BitmapImage();
-                using (var ms = new System.IO.MemoryStream(fileBytes))
+                // VLC may still be writing the file. Wait (briefly) until it holds a complete PNG.
+                for (int attempt = 0; attempt < 20; attempt++)
                 {
-                    bmp.BeginInit();
-                    bmp.CacheOption = BitmapCacheOption.OnLoad;
-                    bmp.StreamSource = ms;
-                    bmp.DecodePixelWidth = AppConstants.UI.PreviewSnapshotWidth;
-                    bmp.EndInit();
+                    var bytes = TryReadCompletePng(path);
+                    if (bytes != null)
+                        return DecodePreview(bytes);
+                    await Task.Delay(10);
                 }
-                bmp.Freeze();
-                return bmp;
+
+                return null;
             });
-
-            return bitmap;
         }
         catch (Exception ex)
         {
-            Serilog.Log.Warning(ex, "Video snapshot failed");
+            Serilog.Log.Debug(ex, "Video snapshot failed");
             return null;
         }
-        // NOTE: No file deletion — we reuse _snapshotTempPath across frames.
-        // It gets cleaned up in Dispose().
+    }
+
+    /// <summary>
+    /// Reads <paramref name="path"/> if it holds a finished PNG (ends with the IEND chunk), otherwise returns null.
+    /// </summary>
+    private static byte[]? TryReadCompletePng(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+                return null;
+
+            byte[] bytes;
+            using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                if (fs.Length < 12)
+                    return null;
+                bytes = new byte[fs.Length];
+                fs.ReadExactly(bytes);
+            }
+
+            // A PNG ends with: length(4) "IEND"(4) CRC(4).
+            var tail = bytes.AsSpan(bytes.Length - 8, 4);
+            return tail.SequenceEqual("IEND"u8) ? bytes : null;
+        }
+        catch (IOException)
+        {
+            return null; // still being written
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static BitmapImage DecodePreview(byte[] bytes)
+    {
+        var bmp = new BitmapImage();
+        using (var ms = new MemoryStream(bytes))
+        {
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.StreamSource = ms;
+            bmp.DecodePixelWidth = AppConstants.UI.PreviewSnapshotWidth;
+            bmp.EndInit();
+        }
+        bmp.Freeze();
+        return bmp;
     }
 
     public LiveOutputWindow(LibVLC libVLC)
@@ -151,7 +180,13 @@ public class LiveOutputWindow : Window, IDisposable
         {
             Background = Brushes.Black
         };
-        _snapshotTempPath = Path.Combine(Path.GetTempPath(), $"{AppConstants.Media.SnapshotPrefix}preview{AppConstants.Media.SnapshotExtension}");
+        // Unique per process so a second window (after recreate) never fights over the same file.
+        var pid = Environment.ProcessId;
+        _snapshotTempPaths = new[]
+        {
+            Path.Combine(Path.GetTempPath(), $"{AppConstants.Media.SnapshotPrefix}{pid}_{GetHashCode()}_a{AppConstants.Media.SnapshotExtension}"),
+            Path.Combine(Path.GetTempPath(), $"{AppConstants.Media.SnapshotPrefix}{pid}_{GetHashCode()}_b{AppConstants.Media.SnapshotExtension}")
+        };
         
         // Create outer grid with rows for content and progress bar
         var mainGrid = new Grid();
@@ -166,7 +201,7 @@ public class LiveOutputWindow : Window, IDisposable
         catch (Exception ex)
         {
             Serilog.Log.Error(ex, "Failed to initialize MediaPlayer.");
-            _mediaPlayer = null!;
+            _mediaPlayer = null;
         }
 
         // Create VideoView for media playback
@@ -263,14 +298,20 @@ public class LiveOutputWindow : Window, IDisposable
 
         try { _videoView.MediaPlayer = null; } catch { }
 
-        if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+        lock (_playerLock)
         {
-            try { _mediaPlayer.Stop(); } catch { }
-            _mediaPlayer.Dispose();
+            if (_mediaPlayer != null && _mediaPlayer.NativeReference != IntPtr.Zero)
+            {
+                try { _mediaPlayer.Stop(); } catch { }
+                _mediaPlayer.Dispose();
+            }
         }
         _currentMedia?.Dispose();
         _currentMedia = null;
-        try { File.Delete(_snapshotTempPath); } catch { }
+        foreach (var path in _snapshotTempPaths)
+        {
+            try { File.Delete(path); } catch { /* cleaned up at next startup */ }
+        }
         GC.SuppressFinalize(this);
     }
 
@@ -328,10 +369,24 @@ public class LiveOutputWindow : Window, IDisposable
     /// Displays the specified media file. Detects if it is an image or video based on file extension.
     /// </summary>
     /// <param name="filePath">The absolute path to the media file.</param>
+    /// <returns>
+    /// False when the media could not be started; the window is then cleared. Failures discovered later
+    /// (for example an image that turns out to be corrupt) are reported through <see cref="MediaError"/>,
+    /// which is always raised after this method has returned.
+    /// </returns>
     public bool ShowMedia(string filePath)
     {
         _isPlaying = false;
         _timer.Stop();
+
+        // Failures detectable right now are returned, not raised as MediaError: raising the event
+        // synchronously would reach the ViewModel before it has marked the item as playing.
+        if (string.IsNullOrWhiteSpace(filePath) || !MediaConstants.IsSupported(filePath) || !File.Exists(filePath))
+        {
+            Stop();
+            return false;
+        }
+
         _currentMediaPath = filePath;
         var mediaVersion = ++_mediaVersion;
 
@@ -341,22 +396,15 @@ public class LiveOutputWindow : Window, IDisposable
             return true;
         }
 
-        if (MediaConstants.IsSupported(filePath))
-            return PlayVideo(filePath);
+        if (PlayVideo(filePath))
+            return true;
 
-        MediaError?.Invoke(this, EventArgs.Empty);
+        Stop();
         return false;
     }
 
     private async Task ShowImageAsync(string imagePath, int mediaVersion)
     {
-        if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
-        {
-            Stop();
-            MediaError?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
         try
         {
             // Ensure any currently playing video/audio is stopped
@@ -380,16 +428,22 @@ public class LiveOutputWindow : Window, IDisposable
             // while we were suspended at the await, discard this stale result.
             if (_currentMediaPath != imagePath || _mediaVersion != mediaVersion) return;
 
-            var bitmap = new BitmapImage();
-            using (var ms = new System.IO.MemoryStream(fileBytes))
+            // Decode at the projector's real pixel width (sharp on 4K) but cap it so huge photos cannot exhaust memory.
+            var decodeWidth = GetImageDecodeWidth();
+            var bitmap = await Task.Run(() =>
             {
-                bitmap.BeginInit();
-                bitmap.StreamSource = ms;
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 1920;  // Limit decode size to prevent OOM
-                bitmap.EndInit();
-                bitmap.Freeze();  // Freeze for thread-safety and WPF resource optimization
-            }
+                var bmp = new BitmapImage();
+                using (var ms = new MemoryStream(fileBytes))
+                {
+                    bmp.BeginInit();
+                    bmp.StreamSource = ms;
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.DecodePixelWidth = decodeWidth;
+                    bmp.EndInit();
+                }
+                bmp.Freeze();  // Required to hand the bitmap back to the UI thread.
+                return bmp;
+            });
 
             if (_currentMediaPath != imagePath || _mediaVersion != mediaVersion) return;
 
@@ -399,8 +453,35 @@ public class LiveOutputWindow : Window, IDisposable
         catch (Exception ex)
         {
             Serilog.Log.Error(ex, "Failed to load image at {Path}", imagePath);
+
+            // A failure for an image the operator has already moved past must not stop what is showing now.
+            if (_mediaVersion != mediaVersion) return;
+
             Stop();
-            MediaError?.Invoke(this, EventArgs.Empty);
+
+            // Post the event so it always arrives after ShowMedia's caller has finished updating its state,
+            // and drop it if new media was started in the meantime.
+            var stoppedVersion = _mediaVersion;
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                if (_mediaVersion == stoppedVersion)
+                    MediaError?.Invoke(this, EventArgs.Empty);
+            });
+        }
+    }
+
+    private int GetImageDecodeWidth()
+    {
+        const int minWidth = 1920, maxWidth = 7680;
+        try
+        {
+            var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            var pixels = (int)Math.Round(ActualWidth * (scale > 0 ? scale : 1));
+            return Math.Clamp(pixels, minWidth, maxWidth);
+        }
+        catch
+        {
+            return minWidth;
         }
     }
 
@@ -408,8 +489,8 @@ public class LiveOutputWindow : Window, IDisposable
     {
         if (_libVLC == null || _mediaPlayer == null || _mediaPlayer.NativeReference == IntPtr.Zero)
         {
+            Serilog.Log.Error("Video playback is unavailable because the VLC media player failed to initialize.");
             MessageBox.Show("Video playback is unavailable because LibVLC failed to initialize. Please ensure VLC and its dependencies are correctly installed.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            MediaError?.Invoke(this, EventArgs.Empty);
             return false;
         }
 
@@ -551,14 +632,9 @@ public class LiveOutputWindow : Window, IDisposable
 
         if (MediaConstants.IsImage(_currentMediaPath))
         {
+            // Image not loaded (yet, or it was released): load it again.
             if (_imageDisplay.Source == null)
-            {
-                if (!File.Exists(_currentMediaPath))
-                    return false;
-
-                ShowMedia(_currentMediaPath);
-                return true;
-            }
+                return ShowMedia(_currentMediaPath);
 
             RestoreVisibility();
             _isPlaying = false;
@@ -570,11 +646,7 @@ public class LiveOutputWindow : Window, IDisposable
             return Resume();
         }
 
-        if (!File.Exists(_currentMediaPath) || !MediaConstants.IsSupported(_currentMediaPath))
-            return false;
-
-        ShowMedia(_currentMediaPath);
-        return true;
+        return ShowMedia(_currentMediaPath);
     }
 
     private void RestoreVisibility()

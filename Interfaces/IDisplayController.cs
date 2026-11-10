@@ -35,14 +35,17 @@ namespace ChurchDisplayApp.Interfaces
         /// <summary>Decreases the volume by a small step.</summary>
         void VolumeDown();
         
-        /// <summary>Plays a specific item in the playlist by index.</summary>
-        void PlayIndex(int index);
+        /// <summary>
+        /// Plays a specific item in the playlist by index. When <paramref name="expectedPlaylistVersion"/> is given
+        /// and the playlist has changed since then, nothing is played.
+        /// </summary>
+        RemotePlayResult PlayIndex(int index, int? expectedPlaylistVersion = null);
         
         /// <summary>Gets the current status of the display and playback.</summary>
         RemoteStatus GetStatus();
         
-        /// <summary>Gets a list of items currently in the playlist for the remote UI.</summary>
-        List<RemotePlaylistItem> GetPlaylistItems();
+        /// <summary>Gets the items currently in the playlist, with the playlist version, for the remote UI.</summary>
+        RemotePlaylist GetPlaylist();
 
         /// <summary>Stops media playback and plays the Amen resolve chord.</summary>
         void Amen();

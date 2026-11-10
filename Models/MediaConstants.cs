@@ -11,19 +11,19 @@ public static class MediaConstants
 
     public static bool IsImage(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
+        var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
         return ImageExtensions.Contains(ext);
     }
 
     public static bool IsVideo(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
+        var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
         return VideoExtensions.Contains(ext);
     }
 
     public static bool IsAudio(string filePath)
     {
-        var ext = System.IO.Path.GetExtension(filePath).ToLower();
+        var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
         return AudioExtensions.Contains(ext);
     }
 

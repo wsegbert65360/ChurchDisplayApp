@@ -101,6 +101,9 @@ public class MainViewModel : BaseViewModel
         get => VolumeTarget?.Volume ?? _settings.DefaultServiceVolume;
         set
         {
+            if (!double.IsFinite(value))
+                return;
+
             var clampedValue = Math.Clamp(value, 0.0, 1.0);
             var oldVolume = Volume;
             if (Math.Abs(oldVolume - clampedValue) <= 0.001)

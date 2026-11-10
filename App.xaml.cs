@@ -27,7 +27,7 @@ public partial class App : Application
             return;
         }
 
-        try { StartupProfiler.Instance.StartPhase("WpfStartup"); } catch { }
+        StartupProfiler.Instance.StartPhase("WpfStartup");
         // PHASE 1: Show splash screen FIRST (before any init)
         try
         {
@@ -90,16 +90,8 @@ public partial class App : Application
         DispatcherUnhandledException += (s, args) =>
         {
             Log.Error(args.Exception, "Unhandled UI Dispatcher exception");
-
-            MessageBox.Show(
-                "An unexpected error occurred in the user interface:\n\n" +
-                $"{args.Exception.Message}\n\n" +
-                "The application will attempt to continue. If you continue to see this error, please restart the application.",
-                "Unexpected UI Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-
             args.Handled = true; // Attempt to recover/continue
+            ReportUiError(args.Exception);
         };
 
         // PHASE 1+2: Create MainWindow manually
@@ -156,7 +148,7 @@ public partial class App : Application
             }));
         };
 
-        try { StartupProfiler.Instance.EndPhase("WpfStartup"); } catch { }
+        StartupProfiler.Instance.EndPhase("WpfStartup");
         mainWindow.Show();
 
         // PHASE 1: Safety timeout - close splash after 15s
@@ -183,6 +175,40 @@ public partial class App : Application
 
         // Ensure the process actually terminates, even if background threads (VLC, ASP.NET Core) are lingering.
         Environment.Exit(e.ApplicationExitCode);
+    }
+
+    private DateTime _lastErrorDialogUtc = DateTime.MinValue;
+
+    /// <summary>
+    /// Tells the operator about an unexpected UI error without blocking the service: a status line in the main
+    /// window when it is up, otherwise a dialog at most every 30 seconds (so a repeating error cannot stack dialogs).
+    /// </summary>
+    private void ReportUiError(Exception ex)
+    {
+        try
+        {
+            if (MainWindow is ChurchDisplayApp.MainWindow { IsLoaded: true } main)
+            {
+                main.ShowStatus($"Something went wrong: {ex.Message} (details are in the log). The app is still running.", isError: true);
+                return;
+            }
+
+            if (DateTime.UtcNow - _lastErrorDialogUtc < TimeSpan.FromSeconds(30))
+                return;
+
+            _lastErrorDialogUtc = DateTime.UtcNow;
+            MessageBox.Show(
+                "An unexpected error occurred in the user interface:\n\n" +
+                $"{ex.Message}\n\n" +
+                "The application will attempt to continue. If you continue to see this error, please restart the application.",
+                "Unexpected UI Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        catch (Exception reportEx)
+        {
+            Log.Warning(reportEx, "Could not show the UI error to the operator");
+        }
     }
 
     private static void CleanupOrphanedSnapshots()

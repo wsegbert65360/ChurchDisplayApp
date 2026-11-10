@@ -33,7 +33,7 @@ namespace ChurchDisplayApp.Services
         private void Initialize()
         {
             // Thread-safe initialization using double-check locking pattern
-            if (_synth != null) return;
+            if (Volatile.Read(ref _synth) != null) return;
 
             lock (_initLock)
             {
@@ -48,16 +48,29 @@ namespace ChurchDisplayApp.Services
                 try
                 {
                     var sf = new SoundFont(_soundFontPath);
-                    _synth = new MeltySynth.Synthesizer(sf, 44100);
-                    _sampleProvider = new SynthSampleProvider(_synth, _synthLock);
-                
-                    _waveOut = new WaveOutEvent();
-                    _waveOut.Init(_sampleProvider);
+                    var synth = new MeltySynth.Synthesizer(sf, 44100);
+                    var sampleProvider = new SynthSampleProvider(synth, _synthLock);
+
+                    var waveOut = new WaveOutEvent();
+                    waveOut.Init(sampleProvider);
+
+                    // The app may have shut down while the SoundFont was loading.
+                    if (_disposed)
+                    {
+                        waveOut.Dispose();
+                        return;
+                    }
+
+                    // Publish _synth last: it is the "ready" flag checked outside the lock, so everything
+                    // else must already be in place when another thread sees it.
+                    _sampleProvider = sampleProvider;
+                    _waveOut = waveOut;
+                    Volatile.Write(ref _synth, synth);
+                    Log.Information("Amen SoundFont loaded");
                 }
                 catch (Exception ex)
                 {
                     Log.Error(ex, "Failed to initialize synthesizer with SoundFont at {Path}", _soundFontPath);
-                    _synth = null;
                 }
             }
         }
@@ -79,6 +92,26 @@ namespace ChurchDisplayApp.Services
             var synth = _synth;
             if (synth == null) return;
             lock (_synthLock) { synth.Reset(); }
+        }
+
+        /// <summary>
+        /// Loads the SoundFont and opens the audio device in the background, so the first Amen press
+        /// plays immediately instead of waiting for the ~25 MB SoundFont to load.
+        /// </summary>
+        public Task PreloadAsync()
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    if (!_disposed)
+                        Initialize();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Amen SoundFont preload failed; it will be retried on first use");
+                }
+            });
         }
 
         public void Cancel()
@@ -202,11 +235,15 @@ namespace ChurchDisplayApp.Services
                     try { _cts.Dispose(); } catch (ObjectDisposedException) { }
                 }
 
-                if (_waveOut != null)
+                // Same lock as Initialize, so a preload finishing right now cannot leave a device open.
+                lock (_initLock)
                 {
-                    try { _waveOut.Stop(); } catch { }
-                    _waveOut.Dispose();
-                    _waveOut = null;
+                    if (_waveOut != null)
+                    {
+                        try { _waveOut.Stop(); } catch { }
+                        _waveOut.Dispose();
+                        _waveOut = null;
+                    }
                 }
 
                 _semaphore.Dispose();

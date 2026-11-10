@@ -89,8 +89,16 @@ public class PlaylistManager
         Items.CollectionChanged += Items_CollectionChanged;
     }
 
+    /// <summary>
+    /// Increases on every change to the list (add, remove, move, clear, load). The remote control uses it
+    /// to notice that its copy of the list is out of date.
+    /// </summary>
+    public int Version { get; private set; }
+
     private void Items_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        Version++;
+
         if (e.OldItems != null)
         {
             foreach (var oldItem in e.OldItems.OfType<PlaylistItem>())

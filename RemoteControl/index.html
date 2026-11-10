@@ -448,6 +448,8 @@
         let isVolumeSliderActive = false;
         let volumeCommitTimer = null;
         let lastNonZeroVolume = 0.5;
+        let playlistVersion = null;
+        let playlistLoading = false;
 
         // Initialize Lucide icons (guard against load failure)
         if (typeof lucide !== 'undefined') {
@@ -469,7 +471,17 @@
             const id = setTimeout(() => controller.abort(), 3000);
             try {
                 const res = await fetch(url, { method: 'POST', signal: controller.signal });
-                if (res.ok && refresh) {
+                if (res.status === 409) {
+                    // The playlist changed on the PC since this list was loaded; never play a guessed item.
+                    showToast('Playlist changed — tap again');
+                    loadPlaylist();
+                    return;
+                }
+                if (!res.ok) {
+                    showToast(res.status === 503 ? 'App is starting or closing' : 'Action failed');
+                    return;
+                }
+                if (refresh) {
                     pollStatus();
                 }
             } catch (e) {
@@ -549,6 +561,11 @@
                 if (!data) return;
                 currentStatus = data;
 
+                // Reload the list as soon as the operator adds, removes, or reorders items on the PC.
+                if (typeof data.playlistVersion === 'number' && data.playlistVersion !== playlistVersion) {
+                    loadPlaylist();
+                }
+
                 // 1. Update volume first (Priority)
                 const volDisplay = document.getElementById('volume-display');
                 if (volDisplay) {
@@ -607,14 +624,20 @@
         }
 
         async function loadPlaylist() {
+            if (playlistLoading) return;
+            playlistLoading = true;
             const container = document.getElementById('playlist-container');
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
             try {
                 const res = await fetch('/api/playlist', { signal: controller.signal });
-                const items = await res.json();
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const items = data && Array.isArray(data.items) ? data.items : [];
+                const version = data ? data.version : null;
+                playlistVersion = version;
 
-                if (!items || items.length === 0) {
+                if (items.length === 0) {
                     container.innerHTML = '<div style="text-align:center; padding: 40px; color:var(--text-dim);">Playlist is empty</div>';
                     return;
                 }
@@ -624,11 +647,11 @@
                     const card = document.createElement('div');
                     card.className = 'card playlist-item';
                     card.dataset.index = String(it.index);
-                    card.onclick = () => post('/api/play/' + it.index);
+                    card.onclick = () => post('/api/play/' + it.index + '?v=' + encodeURIComponent(version));
 
                     const ext = it.fileName.split('.').pop()?.toLowerCase();
-                    const iconName = ['mp4', 'mov', 'wmv'].includes(ext) ? 'video' :
-                        ['jpg', 'png', 'jpeg'].includes(ext) ? 'image' : 'music';
+                    const iconName = ['mp4', 'mov', 'wmv', 'mkv'].includes(ext) ? 'video' :
+                        ['jpg', 'jpeg', 'png', 'bmp', 'gif'].includes(ext) ? 'image' : 'music';
 
                     card.innerHTML = `
                         <div class="card-icon"><i data-lucide="${iconName}"></i></div>
@@ -649,6 +672,7 @@
                 }
             } finally {
                 clearTimeout(timeoutId);
+                playlistLoading = false;
             }
         }
 
