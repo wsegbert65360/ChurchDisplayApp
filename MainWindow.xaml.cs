@@ -48,6 +48,9 @@ public partial class MainWindow : Window, IDisplayController
 
     // PHASE 2: VLC readiness tracking
     private volatile bool _vlcReady = false;
+
+    // A playlist the app was asked to open (double-clicked in File Explorer) before startup finished.
+    private string? _pendingShellPlaylist;
     private bool _vlcInitFailed = false;
     private string? _vlcInitError;
 
@@ -301,7 +304,17 @@ public partial class MainWindow : Window, IDisplayController
                 if (_settings.LoadNotice != null)
                     ShowStatus(_settings.LoadNotice, isError: true);
 
-                Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(OfferPlaylistRecovery));
+                Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+                {
+                    // A playlist opened from File Explorer takes priority over the recovery offer;
+                    // the recovery file is kept and offered on a later launch.
+                    var pending = _pendingShellPlaylist;
+                    _pendingShellPlaylist = null;
+                    if (pending != null)
+                        OpenPlaylistFromShell(pending);
+                    else
+                        OfferPlaylistRecovery();
+                }));
             });
         }
         catch (OperationCanceledException)
@@ -923,6 +936,33 @@ public partial class MainWindow : Window, IDisplayController
 
         if (dlg.ShowDialog() == true)
             LoadPlaylistFile(dlg.FileName);
+    }
+
+    /// <summary>
+    /// Opens a playlist the operator double-clicked in File Explorer (or chose with Open with).
+    /// If the media engine is still starting, the file is opened as soon as it is ready.
+    /// </summary>
+    public void OpenPlaylistFromShell(string path)
+    {
+        if (_isClosing)
+            return;
+
+        if (!_vlcReady)
+        {
+            _pendingShellPlaylist = path;
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            ShowStatus($"Could not find the playlist {Path.GetFileName(path)}.", isError: true);
+            return;
+        }
+
+        if (!ConfirmDiscardOrSavePlaylist())
+            return;
+
+        LoadPlaylistFile(path);
     }
 
     private void LoadPlaylistFile(string path)

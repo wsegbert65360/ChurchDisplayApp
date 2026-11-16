@@ -20,8 +20,11 @@ public partial class App : Application
         // Enforce single instance BEFORE showing anything. If another instance owns the
         // mutex, it is asked to surface and this process exits immediately without ever
         // creating a window or binding a port.
+        // A playlist double-clicked in File Explorer arrives as the first argument.
+        var fileToOpen = GetPlaylistArgument(e.Args);
+
         _singleInstance = new SingleInstanceService();
-        if (!_singleInstance.TryAcquire())
+        if (!_singleInstance.TryAcquire(fileToOpen))
         {
             Shutdown(0);
             return;
@@ -148,6 +151,16 @@ public partial class App : Application
             }));
         };
 
+        // A playlist double-clicked while the app is already running opens in this instance.
+        _singleInstance.OpenFileRequested += (s, path) =>
+            Dispatcher.BeginInvoke(new Action(() => mainWindow.OpenPlaylistFromShell(path)));
+
+        if (fileToOpen != null)
+        {
+            Log.Information("Started with playlist {Path}", fileToOpen);
+            mainWindow.OpenPlaylistFromShell(fileToOpen);
+        }
+
         StartupProfiler.Instance.EndPhase("WpfStartup");
         mainWindow.Show();
 
@@ -208,6 +221,26 @@ public partial class App : Application
         catch (Exception reportEx)
         {
             Log.Warning(reportEx, "Could not show the UI error to the operator");
+        }
+    }
+
+    /// <summary>Returns the first command-line argument when it is a playlist file, otherwise null.</summary>
+    private static string? GetPlaylistArgument(string[] args)
+    {
+        if (args == null || args.Length == 0 || string.IsNullOrWhiteSpace(args[0]))
+            return null;
+
+        try
+        {
+            var path = Path.GetFullPath(args[0].Trim('"'));
+            var ext = Path.GetExtension(path);
+            var isPlaylist = ext.Equals(MediaConstants.PlaylistExtension, StringComparison.OrdinalIgnoreCase)
+                || ext.Equals(MediaConstants.LegacyPlaylistExtension, StringComparison.OrdinalIgnoreCase);
+            return isPlaylist ? path : null;
+        }
+        catch
+        {
+            return null;
         }
     }
 

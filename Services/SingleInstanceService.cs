@@ -30,6 +30,13 @@ public sealed class SingleInstanceService : IDisposable
     public event EventHandler? ActivationRequested;
 
     /// <summary>
+    /// Raised on the first instance when another launch was started with a file to open
+    /// (for example, a playlist double-clicked in File Explorer). The argument is the file path.
+    /// Raised after <see cref="ActivationRequested"/>, on a background thread.
+    /// </summary>
+    public event EventHandler<string>? OpenFileRequested;
+
+    /// <summary>
     /// Attempts to become the single running instance. Returns true when this process is the
     /// first/only instance (the caller should continue normally); false when another instance is
     /// already running (the caller should exit immediately). In the second case the running
@@ -40,7 +47,8 @@ public sealed class SingleInstanceService : IDisposable
     /// throws <see cref="AbandonedMutexException"/> (and still grants ownership) when the prior
     /// holder died without releasing, so a hard crash can never wedge future launches.
     /// </remarks>
-    public bool TryAcquire()
+    /// <param name="fileToOpen">A file this launch was asked to open; passed to the running instance when there is one.</param>
+    public bool TryAcquire(string? fileToOpen = null)
     {
         // Create-or-open the named mutex WITHOUT taking initial ownership, then try to grab it.
         // WaitOne(0) acquires a free mutex, throws (and still grants ownership) if the previous
@@ -62,7 +70,7 @@ public sealed class SingleInstanceService : IDisposable
         if (!acquired)
         {
             Serilog.Log.Information("Another instance is already running; signaling it and exiting.");
-            SignalExistingInstance();
+            SignalExistingInstance(fileToOpen);
             try { _mutex.Dispose(); } catch { }
             _mutex = null;
             return false;
@@ -73,8 +81,11 @@ public sealed class SingleInstanceService : IDisposable
         return true;
     }
 
-    /// <summary>Connects to the running instance's pipe and asks it to surface.</summary>
-    private static void SignalExistingInstance()
+    /// <summary>
+    /// Connects to the running instance's pipe and asks it to surface (and to open
+    /// <paramref name="fileToOpen"/>, sent on the line after the activate message).
+    /// </summary>
+    private static void SignalExistingInstance(string? fileToOpen)
     {
         // We currently hold the foreground (the user just launched us). Grant the existing
         // instance the right to steal foreground, otherwise Windows would only flash its taskbar.
@@ -91,6 +102,11 @@ public sealed class SingleInstanceService : IDisposable
                 client.Connect(timeout: 1000);
                 using var writer = new StreamWriter(client);
                 writer.Write(ActivateMessage);
+                if (!string.IsNullOrWhiteSpace(fileToOpen))
+                {
+                    writer.Write('\n');
+                    writer.Write(fileToOpen);
+                }
                 writer.Flush();
                 Serilog.Log.Information("Signaled existing instance to activate (attempt {Attempt}).", attempt);
                 return;
@@ -129,10 +145,18 @@ public sealed class SingleInstanceService : IDisposable
                         using (var reader = new StreamReader(server, leaveOpen: true))
                         {
                             var message = reader.ReadToEnd();
-                            if (message.Contains(ActivateMessage, StringComparison.Ordinal))
+                            if (message.StartsWith(ActivateMessage, StringComparison.Ordinal))
                             {
                                 Serilog.Log.Information("Activation requested by another launch.");
                                 ActivationRequested?.Invoke(this, EventArgs.Empty);
+
+                                var newline = message.IndexOf('\n');
+                                var file = newline >= 0 ? message[(newline + 1)..].Trim() : string.Empty;
+                                if (file.Length > 0)
+                                {
+                                    Serilog.Log.Information("Another launch asked to open {File}", file);
+                                    OpenFileRequested?.Invoke(this, file);
+                                }
                             }
                         }
                     }

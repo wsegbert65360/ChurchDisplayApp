@@ -105,7 +105,7 @@ Current behavior:
 - Adds supported media files only.
 - Supports drag-and-drop insertion and reordering.
 - Tracks dirty state for collection changes and per-item volume edits.
-- Saves `.pls` playlists as JSON v2:
+- Saves `.cdplaylist` playlists as JSON v2 (`.pls` is still loadable and offered as "Legacy Playlist" when saving; it was dropped as the default because `.pls` is a standard media-player format that these JSON files are not):
 
 ```json
 {
@@ -113,11 +113,14 @@ Current behavior:
   "items": [
     {
       "fullPath": "C:\\Media\\song.mp4",
+      "relativePath": "..\\Media\\song.mp4",
       "volume": 1.0
     }
   ]
 }
 ```
+
+- The installer registers `.cdplaylist` to open in the app (and lists the app under "Open with" for `.pls`). A playlist passed on the command line is opened once the media engine is ready; if the app is already running, the new launch hands the path to it over the single-instance pipe.
 
 - Loads legacy playlists that are arrays of path strings.
 - Parses playlists transactionally so a failed load preserves the current playlist.

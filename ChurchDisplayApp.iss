@@ -24,6 +24,8 @@ ArchitecturesAllowed=x64
 PrivilegesRequired=admin
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\ChurchDisplayApp.exe
+; Tell Explorer to refresh file icons/associations after install and uninstall.
+ChangesAssociations=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -104,6 +106,19 @@ end;
 Source: "bin\Publish\win-x64\ChurchDisplayApp.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "bin\Publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,*.xml"
 Source: "LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
+
+[Registry]
+; Church Display playlists (.cdplaylist) open in the app when double-clicked.
+Root: HKA; Subkey: "Software\Classes\.cdplaylist"; ValueType: string; ValueName: ""; ValueData: "ChurchDisplayApp.Playlist"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.cdplaylist\OpenWithProgids"; ValueType: string; ValueName: "ChurchDisplayApp.Playlist"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\ChurchDisplayApp.Playlist"; ValueType: string; ValueName: ""; ValueData: "Church Display Playlist"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\ChurchDisplayApp.Playlist\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\ChurchDisplayApp.exe,0"
+Root: HKA; Subkey: "Software\Classes\ChurchDisplayApp.Playlist\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\ChurchDisplayApp.exe"" ""%1"""
+; Older playlists (.pls): offer the app under "Open with" only. .pls is a standard media-player
+; format, so the app does not take over its default program.
+Root: HKA; Subkey: "Software\Classes\.pls\OpenWithProgids"; ValueType: string; ValueName: "ChurchDisplayApp.Playlist"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\Applications\ChurchDisplayApp.exe\SupportedTypes"; ValueType: string; ValueName: ".cdplaylist"; ValueData: ""; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Applications\ChurchDisplayApp.exe\SupportedTypes"; ValueType: string; ValueName: ".pls"; ValueData: ""
 
 [Icons]
 Name: "{commonprograms}\Church Display App\Church Display App"; Filename: "{app}\ChurchDisplayApp.exe"
