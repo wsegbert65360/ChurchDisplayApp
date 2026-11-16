@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Media;
+using System.Windows.Interop;
 using Serilog;
 
 namespace ChurchDisplayApp.Services;
@@ -10,17 +10,23 @@ public class MonitorService
     [DllImport("user32.dll")]
     private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
 
-    [DllImport("user32.dll")]
+    // CharSet must match MonitorInfoEx: a Unicode-sized struct passed to the ANSI entry point is rejected,
+    // which made every monitor look invalid and enumeration return nothing.
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfoEx lpmi);
 
-    [DllImport("Shcore.dll")]
-    private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 
-    private const int MDT_EFFECTIVE_DPI = 0;
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out Rect rect);
+
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
 
     private delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData);
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct MonitorInfoEx
     {
         public uint cbSize;
@@ -135,34 +141,30 @@ public class MonitorService
 
         try
         {
-            var (scaleX, scaleY) = GetMonitorDipScale(window, monitor);
+            // Move the window with Win32 in screen pixels - the same units the monitor bounds are in.
+            // Going through WPF's Left/Top means converting pixels to DIPs, and a wrong scale there
+            // leaves the window on the operator's screen, where maximizing then keeps it.
             window.WindowStartupLocation = WindowStartupLocation.Manual;
+            var hwnd = new WindowInteropHelper(window).EnsureHandle();
             window.WindowState = WindowState.Normal;
-            window.Left = monitor.Left / scaleX;
-            window.Top = monitor.Top / scaleY;
-            window.Width = monitor.Width / scaleX;
-            window.Height = monitor.Height / scaleY;
+
+            if (!SetWindowPos(hwnd, IntPtr.Zero, monitor.Left, monitor.Top, monitor.Width, monitor.Height,
+                    SWP_NOZORDER | SWP_NOACTIVATE))
+            {
+                Log.Warning("SetWindowPos failed (error {Error}) moving live window to {Monitor}",
+                    Marshal.GetLastWin32Error(), monitor);
+            }
+
+            GetWindowRect(hwnd, out var placed);
+            Log.Information("Live window moved to monitor {Monitor}; window now at ({Left},{Top}) {Width}x{Height}",
+                monitor, placed.left, placed.top, placed.right - placed.left, placed.bottom - placed.top);
+
             window.WindowState = WindowState.Maximized;
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Error positioning window on monitor");
         }
-    }
-
-    private static (double ScaleX, double ScaleY) GetMonitorDipScale(Window window, MonitorBounds monitor)
-    {
-        if (monitor.Handle != IntPtr.Zero &&
-            GetDpiForMonitor(monitor.Handle, MDT_EFFECTIVE_DPI, out var dpiX, out var dpiY) == 0 &&
-            dpiX > 0 && dpiY > 0)
-        {
-            return (dpiX / 96.0, dpiY / 96.0);
-        }
-
-        var dpi = VisualTreeHelper.GetDpi(window);
-        var scaleX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1;
-        var scaleY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1;
-        return (scaleX, scaleY);
     }
 
     /// <summary>
