@@ -250,7 +250,9 @@ public partial class MainWindow : Window, IDisplayController
                     var liveMonitor = _monitorService.SelectDisplayMonitor(monitors);
                     if (liveMonitor != null)
                     {
-                        _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                        // Position before Show (so it never flashes on the primary screen),
+                        // then again after Show in case the first layout pass moved it.
+                        _monitorService.PositionWindowOnMonitor(_liveWindow, liveMonitor);
                         _liveWindow.Show();
                         _monitorService.PositionWindowOnMonitor(_liveWindow, liveMonitor);
                         _liveWindow.Topmost = true;
@@ -714,16 +716,19 @@ public partial class MainWindow : Window, IDisplayController
         }
         else
         {
-            PositionDisplayWindow();
+            var monitor = PositionDisplayWindow();
             _liveWindow.Show();
+            if (monitor != null)
+                _monitorService.PositionWindowOnMonitor(_liveWindow, monitor);
             _liveWindow.WindowState = WindowState.Maximized;
             _liveWindow.Topmost = true;
         }
     }
 
-    private void PositionDisplayWindow()
+    /// <returns>The monitor the window was placed on, or null if it was left on the primary screen.</returns>
+    private MonitorService.MonitorBounds? PositionDisplayWindow()
     {
-        if (_liveWindow == null) return;
+        if (_liveWindow == null) return null;
 
         var monitors = _monitorService.GetMonitors();
         if (monitors.Count >= 2)
@@ -731,14 +736,14 @@ public partial class MainWindow : Window, IDisplayController
             var liveMonitor = _monitorService.SelectDisplayMonitor(monitors);
             if (liveMonitor != null)
             {
-                _liveWindow.WindowStartupLocation = WindowStartupLocation.Manual;
                 _monitorService.PositionWindowOnMonitor(_liveWindow, liveMonitor);
                 _liveWindow.Topmost = true;
-                return;
+                return liveMonitor;
             }
         }
-        
+
         _liveWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        return null;
     }
 
     private void RecreateLiveOutputWindow()
@@ -761,9 +766,11 @@ public partial class MainWindow : Window, IDisplayController
             ViewModel.CurrentMediaTitle = "Idle";
         }
         
-        PositionDisplayWindow();
-        
+        var monitor = PositionDisplayWindow();
+
         _liveWindow.Show();
+        if (monitor != null)
+            _monitorService.PositionWindowOnMonitor(_liveWindow, monitor);
         _liveWindow.ShowBlank();
     }
 

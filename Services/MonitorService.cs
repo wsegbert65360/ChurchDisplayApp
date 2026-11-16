@@ -9,7 +9,9 @@ public class MonitorService
     [DllImport("user32.dll")]
     private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
 
-    [DllImport("user32.dll")]
+    // CharSet must match MonitorInfoEx (Auto => Unicode). Without it the ANSI entry point is
+    // called with a Unicode-sized struct, every call fails, and zero monitors are found.
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfoEx lpmi);
 
     private delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref Rect lprcMonitor, IntPtr dwData);
@@ -120,6 +122,19 @@ public class MonitorService
         return results;
     }
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
+
+    /// <summary>
+    /// Moves the window onto the given monitor and maximizes it there.
+    /// Monitor bounds are in Win32 pixel coordinates (as returned by EnumDisplayMonitors),
+    /// so the window is placed with SetWindowPos in that same coordinate space. Assigning
+    /// them to WPF's Left/Top (device-independent units) lands the window in the wrong place
+    /// whenever display scaling is not 100%.
+    /// </summary>
     public void PositionWindowOnMonitor(Window window, MonitorBounds monitor)
     {
         if (window == null || monitor == null)
@@ -127,11 +142,23 @@ public class MonitorService
 
         try
         {
-            window.Left = monitor.Left;
-            window.Top = monitor.Top;
-            window.Width = monitor.Width;
-            window.Height = monitor.Height;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+
+            // A maximized window can't be moved; restore first, move, then re-maximize
+            // so Windows maximizes it on the monitor it now sits on.
+            if (window.WindowState == WindowState.Maximized)
+                window.WindowState = WindowState.Normal;
+
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+            if (!SetWindowPos(hwnd, IntPtr.Zero, monitor.Left, monitor.Top, monitor.Width, monitor.Height,
+                    SWP_NOZORDER | SWP_NOACTIVATE))
+            {
+                Log.Warning("SetWindowPos failed (error {Error}) moving window to {Monitor}",
+                    Marshal.GetLastWin32Error(), monitor);
+            }
+
             window.WindowState = WindowState.Maximized;
+            Log.Information("Positioned {Title} on monitor {Monitor}", window.Title, monitor);
         }
         catch (Exception ex)
         {
